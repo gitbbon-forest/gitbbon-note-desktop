@@ -8,13 +8,11 @@
 >
 > *"VS Code의 강력한 엔진 위에 Milkdown의 감성을 입히다"*
 
-\<div align="center"\>
+<div align="center">
 
-[](https://www.google.com/search?q=LICENSE)
 [](https://github.com/microsoft/vscode)
-[](https://www.google.com/search?q=docs/strategy/snapshot_strategy.md)
 
-\</div\>
+</div>
 
 ## 1\. 프로젝트 개요
 
@@ -164,31 +162,8 @@ npm run gulp vscode-win32-x64-min
 
 -----
 
-## 7\. 문서 관리 및 AI 작업 가이드
-
-### 학습 자료 관리
-- **study/** 폴더: 기술 학습, 아키텍처 연구, 프로토타이핑 등 개발 과정에서 생성된 학습용 문서 보관
-- **docs/** 폴더: 프로젝트 공식 문서, API 명세, 사용자 가이드 등 정식 문서 보관
-
 ### AI Agent 작업 지침
-**🤖 AI Coding Agents:** 이 README 파일을 먼저 참고하여 프로젝트의 전체 구조와 정책을 이해한 후 작업을 진행해주세요.
-
-#### 정보 조회 우선순위
-1. **README.md** - 프로젝트 전체 구조, 아키텍처, 정책 이해
-2. **agents.md** - 최소한의 실행 지침 (링크 참조)
-3. **Copilot Instructions** - 상세 코딩 가이드라인
-4. **study/README.md** - 학습 자료 및 튜토리얼 안내
-
-#### 작업 원칙
-- **문서 관리:** study/ 폴더에 학습 자료, docs/ 폴더에 공식 문서 보관
-- **아키텍처 준수:** "Snapshot Strategy"와 "Built-in Extension" 접근 방식 유지
-- **디커플링 원칙:** VS Code와의 분리 원칙 준수
-- **일관성 유지:** 기존 코드 스타일과 패턴 따르기
-- **커밋 규칙:** 변경 사항을 명확하게 기록
-
-#### 작업 시 참고사항
-- study/ 폴더의 튜토리얼은 숫자 번호(00, 10, 20...)로 선후관계 관리
-- 문서 수정 시 study/README.md 참고 후 반영 그리고 다시 study/README.md를 수정
+자세한 에이전트 실행 지침은 [AGENTS.md](AGENTS.md)를 참고하세요.
 
 -----
 
