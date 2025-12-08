@@ -90,6 +90,10 @@
 #### 기본 UI 변경
 
 - **poc/branding**: VS Code → gitbbon 브랜딩 완전 변경
+- **poc/remove-dev-ui**: 개발자 UI 제거
+- **poc/remove-dev-settings**: 개발자 설정 제거
+- **poc/remove-dev-commands**: 개발자 명령어 제거
+- **poc/remove-dev-shortcuts**: 개발자 단축키 제거
 
 #### 편집환경
 
