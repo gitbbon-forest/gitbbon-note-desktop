@@ -41,15 +41,15 @@
 
 ### 기술 스택
 
-| 구분 | 기술 | 설명 |
-|------|------|------|
-| **Core** | **Electron / VS Code** | 검증된 크로스 플랫폼 데스크탑 앱 엔진 |
-| **Editor** | **Milkdown** | VS Code Webview 위에서 돌아가는 WYSIWYG 마크다운 에디터 |
-| **Styling** | **CSS Variables** | VS Code 테마 시스템과 100% 호환되는 자동 테마 적용 |
-| **AI** | **Chat Participant API** | VS Code 내장 Chat UI를 활용한 Custom AI Agent 구현 |
-| **Search** | **Ripgrep** | VS Code에 내장된 현존 최강의 파일 검색 엔진 활용 |
-| **Git** | **Native Git** | VS Code의 Git 연동 기능을 간소화 및 자동화하여 사용 |
-| **Backend** | **Forgejo** | (선택 사항) 중앙 집중식 원격 저장소 및 사용자 인증 |
+| 구분          | 기술                       | 설명                                         |
+| ----------- | ------------------------ | ------------------------------------------ |
+| **Core**    | **Electron / VS Code**   | 검증된 크로스 플랫폼 데스크탑 앱 엔진                      |
+| **Editor**  | **Milkdown**             | VS Code Webview 위에서 돌아가는 WYSIWYG 마크다운 에디터  |
+| **Styling** | **CSS Variables**        | VS Code 테마 시스템과 100% 호환되는 자동 테마 적용         |
+| **AI**      | **Chat Participant API** | VS Code 내장 Chat UI를 활용한 Custom AI Agent 구현 |
+| **Search**  | **Ripgrep**              | VS Code에 내장된 현존 최강의 파일 검색 엔진 활용            |
+| **Git**     | **Native Git**           | VS Code의 Git 연동 기능을 간소화 및 자동화하여 사용         |
+| **Backend** | **Forgejo**              | (선택 사항) 중앙 집중식 원격 저장소 및 사용자 인증             |
 
 -----
 
@@ -88,26 +88,48 @@
 다음 브랜치에서 기술적 가능성을 독립적으로 검증:
 
 #### 기본 UI 변경
+
 - **poc/branding**: VS Code → gitbbon 브랜딩 완전 변경
 
 #### 편집환경
+
 - **poc/custom-editor**: .md 파일을 Milkdown WYSIWYG 에디터로 표시
 - **poc/title-explorer**: 파일명 대신 문서 제목 기반 사이드바 탐색기
 - **poc/ai-agent**: VS Code Chat Participant API를 활용한 AI 연동
 
 #### Git 연동
+
 - **poc/project-management**: Gitbbon_Notes 자동 생성 및 프로젝트 관리 시스템
 - **poc/git-automation**: Invisible Git - 자동 커밋 및 병합
 
+#### poc/title-explorer
+
+- **poc/title-explorer**: 파일명 대신 문서 제목 기반 사이드바 탐색기
+- md 파일인 경우 파일명 대신 문서 제목을 파싱해서 표시
+- 문서 제목은 md 포맷 내에 yaml frontmatter로 정의하고, 문서 생성시 자동으로 포메터 적용
+
+```yml
+# 2025-12-07.md
+---
+title: "Gitbbon이란?"
+creted_at: "2025-12-07 15:42:00 +09:00"
+updated_at: "2025-12-07 15:42:00 +09:00"
+---
+```
+
+#### poc/custom-editor
+
+- yaml frontmatter를 포함한 .md 파일을 Milkdown WYSIWYG 에디터로 표시
+- .md 파일을 제목은 textfield form, 본문은 Milkdown WYSIWYG 에디터로 표시
+
 #### 프로젝트 관리 시스템 (poc/project-management)
+
 앱 최초 실행시 자동으로 환경 설정:
 - `~/Gitbbon_Notes/` 폴더 생성
 - `~/Gitbbon_Notes/default/` 기본 프로젝트 생성
 - 각 프로젝트는 독립 Git 저장소
 - `workspace.json`으로 프로젝트 목록 관리
 - Command Palette로 프로젝트 간 쉬운 전환
-
-
 
 -----
 
@@ -163,6 +185,7 @@ npm run gulp vscode-win32-x64-min
 -----
 
 ### AI Agent 작업 지침
+
 자세한 에이전트 실행 지침은 [AGENTS.md](AGENTS.md)를 참고하세요.
 
 -----
