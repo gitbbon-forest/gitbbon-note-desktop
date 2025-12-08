@@ -85,26 +85,31 @@
   - [ ] **Diet 작업:** 불필요한 내장 익스텐션(TypeScript, Debug, Emmet 등) 제거 및 빌드 최적화
   - [ ] 마켓플레이스 연결 해제 및 텔레메트리(추적) 비활성화
 
-### 🧩 Step 1: Core Extensions (기본 기능)
+### 🎯 POC 단계: 기술적 검증
 
-  - [ ] **Gitbbon Core Extension 개발**
-      - [ ] **Custom Editor Provider:** `.md` 파일 연결 → Milkdown Webview 구동
-      - [ ] **Tree View Provider:** 사이드바에 '제목 기반 파일 탐색기' 구현
-      - [ ] **Theme Bridge:** VS Code 테마 변수를 Milkdown에 주입
+다음 브랜치에서 기술적 가능성을 독립적으로 검증:
 
-### 🤖 Step 2: Intelligence (AI & Git)
+#### 기본 UI 변경
+- **poc/branding**: VS Code → gitbbon 브랜딩 완전 변경
 
-  - [ ] **AI Agent 구현 (Chat Participant API)**
-      - [ ] 로컬 LLM (Ollama) 및 OpenAI API 연동
-      - [ ] Agent ↔ Milkdown 간 Message Passing (문서 편집 기능)
-  - [ ] **Invisible Git 구현**
-      - [ ] 저장 시 자동 커밋 (Auto Commit)
-      - [ ] **GitGraph** 내장 및 UI 단순화
+#### 편집환경
+- **poc/custom-editor**: .md 파일을 Milkdown WYSIWYG 에디터로 표시
+- **poc/title-explorer**: 파일명 대신 문서 제목 기반 사이드바 탐색기
+- **poc/ai-agent**: VS Code Chat Participant API를 활용한 AI 연동
 
-### ☁️ Step 3: Cloud Integration (Forgejo)
+#### Git 연동
+- **poc/project-management**: Gitbbon_Notes 자동 생성 및 프로젝트 관리 시스템
+- **poc/git-automation**: Invisible Git - 자동 커밋 및 병합
 
-  - [ ] Forgejo OAuth2 연동
-  - [ ] 백그라운드 자동 동기화 (Push/Pull)
+#### 프로젝트 관리 시스템 (poc/project-management)
+앱 최초 실행시 자동으로 환경 설정:
+- `~/Gitbbon_Notes/` 폴더 생성
+- `~/Gitbbon_Notes/default/` 기본 프로젝트 생성
+- 각 프로젝트는 독립 Git 저장소
+- `workspace.json`으로 프로젝트 목록 관리
+- Command Palette로 프로젝트 간 쉬운 전환
+
+
 
 -----
 
