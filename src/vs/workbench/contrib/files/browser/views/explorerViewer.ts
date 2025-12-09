@@ -921,7 +921,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// File Label
 		if (!editableData) {
 			templateData.label.element.style.display = 'flex';
-			this.renderStat(stat, stat.name, undefined, node.filterData, templateData);
+			this.renderStat(stat, stat.title || stat.name, undefined, node.filterData, templateData);
 		}
 
 		// Input Box
@@ -945,7 +945,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			templateData.label.element.style.display = 'flex';
 
 			const id = `compressed-explorer_${CompressedNavigationController.ID++}`;
-			const labels = node.element.elements.map(e => e.name);
+			const labels = node.element.elements.map(e => e.title || e.name);
 
 			// If there is a fuzzy score, we need to adjust the offset of the score
 			// to align with the last stat of the compressed label
