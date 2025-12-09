@@ -343,7 +343,15 @@ export class PaneCompositeBar extends Disposable {
 			// Pin it by default if it is new
 			const cachedViewContainer = this.cachedViewContainers.filter(({ id }) => id === viewContainer.id)[0];
 			if (!cachedViewContainer) {
-				this.compositeBar.pin(viewContainer.id);
+				// git-note: Do not pin 'Run & Debug' and 'Extensions' by default
+				if (viewContainer.id !== 'workbench.view.debug' && viewContainer.id !== 'workbench.view.extensions') {
+					this.compositeBar.pin(viewContainer.id);
+				} else {
+					// git-note: Ensure they are unpinned if auto-pinned by underlying logic
+					if (this.compositeBar.isPinned(viewContainer.id)) {
+						this.compositeBar.unpin(viewContainer.id);
+					}
+				}
 			}
 
 			// Active
@@ -434,6 +442,13 @@ export class PaneCompositeBar extends Disposable {
 	private shouldBeHidden(viewContainerOrId: string | ViewContainer, cachedViewContainer?: ICachedViewContainer): boolean {
 		const viewContainer = isString(viewContainerOrId) ? this.getViewContainer(viewContainerOrId) : viewContainerOrId;
 		const viewContainerId = isString(viewContainerOrId) ? viewContainerOrId : viewContainerOrId.id;
+
+		// git-note: Hide 'Run & Debug' and 'Extensions' if they are not explicitly pinned
+		if (viewContainerId === 'workbench.view.debug' || viewContainerId === 'workbench.view.extensions') {
+			if (!this.compositeBar.isPinned(viewContainerId)) {
+				return true;
+			}
+		}
 
 		if (viewContainer) {
 			if (viewContainer.hideIfEmpty) {
@@ -568,7 +583,7 @@ export class PaneCompositeBar extends Disposable {
 						id: viewContainer.id,
 						name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
 						order: viewContainer.order,
-						pinned: true,
+						pinned: viewContainer.id !== 'workbench.view.debug' && viewContainer.id !== 'workbench.view.extensions',
 						visible: !this.shouldBeHidden(viewContainer),
 					});
 				}
