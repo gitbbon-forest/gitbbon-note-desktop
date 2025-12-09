@@ -97,9 +97,9 @@
 > **Branch:** `poc/editor-ux`
 > **Goal:** 마크다운에 최적화된 저작 환경 구축
 
-- [ ] **Custom Editor (Milkdown):** `.md` 파일을 위한 WYSIWYG 에디터 통합 (`poc/custom-editor`)
-  - [ ] YAML Frontmatter 파싱 및 폼 UI 제공
-  - [ ] Milkdown 에디터 임베딩
+- [x] **Custom Editor (Milkdown):** `.md` 파일을 위한 WYSIWYG 에디터 통합 (`poc/custom-editor`)
+  - [x] YAML Frontmatter 파싱 및 폼 UI 제공
+  - [x] Milkdown 에디터 임베딩
 - [ ] **Title Explorer:** 파일명 대신 YAML Frontmatter의 `title`을 보여주는 탐색기 구현 (`poc/title-explorer`)
 - [ ] **Welcome Experience:** 초기 실행 시 복잡한 "Get Started" 대신 심플한 "새 노트 만들기" 화면 제공 (`poc/welcome-experience`)
 

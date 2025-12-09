@@ -1,0 +1,103 @@
+{
+	"name": "gitbbon-editor",
+	"displayName": "Gitbbon Editor",
+	"description": "WYSIWYG Markdown Editor with Milkdown for Gitbbon",
+	"version": "0.1.0",
+	"publisher": "gitbbon",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.70.0"
+	},
+	"main": "./out/extension.js",
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onCustomEditor:gitbbon.editor"
+	],
+	"capabilities": {
+		"virtualWorkspaces": true,
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
+	"contributes": {
+		"customEditors": [
+			{
+				"viewType": "gitbbon.editor",
+				"displayName": "Gitbbon Editor",
+				"priority": "default",
+				"selector": [
+					{
+						"filenamePattern": "*.md"
+					}
+				]
+			}
+		],
+		"commands": [
+			{
+				"command": "gitbbon.editor.openEditor",
+				"title": "Open with Gitbbon Editor",
+				"category": "Gitbbon"
+			}
+		],
+		"menus": {
+			"explorer/context": [
+				{
+					"command": "gitbbon.editor.openEditor",
+					"when": "resourceLangId == markdown",
+					"group": "navigation"
+				}
+			]
+		},
+		"configuration": {
+			"title": "Gitbbon Editor",
+			"properties": {
+				"gitbbon.editor.autoSave": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically save changes"
+				},
+				"gitbbon.editor.theme": {
+					"type": "string",
+					"default": "auto",
+					"enum": [
+						"auto",
+						"light",
+						"dark"
+					],
+					"description": "Editor theme"
+				}
+			}
+		}
+	},
+	"scripts": {
+		"compile": "gulp compile-extension:gitbbon-editor && npm run build-webview",
+		"watch": "gulp watch-extension:gitbbon-editor & npm run watch-webview",
+		"build": "npm run compile",
+		"build-webview": "node ./esbuild.mjs",
+		"watch-webview": "node ./esbuild.mjs --watch"
+	},
+	"dependencies": {
+		"@milkdown/core": "^7.5.1",
+		"@milkdown/ctx": "^7.5.1",
+		"@milkdown/plugin-history": "^7.5.1",
+		"@milkdown/plugin-listener": "^7.5.1",
+		"@milkdown/plugin-slash": "^7.5.1",
+		"@milkdown/preset-commonmark": "^7.5.1",
+		"@milkdown/preset-gfm": "^7.5.1",
+		"@milkdown/prose": "^7.5.1",
+		"@milkdown/theme-nord": "^7.5.1",
+		"yaml": "^2.3.4"
+	},
+	"devDependencies": {
+		"@types/node": "22.x",
+		"@types/vscode": "^1.70.0",
+		"@types/vscode-webview": "^1.57.0",
+		"esbuild": "0.27.1"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/opentutorials/gitbbon.git"
+	}
+}
