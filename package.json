@@ -1,9 +1,9 @@
 {
-  "name": "code-oss-dev",
+  "name": "gitbbon-dev",
   "version": "1.108.0",
   "distro": "ac62b183885af851634b215f084a75e84d439948",
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "egoing"
   },
   "license": "MIT",
   "main": "./out/main.js",
