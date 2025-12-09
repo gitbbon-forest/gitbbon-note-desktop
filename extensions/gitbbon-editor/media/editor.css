@@ -1,0 +1,139 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Gitbbon. All rights reserved.
+ *  Licensed under the MIT License.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	margin: 0;
+	padding: 0;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+}
+
+/* Frontmatter Editor */
+.frontmatter-editor {
+	padding: 20px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	background-color: var(--vscode-editor-background);
+}
+
+.frontmatter-field {
+	margin-bottom: 12px;
+}
+
+.frontmatter-field label {
+	display: block;
+	margin-bottom: 4px;
+	font-weight: 600;
+	font-size: 12px;
+	text-transform: uppercase;
+	color: var(--vscode-descriptionForeground);
+}
+
+.frontmatter-field input {
+	width: 100%;
+	padding: 8px;
+	border: 1px solid var(--vscode-input-border);
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-family: inherit;
+	font-size: 14px;
+	box-sizing: border-box;
+}
+
+.frontmatter-field input:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+/* Milkdown Editor */
+.milkdown-editor {
+	padding: 20px;
+	min-height: calc(100vh - 200px);
+}
+
+.milkdown-editor .milkdown {
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+}
+
+/* Milkdown 테마 오버라이드 */
+.milkdown .editor {
+	background-color: transparent;
+}
+
+.milkdown .ProseMirror {
+	padding: 0;
+	font-size: 16px;
+	line-height: 1.6;
+}
+
+.milkdown .ProseMirror:focus {
+	outline: none;
+}
+
+/* Markdown 스타일 */
+.milkdown h1 {
+	font-size: 2em;
+	margin-top: 0.67em;
+	margin-bottom: 0.67em;
+	font-weight: bold;
+}
+
+.milkdown h2 {
+	font-size: 1.5em;
+	margin-top: 0.83em;
+	margin-bottom: 0.83em;
+	font-weight: bold;
+}
+
+.milkdown h3 {
+	font-size: 1.17em;
+	margin-top: 1em;
+	margin-bottom: 1em;
+	font-weight: bold;
+}
+
+.milkdown p {
+	margin-top: 1em;
+	margin-bottom: 1em;
+}
+
+.milkdown code {
+	background-color: var(--vscode-textCodeBlock-background);
+	padding: 2px 4px;
+	border-radius: 3px;
+	font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+}
+
+.milkdown pre {
+	background-color: var(--vscode-textCodeBlock-background);
+	padding: 12px;
+	border-radius: 4px;
+	overflow-x: auto;
+}
+
+.milkdown blockquote {
+	border-left: 4px solid var(--vscode-textBlockQuote-border);
+	padding-left: 16px;
+	margin-left: 0;
+	color: var(--vscode-textBlockQuote-foreground);
+}
+
+.milkdown a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.milkdown a:hover {
+	text-decoration: underline;
+}
+
+.milkdown ul,
+.milkdown ol {
+	padding-left: 2em;
+}
+
+.milkdown li {
+	margin: 0.5em 0;
+}
