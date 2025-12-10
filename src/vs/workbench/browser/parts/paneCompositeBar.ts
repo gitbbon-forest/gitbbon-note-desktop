@@ -445,7 +445,8 @@ export class PaneCompositeBar extends Disposable {
 
 		// git-note: Hide 'Run & Debug' and 'Extensions' if they are not explicitly pinned
 		if (viewContainerId === 'workbench.view.debug' || viewContainerId === 'workbench.view.extensions') {
-			if (!this.compositeBar.isPinned(viewContainerId)) {
+			// compositeBar may not be initialized yet during constructor
+			if (this.compositeBar && !this.compositeBar.isPinned(viewContainerId)) {
 				return true;
 			}
 		}

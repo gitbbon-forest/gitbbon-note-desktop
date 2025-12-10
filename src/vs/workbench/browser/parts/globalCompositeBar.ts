@@ -52,7 +52,7 @@ export class GlobalCompositeBar extends Disposable {
 
 	readonly element: HTMLElement;
 
-	private readonly globalActivityAction = this._register(new Action(GLOBAL_ACTIVITY_ID));
+	// private readonly globalActivityAction = this._register(new Action(GLOBAL_ACTIVITY_ID));
 	private readonly accountAction = this._register(new Action(ACCOUNTS_ACTIVITY_ID));
 	private readonly globalActivityActionBar: ActionBar;
 
