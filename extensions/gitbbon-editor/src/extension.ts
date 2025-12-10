@@ -46,7 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(openEditorCommand);
 
-	console.log('Gitbbon Editor extension activated');
+	console.log('Gitbbon Editor extension activated!');
 }
 
 /**

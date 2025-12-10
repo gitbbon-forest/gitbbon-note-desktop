@@ -13,7 +13,6 @@ import { getNonce } from './util';
  */
 export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 
-
 	constructor(private readonly context: vscode.ExtensionContext) { }
 
 	/**
@@ -29,7 +28,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			enableScripts: true,
 			localResourceRoots: [
 				vscode.Uri.joinPath(this.context.extensionUri, 'media'),
-				vscode.Uri.joinPath(this.context.extensionUri, 'out', 'webview')
+				vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview')
 			]
 		};
 
@@ -109,7 +108,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 	 */
 	private getHtmlForWebview(webview: vscode.Webview): string {
 		const scriptUri = webview.asWebviewUri(
-			vscode.Uri.joinPath(this.context.extensionUri, 'out', 'webview', 'main.js')
+			vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview', 'main.js')
 		);
 
 		const styleUri = webview.asWebviewUri(

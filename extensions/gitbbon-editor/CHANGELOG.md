@@ -1,12 +1,9 @@
-# Changelog
+# Change Log
 
-## [0.1.0] - 2025-12-09
+All notable changes to the "gitbbon-editor-2" extension will be documented in this file.
 
-### Added
-- Initial release of Gitbbon Editor
-- Milkdown-based WYSIWYG markdown editor
-- YAML Frontmatter parsing and form UI
-- Custom Editor Provider for `.md` files
-- VS Code theme integration
-- Auto-save functionality
-- Real-time content synchronization between editor and document
+Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+
+## [Unreleased]
+
+- Initial release
