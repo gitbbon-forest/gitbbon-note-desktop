@@ -12,7 +12,7 @@
   "scripts": {
     "test": "echo Please run any of the test scripts from the scripts folder.",
     "start": "./scripts/code.sh",
-    "start:fresh": "rm -rf /tmp/vscode-test-data && ./scripts/code.sh --user-data-dir /tmp/vscode-test-data",
+    "start:fresh": "rm -rf /tmp/vscode-test-data; rm -rf ./out ; ./scripts/code.sh --user-data-dir /tmp/vscode-test-data",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
     "test-browser-no-install": "node test/unit/browser/index.js",
     "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --timeout=5000 --exit",
