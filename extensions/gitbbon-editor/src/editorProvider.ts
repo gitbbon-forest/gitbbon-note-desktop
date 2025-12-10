@@ -13,7 +13,6 @@ import { getNonce } from './util';
  */
 export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 
-
 	constructor(private readonly context: vscode.ExtensionContext) { }
 
 	/**
@@ -29,7 +28,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			enableScripts: true,
 			localResourceRoots: [
 				vscode.Uri.joinPath(this.context.extensionUri, 'media'),
-				vscode.Uri.joinPath(this.context.extensionUri, 'out', 'webview')
+				vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview')
 			]
 		};
 
@@ -109,11 +108,14 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 	 */
 	private getHtmlForWebview(webview: vscode.Webview): string {
 		const scriptUri = webview.asWebviewUri(
-			vscode.Uri.joinPath(this.context.extensionUri, 'out', 'webview', 'main.js')
+			vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview', 'main.js')
 		);
 
 		const styleUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this.context.extensionUri, 'media', 'editor.css')
+		);
+		const mainStyleUri = webview.asWebviewUri(
+			vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview', 'main.css')
 		);
 
 		const nonce = getNonce();
@@ -125,11 +127,11 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link href="${styleUri}" rel="stylesheet">
+	<link href="${mainStyleUri}" rel="stylesheet">
 	<title>Gitbbon Editor</title>
 </head>
 <body>
-	<div id="frontmatter-editor" class="frontmatter-editor"></div>
-	<div id="editor" class="milkdown-editor"></div>
+	<div id="root"></div>
 	<script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
