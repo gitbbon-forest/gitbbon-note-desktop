@@ -127,7 +127,9 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 	<title>Gitbbon Editor</title>
 </head>
 <body>
-	<div id="frontmatter-editor" class="frontmatter-editor"></div>
+	<div class="title-container">
+		<input type="text" id="title-input" class="title-input" placeholder="제목을 입력하세요">
+	</div>
 	<div id="editor" class="milkdown-editor"></div>
 	<script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

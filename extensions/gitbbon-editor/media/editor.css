@@ -11,39 +11,31 @@ body {
 	color: var(--vscode-editor-foreground);
 }
 
-/* Frontmatter Editor */
-.frontmatter-editor {
-	padding: 20px;
+/* Title Input */
+.title-container {
+	padding: 20px 20px 16px 20px;
 	border-bottom: 1px solid var(--vscode-panel-border);
-	background-color: var(--vscode-editor-background);
 }
 
-.frontmatter-field {
-	margin-bottom: 12px;
-}
-
-.frontmatter-field label {
-	display: block;
-	margin-bottom: 4px;
-	font-weight: 600;
-	font-size: 12px;
-	text-transform: uppercase;
-	color: var(--vscode-descriptionForeground);
-}
-
-.frontmatter-field input {
+.title-input {
 	width: 100%;
-	padding: 8px;
-	border: 1px solid var(--vscode-input-border);
-	background-color: var(--vscode-input-background);
-	color: var(--vscode-input-foreground);
+	padding: 12px 0;
+	border: none;
+	background-color: transparent;
+	color: var(--vscode-editor-foreground);
 	font-family: inherit;
-	font-size: 14px;
+	font-size: 28px;
+	font-weight: 600;
 	box-sizing: border-box;
 }
 
-.frontmatter-field input:focus {
-	outline: 1px solid var(--vscode-focusBorder);
+.title-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+	opacity: 0.6;
+}
+
+.title-input:focus {
+	outline: none;
 }
 
 /* Milkdown Editor */
