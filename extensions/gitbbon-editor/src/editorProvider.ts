@@ -114,6 +114,9 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		const styleUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this.context.extensionUri, 'media', 'editor.css')
 		);
+		const mainStyleUri = webview.asWebviewUri(
+			vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview', 'main.css')
+		);
 
 		const nonce = getNonce();
 
@@ -124,13 +127,11 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link href="${styleUri}" rel="stylesheet">
+	<link href="${mainStyleUri}" rel="stylesheet">
 	<title>Gitbbon Editor</title>
 </head>
 <body>
-	<div class="title-container">
-		<input type="text" id="title-input" class="title-input" placeholder="제목을 입력하세요">
-	</div>
-	<div id="editor" class="milkdown-editor"></div>
+	<div id="root"></div>
 	<script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

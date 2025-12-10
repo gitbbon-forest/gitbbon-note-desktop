@@ -9,12 +9,21 @@ body {
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
 	background-color: var(--vscode-editor-background);
 	color: var(--vscode-editor-foreground);
+	height: 100vh;
+	overflow: hidden;
+}
+
+#root {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
 }
 
 /* Title Input */
 .title-container {
 	padding: 20px 20px 16px 20px;
 	border-bottom: 1px solid var(--vscode-panel-border);
+	flex-shrink: 0;
 }
 
 .title-input {
@@ -40,24 +49,31 @@ body {
 
 /* Milkdown Editor */
 .milkdown-editor {
-	padding: 20px;
-	min-height: calc(100vh - 200px);
+	/* padding: 20px; */ /* Moved padding inside commonmark/milkdown-theme often handles it, but let's keep it if needed. Actually with MilkdownProvider, we might need padding on wrapper or inside */
+    /* The provided editor.css had .milkdown-editor padding: 20px. */
+    padding: 20px;
+	flex-grow: 1;
+	overflow-y: auto;
 }
 
+/* Ensure Milkdown takes full height of container */
 .milkdown-editor .milkdown {
-	background-color: var(--vscode-editor-background);
-	color: var(--vscode-editor-foreground);
+	min-height: 100%; /* Changed from height:100% to min-height for scrolling? */
+    /* If .milkdown-editor is overflow-y: auto, then .milkdown just needs to grow. */
 }
 
 /* Milkdown 테마 오버라이드 */
 .milkdown .editor {
 	background-color: transparent;
+	/* height: 100%; */ /* editor itself grows with content */
+    min-height: 100%;
 }
 
 .milkdown .ProseMirror {
 	padding: 0;
 	font-size: 16px;
 	line-height: 1.6;
+	min-height: 100%;
 }
 
 .milkdown .ProseMirror:focus {

@@ -46,7 +46,7 @@ async function main() {
 	// Webview 빌드
 	const webviewCtx = await esbuild.context({
 		entryPoints: [
-			'src/webview/main.ts'
+			'src/webview/main.tsx'
 		],
 		bundle: true,
 		format: 'iife',
@@ -56,6 +56,12 @@ async function main() {
 		platform: 'browser',
 		outfile: 'dist/webview/main.js',
 		logLevel: 'silent',
+		loader: {
+			'.ttf': 'file',
+			'.woff': 'file',
+			'.woff2': 'file',
+			'.eot': 'file',
+		},
 		plugins: [
 			esbuildProblemMatcherPlugin,
 		],
