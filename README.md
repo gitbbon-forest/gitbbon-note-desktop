@@ -79,7 +79,7 @@
 - [x] **Setup:** VS Code 소스 코드 포크 및 빌드 환경 구성
 - [x] **Product:** `product.json` 수정 (브랜딩 변경: Code OSS -> Gitbbon)
 - [ ] **Branding:** 아이콘, 로고 및 윈도우 타이틀 등 시각적 요소 전면 교체 (`poc/branding`)
-- [ ] **Remove Developer UI:** 상태바, 액티비티바, 디버그 패널, 미니맵 등 제거 (`poc/remove-dev-ui`)
+- [ ] **Remove Developer UI:** 디버그 패널 (`poc/remove-dev-ui`)
 - [ ] **Remove Built-in Extensions:** TypeScript, Debug, Emmet 등 노트 앱에 불필요한 내장 확장 제거 (`poc/remove-builtin-extensions`)
 - [x] **Clean Menus:** 상단 메뉴(Run, Terminal, Go) 및 컨텍스트 메뉴에서 개발 관련 항목 제거 (`poc/clean-menus`)
 - [ ] **Cleanup Commands & Keybindings:** 개발자용 명령어 및 단축키 제거/숨김 (`poc/remove-dev-commands`)
