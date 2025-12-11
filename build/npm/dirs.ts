@@ -27,6 +27,7 @@ export const dirs = [
 	'extensions/search-result',
 	'extensions/simple-browser',
 	'extensions/terminal-suggest',
+	'extensions/gitbbon-manager',
 	'remote',
 	'remote/web',
 	'test/automation',

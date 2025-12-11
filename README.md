@@ -107,7 +107,7 @@
 > **Branch:** `poc/engine`
 > **Goal:** 보이지 않는 Git과 똑똑한 AI 조수
 
-- [ ] **Project Management:** GitHub 연동 및 `~/Gitbbon_Notes` 자동 관리 (`poc/project-management`)
+- [x] **Project Management:** GitHub 연동 및 `~/Gitbbon_Notes` 자동 관리 (`poc/project-management`)
 - [ ] **Invisible Git:** 백그라운드 자동 커밋 및 GitHub 동기화 구현 (`poc/git-automation`)
 - [ ] **AI Agent:** Chat Participant API를 활용한 문서 수정 및 충돌 해결 에이전트 (`poc/ai-agent`)
 

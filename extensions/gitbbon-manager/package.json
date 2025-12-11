@@ -1,0 +1,56 @@
+{
+  "name": "gitbbon-manager",
+  "displayName": "Gitbbon Manager",
+  "description": "Automatic management of Gitbbon Notes workspace",
+  "version": "0.1.0",
+  "publisher": "gitbbon",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitbbon.manager.initialize",
+        "title": "Initialize Gitbbon Notes",
+        "category": "Gitbbon"
+      }
+    ],
+    "configuration": {
+      "title": "Gitbbon Manager",
+      "properties": {
+        "gitbbon.manager.notesPath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path for Gitbbon Notes (leave empty for default ~/Documents/Gitbbon_Notes)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "22.x",
+    "@types/vscode": "^1.70.0",
+    "typescript": "^5.9.3"
+  }
+}
