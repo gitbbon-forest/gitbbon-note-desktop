@@ -146,7 +146,7 @@ body {
 
 .milkdown blockquote {
 	border-left: 4px solid var(--vscode-textBlockQuote-border);
-	padding-left: 16px;
+	padding-left: 8px !important;
 	margin-left: 0;
 	color: var(--vscode-textBlockQuote-foreground);
 }
@@ -165,6 +165,12 @@ body {
 	padding-left: 2em;
 }
 
-.milkdown li {
-	margin: 0.5em 0;
+/* Fix: Reset p margins inside li to align text with bullet */
+.milkdown li p {
+	margin-top: 0 !important;
+	margin-bottom: 0 !important;
+}
+
+.milkdown .milkdown-list-item-block li {
+	gap: 5px !important;
 }
