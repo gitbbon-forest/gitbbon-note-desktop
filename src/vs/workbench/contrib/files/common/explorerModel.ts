@@ -28,6 +28,7 @@ export class ExplorerModel implements IDisposable {
 	private _roots!: ExplorerItem[];
 	private _listener: IDisposable;
 	private readonly _onDidChangeRoots = new Emitter<void>();
+	private readonly _onDidChangeItem = new Emitter<ExplorerItem>();
 
 	constructor(
 		private readonly contextService: IWorkspaceContextService,
@@ -37,7 +38,7 @@ export class ExplorerModel implements IDisposable {
 		filesConfigService: IFilesConfigurationService,
 	) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
-			.map(folder => new ExplorerItem(folder.uri, fileService, configService, filesConfigService, undefined, true, false, false, false, folder.name));
+			.map(folder => new ExplorerItem(folder.uri, fileService, configService, filesConfigService, undefined, true, false, false, false, folder.name, undefined, false, (item) => this._onDidChangeItem.fire(item)));
 		setRoots();
 
 		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => {
@@ -52,6 +53,10 @@ export class ExplorerModel implements IDisposable {
 
 	get onDidChangeRoots(): Event<void> {
 		return this._onDidChangeRoots.event;
+	}
+
+	get onDidChangeItem(): Event<ExplorerItem> {
+		return this._onDidChangeItem.event;
 	}
 
 	/**
@@ -89,6 +94,7 @@ export class ExplorerItem {
 	_isDirectoryResolved: boolean; // used in tests
 	public error: Error | undefined = undefined;
 	private _isExcluded = false;
+	private _title: string | undefined;
 
 	public nestedParent: ExplorerItem | undefined;
 	public nestedChildren: ExplorerItem[] | undefined;
@@ -105,9 +111,42 @@ export class ExplorerItem {
 		private _locked?: boolean,
 		private _name: string = basenameOrAuthority(resource),
 		private _mtime?: number,
-		private _unknown = false
+		private _unknown = false,
+		private _onDidChange?: (item: ExplorerItem) => void
 	) {
 		this._isDirectoryResolved = false;
+		if (!this._isDirectory) {
+			this.resolveTitle();
+		}
+	}
+
+	get title(): string | undefined {
+		return this._title;
+	}
+
+	private async resolveTitle(): Promise<void> {
+		if (this._title !== undefined) {
+			return;
+		}
+		if (!this.name.toLowerCase().endsWith('.md')) {
+			return;
+		}
+
+		try {
+			// Read the first 500 bytes to check for frontmatter
+			const content = await this.fileService.readFile(this.resource, { length: 500 });
+			const text = content.value.toString();
+			const match = text.match(/^---\r?\n[\s\S]*?title:\s*(.+?)\r?\n[\s\S]*?---/);
+			if (match && match[1]) {
+				const newTitle = match[1].trim().replace(/^['"](.*)['"]$/, '$1'); // Remove quotes if present
+				if (this._title !== newTitle) {
+					this._title = newTitle;
+					this._onDidChange?.(this);
+				}
+			}
+		} catch (e) {
+			// Ignore errors (file might not exist or be readable)
+		}
 	}
 
 	get isExcluded(): boolean {
@@ -207,7 +246,7 @@ export class ExplorerItem {
 	}
 
 	static create(fileService: IFileService, configService: IConfigurationService, filesConfigService: IFilesConfigurationService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, fileService, configService, filesConfigService, parent, raw.isDirectory, raw.isSymbolicLink, raw.readonly, raw.locked, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory);
+		const stat = new ExplorerItem(raw.resource, fileService, configService, filesConfigService, parent, raw.isDirectory, raw.isSymbolicLink, raw.readonly, raw.locked, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory, parent ? parent['_onDidChange'] : undefined);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -258,6 +297,16 @@ export class ExplorerItem {
 		local._isSymbolicLink = disk.isSymbolicLink;
 		local.error = disk.error;
 
+		// Preserve title on merge
+		if (local._title) {
+			disk._title = local._title;
+		}
+
+		// Ensure onDidChange is preserved
+		if (!local['_onDidChange'] && disk['_onDidChange']) {
+			local['_onDidChange'] = disk['_onDidChange'];
+		}
+
 		// Merge Children if resolved
 		if (mergingDirectories && disk._isDirectoryResolved) {
 
@@ -300,6 +349,16 @@ export class ExplorerItem {
 	addChild(child: ExplorerItem): void {
 		// Inherit some parent properties to child
 		child._parent = this;
+
+		// Ensure child has the onDidChange callback
+		if (!child['_onDidChange'] && this['_onDidChange']) {
+			child['_onDidChange'] = this['_onDidChange'];
+			// Trigger title resolution now that we have the callback
+			if (!child.isDirectory && !child.title) {
+				child['resolveTitle']();
+			}
+		}
+
 		child.updateResource(false);
 		this.children.set(this.getPlatformAwareName(child.name), child);
 	}
@@ -452,6 +511,10 @@ export class ExplorerItem {
 
 		// Update Paths including children
 		this.updateResource(true);
+
+		// Re-resolve title
+		this._title = undefined;
+		this.resolveTitle();
 	}
 
 	/**

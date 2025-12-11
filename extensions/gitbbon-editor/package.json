@@ -1,0 +1,124 @@
+{
+  "name": "gitbbon-editor",
+  "displayName": "Gitbbon Editor",
+  "description": "WYSIWYG Markdown Editor with Milkdown for Gitbbon",
+  "version": "0.1.0",
+  "publisher": "gitbbon",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCustomEditor:gitbbon.editor"
+  ],
+  "main": "./dist/extension.js",
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "gitbbon.editor",
+        "displayName": "Gitbbon Editor",
+        "priority": "default",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "gitbbon.editor.openEditor",
+        "title": "Open with Gitbbon Editor",
+        "category": "Gitbbon"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "gitbbon.editor.openEditor",
+          "when": "resourceLangId == markdown",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Gitbbon Editor",
+      "properties": {
+        "gitbbon.editor.autoSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically save changes"
+        },
+        "gitbbon.editor.theme": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "light",
+            "dark"
+          ],
+          "description": "Editor theme"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "dependencies": {
+    "@milkdown-lab/plugin-menu": "^1.3.1",
+    "@milkdown/core": "^7.5.1",
+    "@milkdown/crepe": "^7.17.3",
+    "@milkdown/ctx": "^7.5.1",
+    "@milkdown/plugin-history": "^7.5.1",
+    "@milkdown/plugin-listener": "^7.5.1",
+    "@milkdown/plugin-slash": "^7.5.1",
+    "@milkdown/preset-commonmark": "^7.5.1",
+    "@milkdown/preset-gfm": "^7.5.1",
+    "@milkdown/prose": "^7.5.1",
+    "@milkdown/react": "^7.17.3",
+    "@milkdown/theme-nord": "^7.5.1",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "yaml": "^2.3.4"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@types/vscode": "^1.70.0",
+    "@types/vscode-webview": "^1.57.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.27.1",
+    "eslint": "^9.39.1",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.48.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/opentutorials/gitbbon.git"
+  }
+}

@@ -1,0 +1,170 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Gitbbon. All rights reserved.
+ *  Licensed under the MIT License.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	margin: 0;
+	padding: 0;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+	height: 100vh;
+	overflow: hidden;
+}
+
+#root {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+/* Title Input */
+.title-container {
+	padding: 20px 20px 16px 20px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	flex-shrink: 0;
+}
+
+.title-input {
+	width: 100%;
+	padding: 12px 0;
+	border: none;
+	background-color: transparent;
+	color: var(--vscode-editor-foreground);
+	font-family: inherit;
+	font-size: 28px;
+	font-weight: 600;
+	box-sizing: border-box;
+}
+
+.title-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+	opacity: 0.6;
+}
+
+.title-input:focus {
+	outline: none;
+}
+
+/* Milkdown Editor */
+.milkdown-editor {
+	/* padding: 20px; */ /* Moved padding inside commonmark/milkdown-theme often handles it, but let's keep it if needed. Actually with MilkdownProvider, we might need padding on wrapper or inside */
+    /* The provided editor.css had .milkdown-editor padding: 20px. */
+    padding: 20px;
+	flex-grow: 1;
+	overflow-y: auto;
+}
+
+/* Ensure Milkdown takes full height of container */
+.milkdown-editor .milkdown {
+	/* min-height: 100%; */ /* Changed from height:100% to min-height for scrolling? */
+    /* If .milkdown-editor is overflow-y: auto, then .milkdown just needs to grow. */
+    min-height: 100%;
+
+    /* Fix: Map Crepe theme variables to VS Code theme variables */
+    /* Moved here from .editor to ensure toolbar picks them up too */
+    --crepe-color-surface: var(--vscode-editorWidget-background);
+    --crepe-color-on-surface: var(--vscode-editorWidget-foreground);
+    --crepe-color-outline: var(--vscode-editor-foreground);
+    --crepe-color-hover: var(--vscode-list-hoverBackground);
+    --crepe-color-selected: var(--vscode-list-activeSelectionBackground);
+    --crepe-color-primary: var(--vscode-textLink-foreground);
+    --crepe-color-inline-code: var(--vscode-textCodeBlock-background);
+    --crepe-color-error: var(--vscode-editorError-foreground);
+
+    /* Shadow likely needs RGB values or pre-defined shadows. VS Code shadows are usually simple colors? */
+    /* Trying to use standard shadow variable if available, or just a dark shadow */
+    --crepe-shadow-1: 0 4px 8px var(--vscode-widget-shadow);
+    --crepe-shadow-2: 0 8px 16px var(--vscode-widget-shadow);
+
+    /* Fix: Cursor visibility */
+    caret-color: var(--vscode-editorCursor-foreground);
+    --prosemirror-virtual-cursor-color: var(--vscode-editorCursor-foreground);
+}
+
+/* Milkdown 테마 오버라이드 */
+.milkdown .editor {
+	background-color: transparent;
+	/* height: 100%; */ /* editor itself grows with content */
+    min-height: 100%;
+}
+
+.milkdown .ProseMirror {
+	padding: 0 !important;
+	max-width: none !important;
+	margin: 0 !important;
+	font-size: 16px;
+	line-height: 1.6;
+	min-height: 100%;
+}
+
+.milkdown .ProseMirror:focus {
+	outline: none;
+}
+
+/* Markdown 스타일 */
+.milkdown h1 {
+	font-size: 2em;
+	margin-top: 0.67em;
+	margin-bottom: 0.67em;
+	font-weight: bold;
+}
+
+.milkdown h2 {
+	font-size: 1.5em;
+	margin-top: 0.83em;
+	margin-bottom: 0.83em;
+	font-weight: bold;
+}
+
+.milkdown h3 {
+	font-size: 1.17em;
+	margin-top: 1em;
+	margin-bottom: 1em;
+	font-weight: bold;
+}
+
+.milkdown p {
+	margin-top: 1em;
+	margin-bottom: 1em;
+}
+
+.milkdown code {
+	background-color: var(--vscode-textCodeBlock-background);
+	padding: 2px 4px;
+	border-radius: 3px;
+	font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+}
+
+.milkdown pre {
+	background-color: var(--vscode-textCodeBlock-background);
+	padding: 12px;
+	border-radius: 4px;
+	overflow-x: auto;
+}
+
+.milkdown blockquote {
+	border-left: 4px solid var(--vscode-textBlockQuote-border);
+	padding-left: 16px;
+	margin-left: 0;
+	color: var(--vscode-textBlockQuote-foreground);
+}
+
+.milkdown a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.milkdown a:hover {
+	text-decoration: underline;
+}
+
+.milkdown ul,
+.milkdown ol {
+	padding-left: 2em;
+}
+
+.milkdown li {
+	margin: 0.5em 0;
+}

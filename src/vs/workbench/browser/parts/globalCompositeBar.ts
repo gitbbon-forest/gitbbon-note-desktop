@@ -52,7 +52,7 @@ export class GlobalCompositeBar extends Disposable {
 
 	readonly element: HTMLElement;
 
-	private readonly globalActivityAction = this._register(new Action(GLOBAL_ACTIVITY_ID));
+	// private readonly globalActivityAction = this._register(new Action(GLOBAL_ACTIVITY_ID));
 	private readonly accountAction = this._register(new Action(ACCOUNTS_ACTIVITY_ID));
 	private readonly globalActivityActionBar: ActionBar;
 
@@ -106,7 +106,8 @@ export class GlobalCompositeBar extends Disposable {
 			this.globalActivityActionBar.push(this.accountAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
 		}
 
-		this.globalActivityActionBar.push(this.globalActivityAction);
+		// git-note: Hide Manage (Global Activity) icon by default
+		// this.globalActivityActionBar.push(this.globalActivityAction);
 
 		this.registerListeners();
 	}
@@ -742,7 +743,7 @@ function simpleActivityContextMenuActions(storageService: IStorageService, isAcc
 }
 
 export function isAccountsActionVisible(storageService: IStorageService): boolean {
-	return storageService.getBoolean(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
+	return storageService.getBoolean(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, false);
 }
 
 function setAccountsActionVisible(storageService: IStorageService, visible: boolean) {

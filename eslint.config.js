@@ -2124,4 +2124,22 @@ export default tseslint.config(
 			'@typescript-eslint/consistent-generic-constructors': ['warn', 'constructor'],
 		}
 	},
+	// Gitbbon Editor extension
+	{
+		files: [
+			'extensions/gitbbon-editor/**/*.{ts,js,mts,cts,tsx,jsx}'
+		],
+		rules: {
+			'header/header': [
+				2,
+				'block',
+				[
+					'---------------------------------------------------------------------------------------------',
+					' *  Copyright (c) Gitbbon. All rights reserved.',
+					' *  Licensed under the MIT License.',
+					' *--------------------------------------------------------------------------------------------'
+				]
+			]
+		}
+	},
 );

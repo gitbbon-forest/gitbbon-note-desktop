@@ -60,6 +60,9 @@ export class ExplorerService implements IExplorerService {
 
 		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService, this.configurationService, this.filesConfigurationService);
 		this.disposables.add(this.model);
+		this.disposables.add(this.model.onDidChangeItem(item => {
+			this.view?.refresh(false, item);
+		}));
 		this.disposables.add(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
 
 		this.onFileChangesScheduler = new RunOnceScheduler(async () => {
