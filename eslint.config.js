@@ -2127,7 +2127,8 @@ export default tseslint.config(
 	// Gitbbon Editor extension
 	{
 		files: [
-			'extensions/gitbbon-editor/**/*.{ts,js,mts,cts,tsx,jsx}'
+			'extensions/gitbbon-editor/**/*.{ts,js,mts,cts,tsx,jsx}',
+			'extensions/gitbbon-manager/**/*.{ts,js,mts,cts,tsx,jsx}'
 		],
 		rules: {
 			'header/header': [
