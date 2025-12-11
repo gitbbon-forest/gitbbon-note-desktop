@@ -81,7 +81,7 @@
 - [ ] **Branding:** 아이콘, 로고 및 윈도우 타이틀 등 시각적 요소 전면 교체 (`poc/branding`)
 - [ ] **Remove Developer UI:** 상태바, 액티비티바, 디버그 패널, 미니맵 등 제거 (`poc/remove-dev-ui`)
 - [ ] **Remove Built-in Extensions:** TypeScript, Debug, Emmet 등 노트 앱에 불필요한 내장 확장 제거 (`poc/remove-builtin-extensions`)
-- [ ] **Clean Menus:** 상단 메뉴(Run, Terminal, Go) 및 컨텍스트 메뉴에서 개발 관련 항목 제거 (`poc/clean-menus`)
+- [x] **Clean Menus:** 상단 메뉴(Run, Terminal, Go) 및 컨텍스트 메뉴에서 개발 관련 항목 제거 (`poc/clean-menus`)
 - [ ] **Cleanup Commands & Keybindings:** 개발자용 명령어 및 단축키 제거/숨김 (`poc/remove-dev-commands`)
 - [ ] **Disable External Services:** 마켓플레이스 접근 차단 및 텔레메트리(추적) 비활성화 (`poc/disable-external-services`)
 
@@ -100,7 +100,7 @@
 - [x] **Custom Editor (Milkdown):** `.md` 파일을 위한 WYSIWYG 에디터 통합 (`poc/custom-editor`)
   - [x] YAML Frontmatter 파싱 및 폼 UI 제공
   - [x] Milkdown 에디터 임베딩
-- [ ] **Title Explorer:** 파일명 대신 YAML Frontmatter의 `title`을 보여주는 탐색기 구현 (`poc/title-explorer`)
+- [x] **Title Explorer:** 파일명 대신 YAML Frontmatter의 `title`을 보여주는 탐색기 구현 (`poc/title-explorer`)
 - [ ] **Welcome Experience:** 초기 실행 시 복잡한 "Get Started" 대신 심플한 "새 노트 만들기" 화면 제공 (`poc/welcome-experience`)
 
 ### 🧠 Phase 3: Engine (Git & AI)
