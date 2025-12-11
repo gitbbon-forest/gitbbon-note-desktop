@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Submit work log (push/issues)
-        uses: opentutorials-org/action-airtable-worklog@master
+        uses: egoing/action-airtable-worklog@master
         with:
           AIRTABLE_SECRET: ${{ secrets.AIRTABLE_SECRET }}
           AIRTABLE_BASE: ${{ secrets.AIRTABLE_BASE }}
