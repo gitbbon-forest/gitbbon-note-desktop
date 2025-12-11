@@ -66,6 +66,30 @@
 - **"문서 수정해줘":** 채팅창에서 명령하면 AI가 현재 열려있는 문서를 직접 수정(Edit)합니다.
 - **충돌 해결:** Git 충돌 발생 시 AI가 3가지 해결책을 제시하고 자동으로 병합합니다.
 
+### 프로젝트 관리 정책 (Project Policy)
+
+사용자가 파일 시스템을 직접 관리하는 부담을 줄이기 위해 다음과 같은 정책을 수행합니다.
+
+- **Root Directory:** 모든 프로젝트는 `~/Documents/Gitbbon_Notes` 하위에서 관리됩니다.
+- **Tracking & Context:** `projects.json` 매니페스트를 통해 프로젝트 목록과 마지막 접근 시간(Timestamp)을 추적합니다.
+- **Auto Restore:** 앱 실행 시, 가장 최근에 작업했던 프로젝트를 자동으로 불러옵니다.
+- **Silent Init:** 프로젝트 생성 시 `git init`을 백그라운드에서 수행하여 즉시 버전 관리를 시작합니다.
+
+**`projects.json` Structure:**
+
+```json
+{
+  "version": 1,
+  "projects": [
+    {
+      "name": "default",
+      "path": "/Users/username/Documents/Gitbbon_Notes/default",
+      "lastOpened": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
 ---
 
 ## 4. 구현 목표 (Roadmap) & TODO
