@@ -435,6 +435,14 @@ export class PaneCompositeBar extends Disposable {
 		const viewContainer = isString(viewContainerOrId) ? this.getViewContainer(viewContainerOrId) : viewContainerOrId;
 		const viewContainerId = isString(viewContainerOrId) ? viewContainerOrId : viewContainerOrId.id;
 
+		// git-note: Hide 'Run & Debug' and 'Extensions' if they are not explicitly pinned
+		if (viewContainerId === 'workbench.view.debug' || viewContainerId === 'workbench.view.extensions') {
+			// compositeBar may not be initialized yet during constructor
+			if (this.compositeBar && !this.compositeBar.isPinned(viewContainerId)) {
+				return true;
+			}
+		}
+
 		if (viewContainer) {
 			if (viewContainer.hideIfEmpty) {
 				if (this.viewService.isViewContainerActive(viewContainerId)) {
