@@ -22,6 +22,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	);
 	context.subscriptions.push(initializeCommand);
 
+	// Register autoCommit command
+	const autoCommitCommand = vscode.commands.registerCommand(
+		'gitbbon.manager.autoCommit',
+		async () => {
+			const result = await projectManager.autoCommit();
+			console.log('Auto Commit Result:', result);
+			return result;
+		}
+	);
+	context.subscriptions.push(autoCommitCommand);
+
+	// Register reallyFinal command
+	const reallyFinalCommand = vscode.commands.registerCommand(
+		'gitbbon.manager.reallyFinal',
+		async () => {
+			const result = await projectManager.reallyFinalCommit();
+			console.log('Really Final Result:', result);
+			return result;
+		}
+	);
+	context.subscriptions.push(reallyFinalCommand);
+
 	// Startup logic
 	// We run this slightly deferred to let VS Code settle, though 'activate' is already part of startup.
 	// We don't want to block extension activation too long, so we run async.
