@@ -16,6 +16,8 @@
 		// "noUnusedParameters": true,  /* Report errors on unused parameters. */
 	},
 	"exclude": [
-		"src/webview/**/*"
+		"src/webview/**/*",
+		"out",
+		"node_modules"
 	]
 }
