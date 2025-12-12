@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
 
+
 interface Project {
 	name: string;
 	path: string;
@@ -126,6 +127,7 @@ export class ProjectManager {
 		// 2. Git Init
 		const gitPath = path.join(projectPath, '.git');
 		if (!fs.existsSync(gitPath)) {
+			// Now that git is in PATH (injected by main process), we can just use simple exec
 			await new Promise<void>((resolve, reject) => {
 				cp.exec('git init', { cwd: projectPath }, (err) => {
 					if (err) {
