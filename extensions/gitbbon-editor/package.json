@@ -29,7 +29,8 @@
         "priority": "default",
         "selector": [
           {
-            "filenamePattern": "*.md"
+            "filenamePattern": "*.md",
+            "scheme": "file"
           }
         ]
       }
@@ -68,6 +69,11 @@
           ],
           "description": "Editor theme"
         }
+      }
+    },
+    "configurationDefaults": {
+      "workbench.editorAssociations": {
+        "{git,gitlens}:/**/*.md": "default"
       }
     }
   },
