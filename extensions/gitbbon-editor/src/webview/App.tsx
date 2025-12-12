@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { MilkdownEditor, MilkdownEditorRef } from './MilkdownEditor';
+import { ReallyFinalButton, SaveStatus } from './ReallyFinalButton';
 
 declare const acquireVsCodeApi: () => {
 	postMessage(message: any): void;
@@ -9,9 +10,24 @@ declare const acquireVsCodeApi: () => {
 
 const vscode = acquireVsCodeApi();
 
+// Debounce helper
+function debounce<T extends (...args: any[]) => void>(fn: T, delay: number): T {
+	let timeoutId: ReturnType<typeof setTimeout> | null = null;
+	return ((...args: Parameters<T>) => {
+		if (timeoutId) {
+			clearTimeout(timeoutId);
+		}
+		timeoutId = setTimeout(() => {
+			fn(...args);
+			timeoutId = null;
+		}, delay);
+	}) as T;
+}
+
 export const App = () => {
 	const [title, setTitle] = useState('');
 	const [editorContent, setEditorContent] = useState<string | null>(null);
+	const [saveStatus, setSaveStatus] = useState<SaveStatus>('committed');
 	const editorRef = useRef<MilkdownEditorRef>(null);
 	const titleRef = useRef('');
 
@@ -20,26 +36,41 @@ export const App = () => {
 		titleRef.current = title;
 	}, [title]);
 
-	const sendUpdate = (newTitle: string, newContent: string) => {
-		vscode.postMessage({
-			type: 'update',
-			frontmatter: { title: newTitle },
-			content: newContent
-		});
-	};
+	// Debounced send update (0.5s throttle)
+	const debouncedSendUpdate = useMemo(
+		() =>
+			debounce((newTitle: string, newContent: string) => {
+				vscode.postMessage({
+					type: 'update',
+					frontmatter: { title: newTitle },
+					content: newContent,
+				});
+				// After sending update, status becomes 'autoSaved' (file saved)
+				setSaveStatus('autoSaved');
+			}, 500),
+		[]
+	);
 
 	const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const newTitle = e.target.value;
 		setTitle(newTitle);
-		// Use current editor content if available, otherwise empty string
-		sendUpdate(newTitle, editorContent || '');
+		setSaveStatus('unsaved');
+		debouncedSendUpdate(newTitle, editorContent || '');
 	};
 
 	const handleEditorChangeWithTitle = useCallback((markdown: string) => {
-		// Update local state without triggering re-render if possible?
-		// But we need state to be consistent.
 		setEditorContent(markdown);
-		sendUpdate(titleRef.current, markdown);
+		setSaveStatus('unsaved');
+		debouncedSendUpdate(titleRef.current, markdown);
+	}, [debouncedSendUpdate]);
+
+	const handleReallyFinal = useCallback(() => {
+		// Send message to extension to perform "Really Final" commit
+		vscode.postMessage({
+			type: 'reallyFinal',
+		});
+		// Optimistically set status to committed
+		setSaveStatus('committed');
 	}, []);
 
 	useEffect(() => {
@@ -52,11 +83,7 @@ export const App = () => {
 					const remoteContent = message.content || '';
 
 					// Update Title
-					setTitle(prev => {
-						// Avoid overwriting if focused?
-						// For now accepting remote updates effectively
-						return remoteTitle;
-					});
+					setTitle(remoteTitle);
 
 					// Update Editor
 					if (editorContent === null) {
@@ -65,12 +92,15 @@ export const App = () => {
 					} else {
 						// Subsequent updates
 						if (editorRef.current) {
-							// Only update if content is actually different to avoid cursor jumps
-							// (Though Milkdown setContent might handle diffing or selection preservation? Likely not complete preservation)
-							// We rely on extension not echoing back identical content
 							editorRef.current.setContent(remoteContent);
 							setEditorContent(remoteContent);
 						}
+					}
+					break;
+				case 'statusUpdate':
+					// Extension can send status updates
+					if (message.status) {
+						setSaveStatus(message.status as SaveStatus);
 					}
 					break;
 			}
@@ -104,6 +134,11 @@ export const App = () => {
 					onChange={handleEditorChangeWithTitle}
 				/>
 			</div>
+			<ReallyFinalButton
+				status={saveStatus}
+				onReallyFinal={handleReallyFinal}
+			/>
 		</div>
 	);
 };
+
