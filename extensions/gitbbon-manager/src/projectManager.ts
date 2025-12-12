@@ -338,7 +338,7 @@ export class ProjectManager {
 	}
 
 	/**
-	 * Auto Commit: [현재브랜치]/auto-save 브랜치에 자동 커밋
+	 * Auto Commit: auto-save/[현재브랜치] 브랜치에 자동 커밋
 	 * 자동 저장 후 호출되어야 함
 	 */
 	public async autoCommit(): Promise<{ success: boolean; message: string }> {
@@ -357,7 +357,7 @@ export class ProjectManager {
 			}
 
 			const currentBranch = await this.getCurrentBranch(cwd);
-			const autoSaveBranch = `${currentBranch}/auto-save`;
+			const autoSaveBranch = `auto-save/${currentBranch}`;
 			const timestamp = new Date().toISOString();
 			console.log(`[ProjectManager] Auto committing to branch: ${autoSaveBranch}`);
 
@@ -427,7 +427,7 @@ export class ProjectManager {
 
 		try {
 			const currentBranch = await this.getCurrentBranch(cwd);
-			const autoSaveBranch = `${currentBranch}/auto-save`;
+			const autoSaveBranch = `auto-save/${currentBranch}`;
 			const timestamp = new Date().toLocaleString('ko-KR');
 			const message = commitMessage || `진짜최종: ${timestamp}`;
 			console.log(`[ProjectManager] Really final commit with message: ${message}`);
