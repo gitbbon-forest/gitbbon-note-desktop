@@ -22,13 +22,11 @@
 
 	// DOM Elements
 	const container = document.getElementById('graph-container');
-	const refreshBtn = document.getElementById('refresh-btn');
+
 
 	// 초기화
 	function init() {
-		refreshBtn.addEventListener('click', () => {
-			vscode.postMessage({ type: 'refresh' });
-		});
+
 
 		// 스크롤 이벤트 (지연 로딩)
 		container.addEventListener('scroll', handleScroll);
@@ -63,7 +61,7 @@
 		container.innerHTML = '';
 
 		if (commits.length === 0) {
-			container.innerHTML = '<div class="empty-state">No commits found</div>';
+			container.innerHTML = '';
 			return;
 		}
 

@@ -68,9 +68,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 					await this._loadMoreCommits();
 					break;
 				case 'refresh':
-					this._commits = [];
-					this._hasMore = true;
-					await this._loadInitialCommits();
+					await this.refresh();
 					break;
 				case 'commitClick':
 					// 커밋 클릭 시 상세 정보 표시
@@ -88,10 +86,20 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 	}
 
 	/**
+	 * 그래프 데이터를 새로고침합니다.
+	 * 외부(Extension)에서 호출할 수 있도록 public으로 공개
+	 */
+	public async refresh(): Promise<void> {
+		this._commits = [];
+		this._hasMore = true;
+		await this._loadInitialCommits();
+	}
+
+	/**
 	 * 초기 커밋 로드
 	 */
 	private async _loadInitialCommits(): Promise<void> {
-		if (this._isLoading) return;
+		if (this._isLoading) { return; }
 		this._isLoading = true;
 
 		try {
@@ -114,7 +122,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 	 * 추가 커밋 로드 (스크롤 시)
 	 */
 	private async _loadMoreCommits(): Promise<void> {
-		if (this._isLoading || !this._hasMore) return;
+		if (this._isLoading || !this._hasMore) { return; }
 		this._isLoading = true;
 
 		try {
@@ -177,6 +185,13 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
 			child.on('close', (code) => {
 				if (code !== 0) {
+					// 저장소가 비어있거나 커밋이 없는 경우 (exit code 128)
+					if (code === 128 && (stderr.includes('does not have any commits') || stderr.includes('fatal: your current branch'))) {
+						console.log('[GitGraphViewProvider] No commits found (empty repository)');
+						resolve([]);
+						return;
+					}
+
 					console.error('[GitGraphViewProvider] Git command failed:', stderr);
 					reject(new Error(stderr));
 					return;
@@ -234,9 +249,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 	<title>Git Graph</title>
 </head>
 <body>
-	<div class="toolbar">
-		<button id="refresh-btn" title="Refresh">↻ Refresh</button>
-	</div>
+
 	<div id="graph-container">
 		<div id="loading">Loading commits...</div>
 	</div>
