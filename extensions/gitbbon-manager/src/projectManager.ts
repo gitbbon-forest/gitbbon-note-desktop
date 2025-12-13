@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
 import { DiffParser } from './diffParser';
+import { CommitMessageGenerator } from './commitMessageGenerator';
 
 
 interface Project {
@@ -25,10 +26,12 @@ interface ProjectManifest {
 export class ProjectManager {
 	private readonly rootPath: string;
 	private readonly manifestPath: string;
+	private readonly commitMessageGenerator: CommitMessageGenerator;
 
 	constructor() {
 		this.rootPath = path.join(os.homedir(), 'Documents', 'Gitbbon_Notes');
 		this.manifestPath = path.join(this.rootPath, 'projects.json');
+		this.commitMessageGenerator = new CommitMessageGenerator();
 	}
 
 	/**
@@ -469,12 +472,36 @@ export class ProjectManager {
 			const currentBranch = await this.getCurrentBranch(cwd);
 			const autoSaveBranch = `auto-save/${currentBranch}`;
 			const timestamp = new Date().toLocaleString('ko-KR');
-			const message = commitMessage || `진짜최종: ${timestamp}`;
-			console.log(`[ProjectManager] Really final commit with message: ${message}`);
 
 			// 1. Index 갱신 (가장 중요, Auto Save 텀 사이에 변경된 내용 반영)
 			console.log('[ProjectManager] Staging all changes for final commit...');
 			await this.execGit(['add', '.'], cwd);
+
+			// 1.5. LLM을 사용하여 커밋 메시지 생성 (commitMessage가 제공되지 않은 경우)
+			let message = commitMessage;
+			if (!message && this.commitMessageGenerator.isConfigured()) {
+				console.log('[ProjectManager] Generating commit message using LLM...');
+				try {
+					// 현재 staged 상태의 diff 가져오기
+					const diff = await this.execGit(['diff', '--cached'], cwd, { silent: true });
+					const generatedMessage = await this.commitMessageGenerator.generateCommitMessage(diff);
+					if (generatedMessage) {
+						message = generatedMessage;
+						console.log(`[ProjectManager] LLM generated message: ${message}`);
+						vscode.window.showInformationMessage(`AI 커밋 메시지: ${message}`);
+					} else {
+						console.log('[ProjectManager] LLM did not generate a message, using default');
+						message = `진짜최종: ${timestamp}`;
+					}
+				} catch (error) {
+					console.error('[ProjectManager] Failed to generate commit message with LLM:', error);
+					message = `진짜최종: ${timestamp}`;
+				}
+			} else if (!message) {
+				message = `진짜최종: ${timestamp}`;
+			}
+
+			console.log(`[ProjectManager] Really final commit with message: ${message}`);
 
 			// 2. Tree 생성
 			console.log('[ProjectManager] Creating git tree for final commit...');
