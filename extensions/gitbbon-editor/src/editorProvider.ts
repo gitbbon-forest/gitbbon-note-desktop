@@ -57,16 +57,6 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 
 		const AUTO_SAVE_DELAY_MS = 1000; // 1초 (저장은 빠르게)
 
-		const calculateAutoCommitDelay = (currentText: string): number => {
-			const cleanCurrent = currentText.replace(/\s/g, '');
-			const cleanLast = lastCommittedText.replace(/\s/g, '');
-			const diff = Math.abs(cleanCurrent.length - cleanLast.length);
-
-			if (diff >= 10) return 5000;    // 의미 있는 변경 (10자 이상): 5초
-			if (diff > 0) return 30000;     // 소소한 변경 (1~9자): 30초
-			return 60000;                   // 단순 공백/줄바꿈: 60초
-		};
-
 		const resetTimers = () => {
 			// 1. Auto Save Timer Reset
 			if (autoSaveTimer) {
@@ -81,14 +71,13 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 				}
 			}, AUTO_SAVE_DELAY_MS);
 
-			// 2. Smart Auto Commit Timer Reset
+			// 2. Auto Commit Timer Reset (MVP: 3s fixed)
 			if (autoCommitTimer) {
 				clearTimeout(autoCommitTimer);
 			}
 
-			const currentText = document.getText();
-			const delay = calculateAutoCommitDelay(currentText);
-			// console.log(`Scheduling auto commit in ${delay}ms`);
+			// MVP: 복잡한 로직 대신 3초 고정 디바운스 사용
+			const delay = 3000;
 
 			autoCommitTimer = setTimeout(async () => {
 				try {
