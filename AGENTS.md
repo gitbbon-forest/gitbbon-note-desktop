@@ -19,8 +19,25 @@
 - 문서 수정 시 변경 이력을 명확히 남길 것
 - 불명확한 부분은 임의로 판단하지 말고 사용자에게 질문할 것
 
+
 ### 4. 커밋 규칙
 - 사용자가 명시적으로 커밋을 요구할 때만 진행한다.
 - 커밋 메시지는 기존 개발자들의 관습을 따르지만, 충분히 상세한 내용이 담겨야 한다.
 
+### 5. 유닛 테스트 (Unit Testing)
+**프레임워크:** Mocha (Pure Node.js 환경)
+**파일 규칙:**
+- 위치: `extensions/[extension-name]/src/test/`
+- 네이밍: `*.unit.test.ts` (예: [diffParser.unit.test.ts](cci:7://file:///Users/egoinglee/dev/project/gitbbon/git-note/extensions/gitbbon-manager/src/test/diffParser.unit.test.ts:0:0-0:0))
+- `vscode` 모듈 import 금지 (순수 로직만 테스트)
+**작성 예시:**
+```typescript
+import { YourClass } from '../yourModule';
+import * as assert from 'assert';
 
+describe('테스트할클래스', () => {
+    it('특정 기능을 수행해야 함', () => {
+        const result = 테스트할클래스.메서드();
+        assert.strictEqual(result, 예상값);
+    });
+});
