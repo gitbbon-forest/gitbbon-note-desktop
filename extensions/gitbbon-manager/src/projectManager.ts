@@ -8,6 +8,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
+import { DiffParser } from './diffParser';
 
 
 interface Project {
@@ -341,7 +342,7 @@ export class ProjectManager {
 	 * Git diff에서 추가된 텍스트 추출 (처음 등장하는 텍스트 최대 maxLength자)
 	 * @param compareRef 비교 대상 ref (auto-save 브랜치). 없으면 HEAD와 비교
 	 */
-	private async getAddedTextPreview(cwd: string, compareRef?: string, maxLength: number = 20): Promise<string> {
+	private async getChangePreview(cwd: string, compareRef?: string, maxLength: number = 20): Promise<string> {
 		try {
 			// compareRef가 있으면 해당 ref와 비교, 없으면 staged 상태 비교
 			const diffArgs = compareRef
@@ -356,90 +357,15 @@ export class ProjectManager {
 				return '';
 			}
 
-			const lines = diff.split('\n');
-			let deletedBlock: string[] = [];
-			let addedBlock: string[] = [];
-
-			// 변경 내용 추출 로직
-			const processBlocks = (): string | null => {
-				if (addedBlock.length === 0) {
-					deletedBlock = []; // 삭제만 된 경우는 무시
-					return null;
-				}
-
-				const addedString = addedBlock.join('\n');
-
-				// 1. 순수 추가 (삭제된 내용 없음)
-				if (deletedBlock.length === 0) {
-					addedBlock = [];
-					// 빈 줄 추가 등은 무시
-					return addedString.trim().length > 0 ? addedString.trim() : null;
-				}
-
-				// 2. 수정 (삭제 후 추가)
-				const deletedString = deletedBlock.join('\n');
-
-				// 공통 접두사(prefix) 제거
-				let prefixLen = 0;
-				const minLen = Math.min(deletedString.length, addedString.length);
-				while (prefixLen < minLen && deletedString[prefixLen] === addedString[prefixLen]) {
-					prefixLen++;
-				}
-
-				// 공통 접미사(suffix) 제거
-				const delCore = deletedString.substring(prefixLen);
-				const addCore = addedString.substring(prefixLen);
-
-				let sLen = 0;
-				const minCoreLen = Math.min(delCore.length, addCore.length);
-				while (sLen < minCoreLen && delCore[delCore.length - 1 - sLen] === addCore[addCore.length - 1 - sLen]) {
-					sLen++;
-				}
-
-				// 최종 추가된 부분 추출
-				const finalAdded = addCore.substring(0, addCore.length - sLen).trim();
-
-				deletedBlock = [];
-				addedBlock = [];
-
-				return finalAdded.length > 0 ? finalAdded : null;
-			};
-
-			for (const line of lines) {
-				// 헤더나 메타 정보 라인은 블록 처리를 트리거하고 넘어감
-				if (line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ') || line.startsWith('@@ ')) {
-					const res = processBlocks();
-					if (res) {
-						const preview = res.substring(0, maxLength);
-						console.log(`[ProjectManager] Added text preview (diff): "${preview}"`);
-						return preview;
-					}
-					continue;
-				}
-
-				if (line.startsWith('-')) {
-					// + 라인 처리 중에 - 가 나오면 새로운 변경으로 간주 (보통 이런 경우는 드묾)
-					if (addedBlock.length > 0) {
-						const res = processBlocks();
-						if (res) return res.substring(0, maxLength);
-					}
-					deletedBlock.push(line.substring(1));
-				} else if (line.startsWith('+')) {
-					addedBlock.push(line.substring(1));
-				}
-			}
-
-			// 마지막 블록 처리
-			const res = processBlocks();
-			if (res) {
-				const preview = res.substring(0, maxLength);
-				console.log(`[ProjectManager] Added text preview (last): "${preview}"`);
+			const preview = DiffParser.extractChange(diff, maxLength);
+			if (preview) {
+				console.log(`[ProjectManager] Change preview: "${preview}"`);
 				return preview;
 			}
 
 			return '';
 		} catch (e) {
-			console.log(`[ProjectManager] Failed to get added text preview: ${e}`);
+			console.log(`[ProjectManager] Failed to get change preview: ${e}`);
 			return '';
 		}
 	}
@@ -480,7 +406,7 @@ export class ProjectManager {
 					// 브랜치 생성 실패 시 (e.g. HEAD 없음) 직접 커밋
 					// getCurrentBranch에서 root commit 보장하므로 거의 발생 안 함
 					console.log('[ProjectManager] Branch creation failed, making direct commit');
-					const fallbackPreview = await this.getAddedTextPreview(cwd);
+					const fallbackPreview = await this.getChangePreview(cwd);
 					await this.execGit(['commit', '-m', fallbackPreview || '첫 저장'], cwd);
 					return { success: true, message: 'Auto commit created (first commit)' };
 				}
@@ -499,8 +425,8 @@ export class ProjectManager {
 
 			// 5. 커밋 메시지 생성 (이전 auto-save 커밋과 비교하여 추가된 텍스트의 처음 20자)
 			const compareRef = parentCommit ? autoSaveBranch : undefined;
-			const addedPreview = await this.getAddedTextPreview(cwd, compareRef);
-			const commitMessage = addedPreview || '변경사항 저장';
+			const changePreview = await this.getChangePreview(cwd, compareRef);
+			const commitMessage = changePreview || '변경사항 저장';
 			console.log(`[ProjectManager] Creating commit with message: ${commitMessage}`);
 			let newCommitId: string;
 			if (parentCommit) {
