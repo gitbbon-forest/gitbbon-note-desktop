@@ -35,6 +35,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		async () => {
 			const result = await projectManager.autoCommit();
 			console.log('Auto Commit Result:', result);
+			if (result.success) {
+				await gitGraphProvider.refresh();
+			}
 			return result;
 		}
 	);
@@ -46,6 +49,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		async () => {
 			const result = await projectManager.reallyFinalCommit();
 			console.log('Really Final Result:', result);
+			if (result.success) {
+				await gitGraphProvider.refresh();
+			}
 			return result;
 		}
 	);
