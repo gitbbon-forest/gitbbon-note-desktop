@@ -338,6 +338,113 @@ export class ProjectManager {
 	}
 
 	/**
+	 * Git diff에서 추가된 텍스트 추출 (처음 등장하는 텍스트 최대 maxLength자)
+	 * @param compareRef 비교 대상 ref (auto-save 브랜치). 없으면 HEAD와 비교
+	 */
+	private async getAddedTextPreview(cwd: string, compareRef?: string, maxLength: number = 20): Promise<string> {
+		try {
+			// compareRef가 있으면 해당 ref와 비교, 없으면 staged 상태 비교
+			const diffArgs = compareRef
+				? ['diff', '--cached', '--no-color', compareRef]
+				: ['diff', '--cached', '--no-color'];
+
+			// -U0 옵션으로 컨텍스트 라인을 제거하여 파싱 용이성 확보
+			diffArgs.push('-U0');
+
+			const diff = await this.execGit(diffArgs, cwd, { silent: true });
+			if (!diff) {
+				return '';
+			}
+
+			const lines = diff.split('\n');
+			let deletedBlock: string[] = [];
+			let addedBlock: string[] = [];
+
+			// 변경 내용 추출 로직
+			const processBlocks = (): string | null => {
+				if (addedBlock.length === 0) {
+					deletedBlock = []; // 삭제만 된 경우는 무시
+					return null;
+				}
+
+				const addedString = addedBlock.join('\n');
+
+				// 1. 순수 추가 (삭제된 내용 없음)
+				if (deletedBlock.length === 0) {
+					addedBlock = [];
+					// 빈 줄 추가 등은 무시
+					return addedString.trim().length > 0 ? addedString.trim() : null;
+				}
+
+				// 2. 수정 (삭제 후 추가)
+				const deletedString = deletedBlock.join('\n');
+
+				// 공통 접두사(prefix) 제거
+				let prefixLen = 0;
+				const minLen = Math.min(deletedString.length, addedString.length);
+				while (prefixLen < minLen && deletedString[prefixLen] === addedString[prefixLen]) {
+					prefixLen++;
+				}
+
+				// 공통 접미사(suffix) 제거
+				const delCore = deletedString.substring(prefixLen);
+				const addCore = addedString.substring(prefixLen);
+
+				let sLen = 0;
+				const minCoreLen = Math.min(delCore.length, addCore.length);
+				while (sLen < minCoreLen && delCore[delCore.length - 1 - sLen] === addCore[addCore.length - 1 - sLen]) {
+					sLen++;
+				}
+
+				// 최종 추가된 부분 추출
+				const finalAdded = addCore.substring(0, addCore.length - sLen).trim();
+
+				deletedBlock = [];
+				addedBlock = [];
+
+				return finalAdded.length > 0 ? finalAdded : null;
+			};
+
+			for (const line of lines) {
+				// 헤더나 메타 정보 라인은 블록 처리를 트리거하고 넘어감
+				if (line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ') || line.startsWith('@@ ')) {
+					const res = processBlocks();
+					if (res) {
+						const preview = res.substring(0, maxLength);
+						console.log(`[ProjectManager] Added text preview (diff): "${preview}"`);
+						return preview;
+					}
+					continue;
+				}
+
+				if (line.startsWith('-')) {
+					// + 라인 처리 중에 - 가 나오면 새로운 변경으로 간주 (보통 이런 경우는 드묾)
+					if (addedBlock.length > 0) {
+						const res = processBlocks();
+						if (res) return res.substring(0, maxLength);
+					}
+					deletedBlock.push(line.substring(1));
+				} else if (line.startsWith('+')) {
+					addedBlock.push(line.substring(1));
+				}
+			}
+
+			// 마지막 블록 처리
+			const res = processBlocks();
+			if (res) {
+				const preview = res.substring(0, maxLength);
+				console.log(`[ProjectManager] Added text preview (last): "${preview}"`);
+				return preview;
+			}
+
+			return '';
+		} catch (e) {
+			console.log(`[ProjectManager] Failed to get added text preview: ${e}`);
+			return '';
+		}
+	}
+
+	/**
 	 * Auto Commit: auto-save/[현재브랜치] 브랜치에 자동 커밋
 	 * 자동 저장 후 호출되어야 함
 	 */
@@ -358,7 +465,6 @@ export class ProjectManager {
 
 			const currentBranch = await this.getCurrentBranch(cwd);
 			const autoSaveBranch = `auto-save/${currentBranch}`;
-			const timestamp = new Date().toISOString();
 			console.log(`[ProjectManager] Auto committing to branch: ${autoSaveBranch}`);
 
 			// 1. Stage all changes
@@ -374,7 +480,8 @@ export class ProjectManager {
 					// 브랜치 생성 실패 시 (e.g. HEAD 없음) 직접 커밋
 					// getCurrentBranch에서 root commit 보장하므로 거의 발생 안 함
 					console.log('[ProjectManager] Branch creation failed, making direct commit');
-					await this.execGit(['commit', '-m', `Auto save: ${timestamp}`], cwd);
+					const fallbackPreview = await this.getAddedTextPreview(cwd);
+					await this.execGit(['commit', '-m', fallbackPreview || '첫 저장'], cwd);
 					return { success: true, message: 'Auto commit created (first commit)' };
 				}
 			}
@@ -390,8 +497,10 @@ export class ProjectManager {
 				console.log(`[ProjectManager] Parent commit: ${parentCommit}`);
 			}
 
-			// 5. 커밋 생성
-			const commitMessage = `Auto save: ${timestamp}`;
+			// 5. 커밋 메시지 생성 (이전 auto-save 커밋과 비교하여 추가된 텍스트의 처음 20자)
+			const compareRef = parentCommit ? autoSaveBranch : undefined;
+			const addedPreview = await this.getAddedTextPreview(cwd, compareRef);
+			const commitMessage = addedPreview || '변경사항 저장';
 			console.log(`[ProjectManager] Creating commit with message: ${commitMessage}`);
 			let newCommitId: string;
 			if (parentCommit) {
@@ -404,6 +513,11 @@ export class ProjectManager {
 			// 6. auto-save 브랜치 ref 업데이트
 			console.log(`[ProjectManager] Updating ${autoSaveBranch} ref to ${newCommitId}`);
 			await this.execGit(['update-ref', `refs/heads/${autoSaveBranch}`, newCommitId], cwd);
+
+			// 7. Index 초기화 (plumbing 명령어는 index를 건드리지 않으므로 수동 정리)
+			// git reset --mixed: index를 HEAD에 맞추고, working directory는 유지
+			console.log('[ProjectManager] Resetting index after auto commit...');
+			await this.execGit(['reset', '--mixed'], cwd, { silent: true });
 
 			console.log(`[ProjectManager] Auto commit created: ${newCommitId}`);
 			return { success: true, message: `Auto commit: ${newCommitId.substring(0, 7)}` };
