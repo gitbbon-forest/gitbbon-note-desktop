@@ -509,13 +509,18 @@ export class ProjectManager {
 			console.log('[ProjectManager] Resetting index to HEAD...');
 			await this.execGit(['reset', '--mixed'], cwd);
 
-			// 7. Autosave 브랜치를 새 커밋과 동기화
-			try {
-				console.log(`[ProjectManager] Syncing ${autoSaveBranch} to final commit`);
-				await this.execGit(['update-ref', `refs/heads/${autoSaveBranch}`, newCommitId], cwd);
-			} catch {
-				console.log(`[ProjectManager] ${autoSaveBranch} does not exist, skipping sync`);
-				// auto-save 브랜치가 없으면 무시
+			// 7. Autosave 브랜치 삭제 (기존 auto-save 커밋들을 고아 상태로 만듦)
+			if (await this.branchExists(autoSaveBranch, cwd)) {
+				console.log(`[ProjectManager] Deleting ${autoSaveBranch} branch to orphan auto-save commits`);
+				try {
+					await this.execGit(['branch', '-D', autoSaveBranch], cwd);
+					console.log(`[ProjectManager] ${autoSaveBranch} branch deleted successfully`);
+				} catch (error) {
+					console.warn(`[ProjectManager] Failed to delete ${autoSaveBranch}:`, error);
+					// 삭제 실패해도 진행 (치명적이지 않음)
+				}
+			} else {
+				console.log(`[ProjectManager] ${autoSaveBranch} does not exist, skipping deletion`);
 			}
 
 			console.log(`[ProjectManager] Really Final commit created: ${newCommitId}`);
