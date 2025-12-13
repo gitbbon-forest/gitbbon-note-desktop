@@ -33,6 +33,10 @@ export enum ChatConfiguration {
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
 	SuspendThrottling = 'chat.suspendThrottling',
+	// Vercel AI Gateway 설정
+	VercelAIEnabled = 'vercel.ai.enabled',
+	VercelAIApiKey = 'vercel.ai.apiKey',
+	VercelAIGatewayUrl = 'vercel.ai.gatewayUrl',
 }
 
 /**
