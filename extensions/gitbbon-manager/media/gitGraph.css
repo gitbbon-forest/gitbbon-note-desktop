@@ -1,0 +1,210 @@
+/* Git Graph Webview Styles */
+
+:root {
+	/* 브랜치 색상 팔레트 */
+	--branch-color-1: #4fc3f7;
+	--branch-color-2: #81c784;
+	--branch-color-3: #ffb74d;
+	--branch-color-4: #f06292;
+	--branch-color-5: #ba68c8;
+	--branch-color-6: #4db6ac;
+	--branch-color-7: #ff8a65;
+	--branch-color-8: #a1887f;
+}
+
+* {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-sideBar-background);
+	overflow: hidden;
+	height: 100vh;
+	display: flex;
+	flex-direction: column;
+}
+
+/* 툴바 */
+.toolbar {
+	display: flex;
+	align-items: center;
+	padding: 6px 8px;
+	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+	background-color: var(--vscode-sideBarSectionHeader-background);
+	flex-shrink: 0;
+}
+
+.toolbar button {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: none;
+	padding: 4px 8px;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.toolbar button:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* 그래프 컨테이너 */
+#graph-container {
+	flex: 1;
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding: 8px 0;
+}
+
+/* 로딩 표시 */
+#loading {
+	text-align: center;
+	padding: 20px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* 커밋 행 */
+.commit-row {
+	display: flex;
+	align-items: stretch;
+	padding: 0 8px;
+	height: 48px;
+	cursor: pointer;
+	transition: background-color 0.1s;
+}
+
+.commit-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* 그래프 영역 (SVG) */
+.graph-cell {
+	flex-shrink: 0;
+	width: 100px;
+	height: 48px;
+	position: relative;
+}
+
+.graph-cell svg {
+	display: block;
+}
+
+/* 커밋 정보 영역 */
+.commit-info {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	min-width: 0;
+	padding-left: 8px;
+}
+
+/* 커밋 메시지 */
+.commit-message {
+	font-size: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: var(--vscode-foreground);
+}
+
+/* 커밋 메타 정보 */
+.commit-meta {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	margin-top: 2px;
+}
+
+/* 브랜치/태그 라벨 */
+.ref-label {
+	display: inline-block;
+	font-size: 10px;
+	padding: 1px 4px;
+	border-radius: 3px;
+	margin-right: 4px;
+	font-weight: 500;
+}
+
+.ref-label.branch {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.ref-label.head {
+	background-color: var(--vscode-gitDecoration-addedResourceForeground);
+	color: #000;
+}
+
+.ref-label.remote {
+	background-color: var(--vscode-gitDecoration-modifiedResourceForeground);
+	color: #000;
+}
+
+.ref-label.tag {
+	background-color: var(--vscode-gitDecoration-untrackedResourceForeground);
+	color: #000;
+}
+
+/* 더 로드하기 버튼 */
+.load-more {
+	text-align: center;
+	padding: 12px;
+}
+
+.load-more button {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	padding: 6px 16px;
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+.load-more button:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.load-more button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* 빈 상태 */
+.empty-state {
+	text-align: center;
+	padding: 40px 20px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* 에러 상태 */
+.error-state {
+	text-align: center;
+	padding: 20px;
+	color: var(--vscode-errorForeground);
+}
+
+/* 스크롤바 스타일링 */
+#graph-container::-webkit-scrollbar {
+	width: 10px;
+}
+
+#graph-container::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+#graph-container::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background);
+	border-radius: 5px;
+}
+
+#graph-container::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}

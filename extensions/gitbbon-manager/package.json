@@ -25,6 +25,15 @@
     "vscode.git"
   ],
   "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "gitbbon.gitGraph",
+          "name": "Git Graph",
+          "type": "webview"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "gitbbon.manager.initialize",

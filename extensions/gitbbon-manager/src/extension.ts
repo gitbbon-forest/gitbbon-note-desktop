@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { ProjectManager } from './projectManager';
+import { GitGraphViewProvider } from './gitGraphViewProvider';
 
 /**
  * Extension activation
@@ -12,6 +13,12 @@ import { ProjectManager } from './projectManager';
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	console.log('Gitbbon Manager extension activating...');
 	const projectManager = new ProjectManager();
+
+	// Register Git Graph View Provider
+	const gitGraphProvider = new GitGraphViewProvider(context.extensionUri);
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(GitGraphViewProvider.viewType, gitGraphProvider)
+	);
 
 	// Register initialize command (manual trigger)
 	const initializeCommand = vscode.commands.registerCommand(
