@@ -7,24 +7,26 @@ import { localize } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from '../../../common/views.js';
-import { VIEW_CONTAINER } from '../../files/browser/explorerViewlet.js';
+import { IViewDescriptor } from '../../../common/views.js';
+// import { IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
+// import { VIEW_CONTAINER } from '../../files/browser/explorerViewlet.js';
 import { ITimelineService, TimelinePaneId } from '../common/timeline.js';
 import { TimelineHasProviderContext, TimelineService } from '../common/timelineService.js';
 import { TimelinePane } from './timelinePane.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+// import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISubmenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { ICommandHandler, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { ExplorerFolderContext } from '../../files/common/files.js';
-import { ResourceContextKey } from '../../../common/contextkeys.js';
+// import { ICommandHandler } from '../../../../platform/commands/common/commands.js';
+// import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+// import { ExplorerFolderContext } from '../../files/common/files.js';
+// import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
-import { URI } from '../../../../base/common/uri.js';
+// import { URI } from '../../../../base/common/uri.js';
 
 const timelineViewIcon = registerIcon('timeline-view-icon', Codicon.history, localize('timelineViewIcon', 'View icon of the timeline view.'));
-const timelineOpenIcon = registerIcon('timeline-open', Codicon.history, localize('timelineOpenIcon', 'Icon for the open timeline action.'));
+// const timelineOpenIcon = registerIcon('timeline-open', Codicon.history, localize('timelineOpenIcon', 'Icon for the open timeline action.'));
 
 export class TimelinePaneDescriptor implements IViewDescriptor {
 	readonly id = TimelinePaneId;
@@ -63,36 +65,39 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([new TimelinePaneDescriptor()], VIEW_CONTAINER);
+// gitbbon: Hide timeline view
+// Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([new TimelinePaneDescriptor()], VIEW_CONTAINER);
 
-namespace OpenTimelineAction {
+// namespace OpenTimelineAction {
 
-	export const ID = 'files.openTimeline';
-	export const LABEL = localize('files.openTimeline', "Open Timeline");
+// 	export const ID = 'files.openTimeline';
+// 	export const LABEL = localize('files.openTimeline', "Open Timeline");
 
-	export function handler(): ICommandHandler {
-		return (accessor, arg) => {
-			const service = accessor.get(ITimelineService);
+// 	export function handler(): ICommandHandler {
+// 		return (accessor, arg) => {
+// 			const service = accessor.get(ITimelineService);
 
-			if (URI.isUri(arg)) {
-				return service.setUri(arg);
-			}
-		};
-	}
-}
+// 			if (URI.isUri(arg)) {
+// 				return service.setUri(arg);
+// 			}
+// 		};
+// 	}
+// }
 
-CommandsRegistry.registerCommand(OpenTimelineAction.ID, OpenTimelineAction.handler());
+// gitbbon: Hide timeline view
+// CommandsRegistry.registerCommand(OpenTimelineAction.ID, OpenTimelineAction.handler());
 
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
-	group: '4_timeline',
-	order: 1,
-	command: {
-		id: OpenTimelineAction.ID,
-		title: OpenTimelineAction.LABEL,
-		icon: timelineOpenIcon
-	},
-	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource, TimelineHasProviderContext)
-}));
+// gitbbon: Hide timeline view
+// MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
+// 	group: '4_timeline',
+// 	order: 1,
+// 	command: {
+// 		id: OpenTimelineAction.ID,
+// 		title: OpenTimelineAction.LABEL,
+// 		icon: timelineOpenIcon
+// 	},
+// 	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource, TimelineHasProviderContext)
+// }));
 
 const timelineFilter = registerIcon('timeline-filter', Codicon.filter, localize('timelineFilter', 'Icon for the filter timeline action.'));
 
