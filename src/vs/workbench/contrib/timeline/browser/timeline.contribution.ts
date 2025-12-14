@@ -37,7 +37,9 @@ export class TimelinePaneDescriptor implements IViewDescriptor {
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly canMoveView = true;
-	readonly when = TimelineHasProviderContext;
+	// gitbbon: Hide timeline view
+	readonly when = ContextKeyExpr.false();
+	// readonly when = TimelineHasProviderContext;
 
 	focusCommand = { id: 'timeline.focus' };
 }
@@ -91,7 +93,9 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 		title: OpenTimelineAction.LABEL,
 		icon: timelineOpenIcon
 	},
-	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource, TimelineHasProviderContext)
+	// gitbbon: Hide timeline view
+	when: ContextKeyExpr.false()
+	// when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource, TimelineHasProviderContext)
 }));
 
 const timelineFilter = registerIcon('timeline-filter', Codicon.filter, localize('timelineFilter', 'Icon for the filter timeline action.'));
