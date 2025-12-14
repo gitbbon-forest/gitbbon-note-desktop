@@ -70,18 +70,23 @@ export class WorkspaceTrustEnablementService extends Disposable implements IWork
 	_serviceBrand: undefined;
 
 	constructor(
+		// @ts-ignore
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		// @ts-ignore
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
 
 	isWorkspaceTrustEnabled(): boolean {
-		if (this.environmentService.disableWorkspaceTrust) {
-			return false;
-		}
+		// gitbbon: Always disable workspace trust to avoid prompting the user
+		return false;
 
-		return !!this.configurationService.getValue(WORKSPACE_TRUST_ENABLED);
+		// if (this.environmentService.disableWorkspaceTrust) {
+		// 	return false;
+		// }
+
+		// return !!this.configurationService.getValue(WORKSPACE_TRUST_ENABLED);
 	}
 }
 
