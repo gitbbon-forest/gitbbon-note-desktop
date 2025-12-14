@@ -37,9 +37,7 @@ export class TimelinePaneDescriptor implements IViewDescriptor {
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly canMoveView = true;
-	// gitbbon: Hide timeline view
-	readonly when = ContextKeyExpr.false();
-	// readonly when = TimelineHasProviderContext;
+	readonly when = TimelineHasProviderContext;
 
 	focusCommand = { id: 'timeline.focus' };
 }
@@ -65,7 +63,8 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([new TimelinePaneDescriptor()], VIEW_CONTAINER);
+// gitbbon: Hide timeline view
+// Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([new TimelinePaneDescriptor()], VIEW_CONTAINER);
 
 namespace OpenTimelineAction {
 
@@ -83,20 +82,20 @@ namespace OpenTimelineAction {
 	}
 }
 
-CommandsRegistry.registerCommand(OpenTimelineAction.ID, OpenTimelineAction.handler());
+// gitbbon: Hide timeline view
+// CommandsRegistry.registerCommand(OpenTimelineAction.ID, OpenTimelineAction.handler());
 
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
-	group: '4_timeline',
-	order: 1,
-	command: {
-		id: OpenTimelineAction.ID,
-		title: OpenTimelineAction.LABEL,
-		icon: timelineOpenIcon
-	},
-	// gitbbon: Hide timeline view
-	when: ContextKeyExpr.false()
-	// when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource, TimelineHasProviderContext)
-}));
+// gitbbon: Hide timeline view
+// MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
+// 	group: '4_timeline',
+// 	order: 1,
+// 	command: {
+// 		id: OpenTimelineAction.ID,
+// 		title: OpenTimelineAction.LABEL,
+// 		icon: timelineOpenIcon
+// 	},
+// 	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource, TimelineHasProviderContext)
+// }));
 
 const timelineFilter = registerIcon('timeline-filter', Codicon.filter, localize('timelineFilter', 'Icon for the filter timeline action.'));
 
