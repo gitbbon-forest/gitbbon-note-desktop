@@ -77,11 +77,14 @@ export class WorkspaceTrustEnablementService extends Disposable implements IWork
 	}
 
 	isWorkspaceTrustEnabled(): boolean {
-		if (this.environmentService.disableWorkspaceTrust) {
-			return false;
-		}
+		// gitbbon: Always disable workspace trust to avoid prompting the user
+		return false;
 
-		return !!this.configurationService.getValue(WORKSPACE_TRUST_ENABLED);
+		// if (this.environmentService.disableWorkspaceTrust) {
+		// 	return false;
+		// }
+
+		// return !!this.configurationService.getValue(WORKSPACE_TRUST_ENABLED);
 	}
 }
 
