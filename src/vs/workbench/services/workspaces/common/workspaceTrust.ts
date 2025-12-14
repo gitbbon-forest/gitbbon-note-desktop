@@ -70,7 +70,9 @@ export class WorkspaceTrustEnablementService extends Disposable implements IWork
 	_serviceBrand: undefined;
 
 	constructor(
+		// @ts-ignore
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		// @ts-ignore
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
