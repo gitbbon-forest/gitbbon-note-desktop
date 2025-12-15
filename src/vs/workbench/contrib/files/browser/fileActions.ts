@@ -946,30 +946,43 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 
 			// gitbbon: Treat files without extension as markdown files
 			let wasExtensionAdded = false;
-			const originalFileName = value;
+			const userInputName = value; // Store the original user input for title
 			if (!isFolder && extname(value) === '' && !value.startsWith('.')) {
 				value += '.md';
 				wasExtensionAdded = true;
 			}
 
-			const resourceToCreate = resources.joinPath(folder.resource, value);
+			// gitbbon: Auto-resolve filename conflicts by appending numbers
+			let finalFileName = value;
+			let resourceToCreate = resources.joinPath(folder.resource, finalFileName);
+			let counter = 1;
+
+			// Check if file already exists and find an available name
+			while (await fileService.exists(resourceToCreate)) {
+				const ext = extname(value);
+				const nameWithoutExt = basename(value, ext);
+				finalFileName = `${nameWithoutExt} ${counter}${ext}`;
+				resourceToCreate = resources.joinPath(folder.resource, finalFileName);
+				counter++;
+			}
+
 			await explorerService.applyBulkEdit([new ResourceFileEdit(undefined, resourceToCreate, { folder: isFolder })], {
-				undoLabel: nls.localize('createBulkEdit', "Create {0}", value),
-				progressLabel: nls.localize('creatingBulkEdit', "Creating {0}", value),
+				undoLabel: nls.localize('createBulkEdit', "Create {0}", finalFileName),
+				progressLabel: nls.localize('creatingBulkEdit', "Creating {0}", finalFileName),
 				confirmBeforeUndo: true
 			});
-			await refreshIfSeparator(value, explorerService);
+			await refreshIfSeparator(finalFileName, explorerService);
 
 			if (isFolder) {
 				await explorerService.select(resourceToCreate, true);
 			} else {
 				// gitbbon: Add YAML frontmatter with title for markdown files
-				const shouldAddFrontmatter = wasExtensionAdded || (!isFolder && extname(value) === '.md' && !value.startsWith('.'));
+				const shouldAddFrontmatter = wasExtensionAdded || (!isFolder && extname(finalFileName) === '.md' && !finalFileName.startsWith('.'));
 				if (shouldAddFrontmatter) {
 					const fileContent = await fileService.readFile(resourceToCreate);
 					if (fileContent.value.byteLength === 0) {
-						// Use original filename without extension as title
-						const titleName = wasExtensionAdded ? originalFileName : basename(value, '.md');
+						// Use original user input (without extension) as title
+						const titleName = wasExtensionAdded ? userInputName : basename(userInputName, '.md');
 						const frontmatter = `---\ntitle: ${titleName}\n---\n\n`;
 						await fileService.writeFile(resourceToCreate, VSBuffer.fromString(frontmatter));
 						// Refresh explorer to reflect the file content change
