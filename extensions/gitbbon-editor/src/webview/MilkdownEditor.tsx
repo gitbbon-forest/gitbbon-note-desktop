@@ -41,19 +41,31 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 
 	useImperativeHandle(ref, () => ({
 		setContent: (markdown: string) => {
-			if (loading) return;
-			const instance = getInstance();
-			if (!instance) return;
+			if (loading) {
+				console.log('[MilkdownEditor] Editor is still loading');
+				return;
+			}
+			const editor = getInstance();
+			if (!editor) {
+				console.log('[MilkdownEditor] Editor instance is null/undefined');
+				return;
+			}
 
-			// Crepe instance has 'editor' property which is the Milkdown Editor
-			(instance as unknown as Crepe).editor.action((ctx) => {
-				const view = ctx.get(editorViewCtx);
-				const parser = ctx.get(parserCtx);
-				const doc = parser(markdown);
-				if (!doc) return;
-				const { state } = view;
-				view.dispatch(state.tr.replaceWith(0, state.doc.content.size, doc));
-			});
+			// getInstance() returns Milkdown Editor directly (not Crepe)
+			// Editor has action method directly on it
+			if (typeof (editor as any).action === 'function') {
+				(editor as any).action((ctx: any) => {
+					const view = ctx.get(editorViewCtx);
+					const parser = ctx.get(parserCtx);
+					const doc = parser(markdown);
+					if (!doc) return;
+					const { state } = view;
+					view.dispatch(state.tr.replaceWith(0, state.doc.content.size, doc));
+				});
+				console.log('[MilkdownEditor] ✅ Content updated successfully');
+			} else {
+				console.error('[MilkdownEditor] ❌ action method not found on editor');
+			}
 		}
 	}));
 
