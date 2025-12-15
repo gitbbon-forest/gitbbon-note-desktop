@@ -1,0 +1,250 @@
+name: Build and Release (Gulp-based)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  build-macos:
+    name: Build macOS Universal
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build macOS x64 (minified)
+        run: npm run gulp vscode-darwin-x64-min
+
+      - name: Build macOS ARM64 (minified)
+        run: npm run gulp vscode-darwin-arm64-min
+
+      - name: List build output
+        run: |
+          echo "=== Build output ==="
+          ls -la ../VSCode-darwin-x64/ || echo "x64 build not found"
+          ls -la ../VSCode-darwin-arm64/ || echo "ARM64 build not found"
+
+      - name: Create Universal Binary
+        run: |
+          # VS Code의 create-universal-app 스크립트 사용
+          DEBUG=* node build/darwin/create-universal-app.ts $(pwd)/..
+
+      - name: Verify Universal App
+        run: |
+          APP_ROOT="../VSCode-darwin-universal"
+          APP_NAME=$(ls "$APP_ROOT" | head -n 1)
+          echo "App name: $APP_NAME"
+          ls -lh "$APP_ROOT/$APP_NAME"
+
+      - name: Create ZIP for auto-update
+        run: |
+          cd ../VSCode-darwin-universal
+          zip -r -y -X ../VSCode-darwin-universal.zip *
+          cd -
+          ls -lh ../VSCode-darwin-universal.zip
+
+      - name: Generate update metadata
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          FILE_PATH="../VSCode-darwin-universal.zip"
+          FILE_SIZE=$(stat -f%z "$FILE_PATH")
+          FILE_SHA512=$(shasum -a 512 "$FILE_PATH" | awk '{print $1}')
+          RELEASE_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+
+          cat > ../latest-mac.yml <<EOF
+          version: $VERSION
+          files:
+            - url: VSCode-darwin-universal.zip
+              sha512: $FILE_SHA512
+              size: $FILE_SIZE
+          path: VSCode-darwin-universal.zip
+          sha512: $FILE_SHA512
+          releaseDate: '$RELEASE_DATE'
+          EOF
+
+          echo "=== latest-mac.yml ==="
+          cat ../latest-mac.yml
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal
+          path: |
+            ../VSCode-darwin-universal.zip
+            ../latest-mac.yml
+          retention-days: 7
+
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Windows x64 (minified)
+        run: npm run gulp vscode-win32-x64-min
+
+      - name: List build output
+        run: |
+          echo "=== Build output ==="
+          dir ..\VSCode-win32-x64\
+
+      - name: Create ZIP for distribution
+        run: |
+          cd ..\VSCode-win32-x64
+          Compress-Archive -Path * -DestinationPath ..\VSCode-win32-x64.zip
+          cd -
+          dir ..\VSCode-win32-x64.zip
+
+      - name: Generate update metadata
+        shell: pwsh
+        run: |
+          $VERSION = (Get-Content package.json | ConvertFrom-Json).version
+          $FILE_PATH = "..\VSCode-win32-x64.zip"
+          $FILE_SIZE = (Get-Item $FILE_PATH).Length
+          $FILE_SHA512 = (Get-FileHash $FILE_PATH -Algorithm SHA512).Hash.ToLower()
+          $RELEASE_DATE = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.000Z")
+
+          @"
+          version: $VERSION
+          files:
+            - url: VSCode-win32-x64.zip
+              sha512: $FILE_SHA512
+              size: $FILE_SIZE
+          path: VSCode-win32-x64.zip
+          sha512: $FILE_SHA512
+          releaseDate: '$RELEASE_DATE'
+          "@ | Out-File -FilePath ..\latest.yml -Encoding utf8
+
+          echo "=== latest.yml ==="
+          Get-Content ..\latest.yml
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: |
+            ..\VSCode-win32-x64.zip
+            ..\latest.yml
+          retention-days: 7
+
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Linux x64 (minified)
+        run: npm run gulp vscode-linux-x64-min
+
+      - name: List build output
+        run: |
+          echo "=== Build output ==="
+          ls -la ../VSCode-linux-x64/ || echo "Build not found"
+
+      - name: Create tarball for distribution
+        run: |
+          cd ../VSCode-linux-x64
+          tar czf ../VSCode-linux-x64.tar.gz *
+          cd -
+          ls -lh ../VSCode-linux-x64.tar.gz
+
+      - name: Generate update metadata
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          FILE_PATH="../VSCode-linux-x64.tar.gz"
+          FILE_SIZE=$(stat -c%s "$FILE_PATH")
+          FILE_SHA512=$(sha512sum "$FILE_PATH" | awk '{print $1}')
+          RELEASE_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+
+          cat > ../latest-linux.yml <<EOF
+          version: $VERSION
+          files:
+            - url: VSCode-linux-x64.tar.gz
+              sha512: $FILE_SHA512
+              size: $FILE_SIZE
+          path: VSCode-linux-x64.tar.gz
+          sha512: $FILE_SHA512
+          releaseDate: '$RELEASE_DATE'
+          EOF
+
+          echo "=== latest-linux.yml ==="
+          cat ../latest-linux.yml
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64
+          path: |
+            ../VSCode-linux-x64.tar.gz
+            ../latest-linux.yml
+          retention-days: 7
+
+  release:
+    name: Create GitHub Release
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure
+        run: |
+          echo "=== Artifacts structure ==="
+          ls -R artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/macos-universal/*
+            artifacts/windows-x64/*
+            artifacts/linux-x64/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

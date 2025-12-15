@@ -122,6 +122,7 @@ import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeM
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
+import { AutoUpdateService } from '../../platform/update/electron-main/autoUpdateService.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -137,6 +138,7 @@ export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
 	private auxiliaryWindowsMainService: IAuxiliaryWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
+	private autoUpdateService: AutoUpdateService | undefined;
 
 	constructor(
 		private readonly mainProcessNodeIpcServer: NodeIPCServer,
@@ -378,7 +380,10 @@ export class CodeApplication extends Disposable {
 	private registerListeners(): void {
 
 		// Dispose on shutdown
-		Event.once(this.lifecycleMainService.onWillShutdown)(() => this.dispose());
+		Event.once(this.lifecycleMainService.onWillShutdown)(() => {
+			this.autoUpdateService?.dispose();
+			this.dispose();
+		});
 
 		// Contextmenu via IPC support
 		registerContextMenuListener();
@@ -1365,6 +1370,11 @@ export class CodeApplication extends Disposable {
 
 		// Windows: mutex
 		this.installMutex();
+
+		// Initialize Auto Update Service
+		const mainWindow = this.windowsMainService?.getWindows()[0]?.win ?? undefined;
+		this.autoUpdateService = new AutoUpdateService(this.logService, mainWindow);
+		this.logService.info('[Main] AutoUpdateService initialized');
 
 		// Remote Authorities
 		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {

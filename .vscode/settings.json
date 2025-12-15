@@ -7,7 +7,7 @@
 		"scripts/test.bat": true,
 		"scripts/test.sh": true,
 		"scripts/test-integration.bat": true,
-		"scripts/test-integration.sh": true,
+		"scripts/test-integration.sh": true
 	},
 
 	// --- Editor ---
@@ -32,7 +32,7 @@
 	},
 	"[rust]": {
 		"editor.defaultFormatter": "rust-lang.rust-analyzer",
-		"editor.formatOnSave": true,
+		"editor.formatOnSave": true
 	},
 	"[github-issues]": {
 		"editor.wordWrap": "on"
@@ -94,7 +94,7 @@
 		"src/vs/base/test/node/uri.test.data.txt": true,
 		"src/vs/editor/test/node/diffing/fixtures/**": true,
 		"build/loader.min": true,
-		"**/*.snap": true,
+		"**/*.snap": true
 	},
 
 	// --- TypeScript ---
@@ -113,15 +113,11 @@
 	// --- Languages ---
 	"json.schemas": [
 		{
-			"fileMatch": [
-				"cgmanifest.json"
-			],
-			"url": "https://www.schemastore.org/component-detection-manifest.json",
+			"fileMatch": ["cgmanifest.json"],
+			"url": "https://www.schemastore.org/component-detection-manifest.json"
 		},
 		{
-			"fileMatch": [
-				"cglicenses.json"
-			],
+			"fileMatch": ["cglicenses.json"],
 			"url": "./.vscode/cglicenses.schema.json"
 		}
 	],
@@ -149,9 +145,7 @@
 	"githubPullRequests.experimental.createView": true,
 	"githubPullRequests.assignCreated": "${user}",
 	"githubPullRequests.defaultMergeMethod": "squash",
-	"githubPullRequests.ignoredPullRequestBranches": [
-		"main"
-	],
+	"githubPullRequests.ignoredPullRequestBranches": ["main"],
 	"githubPullRequests.codingAgent.enabled": true,
 	"githubPullRequests.codingAgent.uiIntegration": true,
 
@@ -164,9 +158,7 @@
 		]
 	},
 	"extension-test-runner.debugOptions": {
-		"outFiles": [
-			"${workspaceFolder}/extensions/*/out/**/*.js",
-		]
+		"outFiles": ["${workspaceFolder}/extensions/*/out/**/*.js"]
 	},
 
 	// --- Coverage ---
@@ -189,9 +181,7 @@
 	"eslint.useFlatConfig": true,
 	"emmet.excludeLanguages": [],
 	"gulp.autoDetect": "off",
-	"rust-analyzer.linkedProjects": [
-		"cli/Cargo.toml"
-	],
+	"rust-analyzer.linkedProjects": ["cli/Cargo.toml"],
 	"conventionalCommits.scopes": [
 		"tree",
 		"scm",
@@ -212,4 +202,14 @@
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
 	"chat.tools.terminal.outputLocation": "none",
+	"i18n-ally.localesPaths": [
+		"extensions/git-base/languages",
+		"out/vs/editor/common/languages",
+		"out/vs/workbench/services/language",
+		"out-vscode/vs/editor/common/languages",
+		"src/vs/editor/common/languages",
+		"src/vs/workbench/services/language",
+		"out-build/vs/editor/common/languages",
+		"out-build/vs/workbench/services/language"
+	]
 }

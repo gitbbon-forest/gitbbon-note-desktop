@@ -165,6 +165,7 @@
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
     "electron": "39.2.3",
+    "electron-updater": "^6.6.2",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",
