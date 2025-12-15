@@ -940,10 +940,16 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 
 	const onSuccess = async (value: string): Promise<void> => {
 		try {
-			const resourceToCreate = resources.joinPath(folder.resource, value);
 			if (value.endsWith('/')) {
 				isFolder = true;
 			}
+
+			// gitbbon: Treat files without extension as markdown files
+			if (!isFolder && extname(value) === '' && !value.startsWith('.')) {
+				value += '.md';
+			}
+
+			const resourceToCreate = resources.joinPath(folder.resource, value);
 			await explorerService.applyBulkEdit([new ResourceFileEdit(undefined, resourceToCreate, { folder: isFolder })], {
 				undoLabel: nls.localize('createBulkEdit', "Create {0}", value),
 				progressLabel: nls.localize('creatingBulkEdit', "Creating {0}", value),

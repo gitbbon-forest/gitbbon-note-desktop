@@ -1,0 +1,126 @@
+npm warn Unknown project config "disturl". This will stop working in the next major version of npm.
+npm warn Unknown project config "target". This will stop working in the next major version of npm.
+npm warn Unknown project config "ms_build_id". This will stop working in the next major version of npm.
+npm warn Unknown project config "runtime". This will stop working in the next major version of npm.
+npm warn Unknown project config "build_from_source". This will stop working in the next major version of npm.
+npm warn Unknown project config "timeout". This will stop working in the next major version of npm.
+npm warn skipping integrity check for git dependency ssh://git@github.com/parcel-bundler/watcher.git
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated urix@0.1.0: Please see https://github.com/lydell/urix#deprecated
+npm warn deprecated stable@0.1.8: Modern JS already guarantees Array#sort() is a stable sort, so this library is deprecated. See the compatibility table on MDN: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#browser_compatibility
+npm warn deprecated source-map-resolve@0.6.0: See https://github.com/lydell/source-map-resolve#deprecated
+npm warn deprecated source-map-url@0.4.0: See https://github.com/lydell/source-map-url#deprecated
+npm warn deprecated rimraf@2.6.3: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated resolve-url@0.2.1: https://github.com/lydell/resolve-url#deprecated
+npm warn deprecated osenv@0.1.5: This package is no longer supported.
+npm warn deprecated keygrip@1.1.0: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+npm warn deprecated is-data-descriptor@1.0.0: Please upgrade to v1.0.1
+npm warn deprecated is-accessor-descriptor@1.0.0: Please upgrade to v1.0.1
+npm warn deprecated glob@5.0.15: Glob versions prior to v9 are no longer supported
+npm warn deprecated gulp-vinyl-zip@2.1.2: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+npm warn deprecated asar@3.0.3: Please use @electron/asar moving forward.  There is no API change, just a package name change
+npm warn deprecated fstream@1.0.12: This package is no longer supported.
+npm warn deprecated is-accessor-descriptor@0.1.6: Please upgrade to v0.1.7
+npm warn deprecated is-data-descriptor@0.1.4: Please upgrade to v0.1.5
+npm warn deprecated is-accessor-descriptor@0.1.6: Please upgrade to v0.1.7
+npm warn deprecated glob@7.1.7: Glob versions prior to v9 are no longer supported
+npm warn deprecated is-data-descriptor@0.1.4: Please upgrade to v0.1.5
+npm warn deprecated source-map-resolve@0.5.3: See https://github.com/lydell/source-map-resolve#deprecated
+npm warn deprecated is-data-descriptor@0.1.4: Please upgrade to v0.1.5
+npm warn deprecated is-accessor-descriptor@0.1.6: Please upgrade to v0.1.7
+npm warn deprecated glob@8.1.0: Glob versions prior to v9 are no longer supported
+npm warn deprecated glob@7.1.7: Glob versions prior to v9 are no longer supported
+npm warn deprecated glob@7.1.6: Glob versions prior to v9 are no longer supported
+npm warn deprecated is-data-descriptor@0.1.4: Please upgrade to v0.1.5
+npm warn deprecated is-accessor-descriptor@0.1.6: Please upgrade to v0.1.7
+npm warn deprecated chokidar@2.1.8: Chokidar 2 does not receive security updates since 2019. Upgrade to chokidar 3 with 15x fewer dependencies
+npm warn deprecated is-data-descriptor@0.1.4: Please upgrade to v0.1.5
+npm warn deprecated is-accessor-descriptor@0.1.6: Please upgrade to v0.1.7
+npm warn deprecated glob@7.1.6: Glob versions prior to v9 are no longer supported
+npm warn deprecated tar@2.2.2: This version of tar is no longer supported, and will not receive security updates. Please upgrade asap.
+npm warn deprecated sinon@12.0.1: 16.1.1
+npm warn deprecated @azure/core-http@2.3.2: This package is no longer supported. Please migrate to use @azure/core-rest-pipeline
+npm warn cleanup Failed to remove some directories [
+npm warn cleanup   [
+npm warn cleanup     '/app/node_modules',
+npm warn cleanup     [Error: ENOTEMPTY: directory not empty, rmdir '/app/node_modules/native-watchdog'] {
+npm warn cleanup       errno: -39,
+npm warn cleanup       code: 'ENOTEMPTY',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: '/app/node_modules/native-watchdog'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     '/app/node_modules/native-keymap',
+npm warn cleanup     [Error: ENOTEMPTY: directory not empty, rmdir '/app/node_modules/native-keymap'] {
+npm warn cleanup       errno: -39,
+npm warn cleanup       code: 'ENOTEMPTY',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: '/app/node_modules/native-keymap'
+npm warn cleanup     }
+npm warn cleanup   ]
+npm warn cleanup ]
+npm error code 1
+npm error path /app/node_modules/kerberos
+npm error command failed
+npm error command sh -c prebuild-install --runtime napi || node-gyp rebuild
+npm error make: Entering directory '/app/node_modules/kerberos/build'
+npm error   CXX(target) Release/obj.target/kerberos/src/kerberos.o
+npm error make: Leaving directory '/app/node_modules/kerberos/build'
+npm error prebuild-install warn This package does not support N-API version 39.2.3
+npm error gyp info it worked if it ends with ok
+npm error gyp info using node-gyp@11.4.2
+npm error gyp info using node@22.21.1 | linux | x64
+npm error gyp info find Python using Python version 3.12.12 found at "/home/jules/.pyenv/versions/3.12.12/bin/python3"
+npm error gyp info spawn /home/jules/.pyenv/versions/3.12.12/bin/python3
+npm error gyp info spawn args [
+npm error gyp info spawn args '/home/jules/.nvm/versions/node/v22.21.1/lib/node_modules/npm/node_modules/node-gyp/gyp/gyp_main.py',
+npm error gyp info spawn args 'binding.gyp',
+npm error gyp info spawn args '-f',
+npm error gyp info spawn args 'make',
+npm error gyp info spawn args '-I',
+npm error gyp info spawn args '/app/node_modules/kerberos/build/config.gypi',
+npm error gyp info spawn args '-I',
+npm error gyp info spawn args '/home/jules/.nvm/versions/node/v22.21.1/lib/node_modules/npm/node_modules/node-gyp/addon.gypi',
+npm error gyp info spawn args '-I',
+npm error gyp info spawn args '/home/jules/.cache/node-gyp/39.2.3/include/node/common.gypi',
+npm error gyp info spawn args '-Dlibrary=shared_library',
+npm error gyp info spawn args '-Dvisibility=default',
+npm error gyp info spawn args '-Dnode_root_dir=/home/jules/.cache/node-gyp/39.2.3',
+npm error gyp info spawn args '-Dnode_gyp_dir=/home/jules/.nvm/versions/node/v22.21.1/lib/node_modules/npm/node_modules/node-gyp',
+npm error gyp info spawn args '-Dnode_lib_file=/home/jules/.cache/node-gyp/39.2.3/<(target_arch)/node.lib',
+npm error gyp info spawn args '-Dmodule_root_dir=/app/node_modules/kerberos',
+npm error gyp info spawn args '-Dnode_engine=v8',
+npm error gyp info spawn args '--depth=.',
+npm error gyp info spawn args '--no-parallel',
+npm error gyp info spawn args '--generator-output',
+npm error gyp info spawn args 'build',
+npm error gyp info spawn args '-Goutput_dir=.'
+npm error gyp info spawn args ]
+npm error gyp info spawn make
+npm error gyp info spawn args [ 'BUILDTYPE=Release', '-C', 'build' ]
+npm error In file included from ../src/kerberos_common.h:5,
+npm error                  from ../src/kerberos.h:13,
+npm error                  from ../src/kerberos.cc:1:
+npm error ../src/unix/kerberos_gss.h:21:14: fatal error: gssapi/gssapi.h: No such file or directory
+npm error    21 |     #include <gssapi/gssapi.h>
+npm error       |              ^~~~~~~~~~~~~~~~~
+npm error compilation terminated.
+npm error make: *** [kerberos.target.mk:129: Release/obj.target/kerberos/src/kerberos.o] Error 1
+npm error gyp ERR! build error
+npm error gyp ERR! stack Error: `make` failed with exit code: 2
+npm error gyp ERR! stack at ChildProcess.<anonymous> (/home/jules/.nvm/versions/node/v22.21.1/lib/node_modules/npm/node_modules/node-gyp/lib/build.js:219:23)
+npm error gyp ERR! System Linux 6.8.0
+npm error gyp ERR! command "/home/jules/.nvm/versions/node/v22.21.1/bin/node" "/home/jules/.nvm/versions/node/v22.21.1/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js" "rebuild"
+npm error gyp ERR! cwd /app/node_modules/kerberos
+npm error gyp ERR! node -v v22.21.1
+npm error gyp ERR! node-gyp -v v11.4.2
+npm error gyp ERR! not ok
+npm notice
+npm notice New minor version of npm available! 11.6.2 -> 11.7.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.7.0
+npm notice To update run: npm install -g npm@11.7.0
+npm notice
+npm error A complete log of this run can be found in: /home/jules/.npm/_logs/2025-12-15T08_29_59_665Z-debug-0.log
