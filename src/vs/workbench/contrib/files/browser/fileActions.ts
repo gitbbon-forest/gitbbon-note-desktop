@@ -945,8 +945,11 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 			}
 
 			// gitbbon: Treat files without extension as markdown files
+			let wasExtensionAdded = false;
+			const originalFileName = value;
 			if (!isFolder && extname(value) === '' && !value.startsWith('.')) {
 				value += '.md';
+				wasExtensionAdded = true;
 			}
 
 			const resourceToCreate = resources.joinPath(folder.resource, value);
@@ -960,6 +963,19 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 			if (isFolder) {
 				await explorerService.select(resourceToCreate, true);
 			} else {
+				// gitbbon: Add YAML frontmatter with title for markdown files
+				const shouldAddFrontmatter = wasExtensionAdded || (!isFolder && extname(value) === '.md' && !value.startsWith('.'));
+				if (shouldAddFrontmatter) {
+					const fileContent = await fileService.readFile(resourceToCreate);
+					if (fileContent.value.byteLength === 0) {
+						// Use original filename without extension as title
+						const titleName = wasExtensionAdded ? originalFileName : basename(value, '.md');
+						const frontmatter = `---\ntitle: ${titleName}\n---\n\n`;
+						await fileService.writeFile(resourceToCreate, VSBuffer.fromString(frontmatter));
+						// Refresh explorer to reflect the file content change
+						await explorerService.refresh();
+					}
+				}
 				await editorService.openEditor({ resource: resourceToCreate, options: { pinned: true } });
 			}
 		} catch (error) {
