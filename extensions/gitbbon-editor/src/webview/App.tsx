@@ -30,11 +30,17 @@ export const App = () => {
 	const [saveStatus, setSaveStatus] = useState<SaveStatus>('committed');
 	const editorRef = useRef<MilkdownEditorRef>(null);
 	const titleRef = useRef('');
+	const contentRef = useRef<string | null>(null);
 
 	// Keep titleRef in sync for callbacks
 	useEffect(() => {
 		titleRef.current = title;
 	}, [title]);
+
+	// Keep contentRef in sync
+	useEffect(() => {
+		contentRef.current = editorContent;
+	}, [editorContent]);
 
 	// Debounced send update (0.5s throttle)
 	const debouncedSendUpdate = useMemo(
@@ -86,15 +92,15 @@ export const App = () => {
 					setTitle(remoteTitle);
 
 					// Update Editor
-					if (editorContent === null) {
+					const contentChanged = remoteContent !== contentRef.current;
+
+					if (contentRef.current === null) {
 						// First load
 						setEditorContent(remoteContent);
-					} else {
-						// Subsequent updates
-						if (editorRef.current) {
-							editorRef.current.setContent(remoteContent);
-							setEditorContent(remoteContent);
-						}
+					} else if (editorRef.current && contentChanged) {
+						// Subsequent updates (only if content changed)
+						editorRef.current.setContent(remoteContent);
+						setEditorContent(remoteContent);
 					}
 					break;
 				case 'statusUpdate':
