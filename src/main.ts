@@ -20,20 +20,7 @@ import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
 import { INLSConfiguration } from './vs/nls.js';
 import { NativeParsedArgs } from './vs/platform/environment/common/argv.js';
 
-import { resolveGitBinary } from 'dugite';
-
 perf.mark('code/didStartMain');
-
-// [Gitbbon] Inject dugite git into PATH
-try {
-	const gitBinaryPath = await resolveGitBinary();
-	console.log("🚀 ~ gitBinaryPath:", gitBinaryPath)
-	const gitDir = path.dirname(gitBinaryPath);
-	process.env['PATH'] = gitDir + path.delimiter + (process.env['PATH'] || '');
-	console.log(`[Gitbbon] Injected dugite git into PATH: ${gitDir}`);
-} catch (err) {
-	console.error('[Gitbbon] Failed to inject dugite git:', err);
-}
 
 perf.mark('code/willLoadMainBundle', {
 	// When built, the main bundle is a single JS file with all

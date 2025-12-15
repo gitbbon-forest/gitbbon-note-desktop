@@ -235,12 +235,4 @@
 	background-color: var(--vscode-statusBarItem-offlineHoverBackground) !important;
 }
 
-/* gitbbon: Hide all status bar items by default */
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item {
-	display: none !important;
-}
 
-/* gitbbon: Show notification status bar item */
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item[id="status.notifications"] {
-	display: inline-block !important;
-}

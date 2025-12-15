@@ -16,6 +16,7 @@ interface Project {
 	name: string;
 	path: string;
 	lastOpened: string; // ISO 8601 Timestamp
+	lastModified?: string; // ISO 8601 Timestamp of last commit
 }
 
 interface ProjectManifest {
@@ -124,7 +125,7 @@ export class ProjectManager {
 
 	private async createDefaultManifest(): Promise<ProjectManifest> {
 		console.log('[ProjectManager] Creating default manifest...');
-		const defaultName = 'default';
+		const defaultName = 'gitbbon-note-default';
 		const defaultPath = path.join(this.rootPath, defaultName);
 		console.log(`[ProjectManager] Default project path: ${defaultPath}`);
 
@@ -167,11 +168,11 @@ export class ProjectManager {
 				cp.exec('git init', { cwd: projectPath }, (err, stdout, stderr) => {
 					if (err) {
 						console.error('[ProjectManager] Git init failed:', err);
-						if (stderr) console.error('[ProjectManager] Git stderr:', stderr);
+						if (stderr) { console.error('[ProjectManager] Git stderr:', stderr); }
 						// Non-fatal, continue
 					} else {
 						console.log('[ProjectManager] Git repository initialized successfully');
-						if (stdout) console.log('[ProjectManager] Git stdout:', stdout);
+						if (stdout) { console.log('[ProjectManager] Git stdout:', stdout); }
 					}
 					resolve();
 				});
@@ -187,6 +188,17 @@ export class ProjectManager {
 			const content = `# ${projectName}\n\nManaged by Gitbbon.\nCreated: ${new Date().toLocaleString()}\n`;
 			await fs.promises.writeFile(readmePath, content, 'utf-8');
 			console.log(`[ProjectManager] README.md created`);
+
+			// 4. Create initial commit
+			try {
+				console.log('[ProjectManager] Creating initial commit...');
+				await this.execGit(['add', 'README.md'], projectPath);
+				await this.execGit(['commit', '-m', 'Initial commit'], projectPath);
+				console.log('[ProjectManager] ✅ Initial commit created');
+			} catch (e) {
+				console.warn('[ProjectManager] Failed to create initial commit:', e);
+				// Non-fatal, continue
+			}
 		} else {
 			console.log(`[ProjectManager] README.md already exists`);
 		}
@@ -223,62 +235,68 @@ export class ProjectManager {
 		}
 	}
 
+	public async updateLastModified(cwd: string): Promise<void> {
+		const manifest = await this.loadManifest();
+		if (!manifest) return;
+
+		const project = manifest.projects.find(p => path.normalize(p.path) === path.normalize(cwd));
+		if (project) {
+			project.lastModified = new Date().toISOString();
+			await this.saveManifest(manifest);
+			console.log(`[ProjectManager] Updated lastModified for ${project.name}`);
+		}
+	}
+
+	public async getManifest(): Promise<ProjectManifest | null> {
+		return this.loadManifest();
+	}
+
+	public async addProject(name: string, projectPath: string): Promise<void> {
+		const manifest = await this.loadManifest();
+		if (!manifest) return;
+
+		if (!manifest.projects.find(p => p.name === name)) {
+			manifest.projects.push({
+				name,
+				path: projectPath,
+				lastOpened: new Date().toISOString()
+				// lastModified is undefined initially
+			});
+			await this.saveManifest(manifest);
+			console.log(`[ProjectManager] Added new project: ${name}`);
+		}
+	}
+
 	// =====================================================
 	// Git Helper Methods for 3-Layer Save System
 	// =====================================================
 
 	/**
 	 * Git 명령어 실행 헬퍼
-	 * spawn을 사용하여 인자를 안전하게 전달 (따옴표 이스케이프 문제 해결)
+	 * dugite를 사용하여 내장 Git 바이너리로 실행
 	 * @param options.silent true일 경우 에러 로그를 출력하지 않음 (예: 브랜치 확인 등)
 	 */
-	private execGit(args: string[], cwd: string, options: { silent?: boolean } = {}): Promise<string> {
-		return new Promise((resolve, reject) => {
-			const cmd = `git ${args.join(' ')}`;
+	private async execGit(args: string[], cwd: string, options: { silent?: boolean } = {}): Promise<string> {
+		const dugite = await import('dugite');
+
+		const cmd = `git ${args.join(' ')}`;
+		if (!options.silent) {
+			console.log(`[ProjectManager] Executing: ${cmd} in ${cwd}`);
+		}
+
+		const result = await dugite.exec(args, cwd);
+
+		if (result.exitCode !== 0) {
 			if (!options.silent) {
-				console.log(`[ProjectManager] Executing: ${cmd} in ${cwd}`);
+				console.error(`[ProjectManager] Git command failed: ${cmd}`, result.stderr);
 			}
-			const child = cp.spawn('git', args, { cwd });
-			let stdout = '';
-			let stderr = '';
+			throw new Error(result.stderr || `Git command exited with code ${result.exitCode}`);
+		}
 
-			child.stdout.on('data', (data) => {
-				const chunk = data.toString();
-				stdout += chunk;
-				if (!options.silent && stdout.trim()) {
-					// Show first line of output for visibility
-					const lines = chunk.trim().split('\n');
-					if (lines.length > 0 && lines[0]) {
-						console.log(`[ProjectManager] Git stdout: ${lines[0]}`);
-					}
-				}
-			});
-
-			child.stderr.on('data', (data) => {
-				stderr += data.toString();
-			});
-
-			child.on('close', (code) => {
-				if (code !== 0) {
-					if (!options.silent) {
-						console.error(`[ProjectManager] Git command failed: ${cmd}`, stderr);
-					}
-					reject(new Error(stderr || `Git command exited with code ${code}`));
-				} else {
-					if (!options.silent) {
-						console.log(`[ProjectManager] Git command succeeded: ${cmd}`);
-					}
-					resolve(stdout.trim());
-				}
-			});
-
-			child.on('error', (err) => {
-				if (!options.silent) {
-					console.error(`[ProjectManager] Git command error: ${cmd}`, err);
-				}
-				reject(err);
-			});
-		});
+		if (!options.silent) {
+			console.log(`[ProjectManager] Git command succeeded: ${cmd}`);
+		}
+		return result.stdout.trim();
 	}
 
 	/**
@@ -449,6 +467,9 @@ export class ProjectManager {
 			await this.execGit(['reset', '--mixed'], cwd, { silent: true });
 
 			console.log(`[ProjectManager] Auto commit created: ${newCommitId}`);
+			// Update lastModified in projects.json
+			await this.updateLastModified(cwd);
+
 			return { success: true, message: `Auto commit: ${newCommitId.substring(0, 7)}` };
 		} catch (error) {
 			console.error('[ProjectManager] Auto commit failed:', error);
@@ -552,11 +573,37 @@ export class ProjectManager {
 
 			console.log(`[ProjectManager] Really Final commit created: ${newCommitId}`);
 			vscode.window.showInformationMessage(`진짜최종 완료: ${newCommitId.substring(0, 7)}`);
+			// Update lastModified in projects.json
+			await this.updateLastModified(cwd);
+
 			return { success: true, message: `진짜최종: ${newCommitId.substring(0, 7)}` };
 		} catch (error) {
 			console.error('[ProjectManager] Really Final commit failed:', error);
 			vscode.window.showErrorMessage(`진짜최종 실패: ${error}`);
 			return { success: false, message: `Really Final failed: ${error}` };
+		}
+	}
+
+	public async getRootCommit(cwd: string): Promise<string | null> {
+		try {
+			// Get root commit hash (requires at least one commit)
+			const rootCommit = await this.execGit(['rev-list', '--max-parents=0', 'HEAD'], cwd, { silent: true });
+			// If there are multiple root commits (merge of unrelated histories), it returns multiple lines.
+			// We take the last one (oldest) as the "true" root usually, or just the first line.
+			// Ideally a repo has one root.
+			return rootCommit.split('\n')[0].trim();
+		} catch (e) {
+			console.log('[ProjectManager] No root commit found (empty repo?)');
+			return null;
+		}
+	}
+
+	public async hasRemote(cwd: string): Promise<boolean> {
+		try {
+			const remotes = await this.execGit(['remote'], cwd, { silent: true });
+			return remotes.trim().length > 0;
+		} catch {
+			return false;
 		}
 	}
 }
