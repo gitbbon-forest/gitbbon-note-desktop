@@ -35,6 +35,7 @@ const compilations = [
 	'extensions/git/tsconfig.json',
 	'extensions/git-base/tsconfig.json',
 	'extensions/gitbbon-editor/tsconfig.json',
+	'extensions/gitbbon-manager/tsconfig.json',
 	'extensions/github/tsconfig.json',
 	'extensions/github-authentication/tsconfig.json',
 	'extensions/json-language-features/client/tsconfig.json',
