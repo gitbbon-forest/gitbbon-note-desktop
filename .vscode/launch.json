@@ -711,5 +711,17 @@
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies"
 		},
+		{
+			"name": "Attach All",
+			"configurations": [
+				"Attach to Extension Host",
+				"Attach to VS Code",
+				"Attach to Main Process"
+			],
+			"presentation": {
+				"group": "1_vscode",
+				"order": 1
+			}
+		}
 	]
 }

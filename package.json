@@ -13,6 +13,7 @@
     "test": "echo Please run any of the test scripts from the scripts folder.",
     "unit-test": "echo '==> Running Manager Unit Tests' && (cd extensions/gitbbon-manager && npm run unit-test) && echo '==> Running Editor Unit Tests' && (cd extensions/gitbbon-editor && npm run unit-test)",
     "start": "./scripts/code.sh",
+    "start:debug": "echo '\\033[1;33m[DEBUG INFO] 디버깅하려면 VS Code \"실행 및 디버그\" 탭에서 \"Attach All\"을 선택하고 F5를 누르세요.\\033[0m' && ./scripts/code.sh --inspect=5875 --remote-debugging-port=9222",
     "start:fresh": "rm -rf /tmp/vscode-test-data; rm -rf ./out; rm -rf .build; ./scripts/code.sh --user-data-dir /tmp/vscode-test-data",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
     "test-browser-no-install": "node test/unit/browser/index.js",
