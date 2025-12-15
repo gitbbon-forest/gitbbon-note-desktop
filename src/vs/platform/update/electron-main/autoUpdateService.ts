@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, BrowserWindow, dialog } from 'electron';
-import { autoUpdater, UpdateInfo } from 'electron-updater';
+import electronUpdater, { type UpdateInfo, type AppUpdater } from 'electron-updater';
 import { ILogService } from '../../log/common/log.js';
+
+// ESM 환경에서 CommonJS 모듈의 autoUpdater에 접근
+const autoUpdater: AppUpdater = electronUpdater.autoUpdater;
 
 export class AutoUpdateService {
 	private updateCheckInterval: ReturnType<typeof setInterval> | undefined;

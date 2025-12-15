@@ -1513,7 +1513,8 @@ export default tseslint.config(
 					// - electron-main
 					'when': 'hasElectron',
 					'allow': [
-						'electron'
+						'electron',
+						'electron-updater'
 					]
 				},
 				{
