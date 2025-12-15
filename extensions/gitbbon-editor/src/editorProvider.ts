@@ -198,17 +198,36 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		frontmatter: Record<string, any>,
 		content: string
 	): Promise<void> {
-		const edit = new vscode.WorkspaceEdit();
 		const fullText = FrontmatterParser.stringify(frontmatter, content);
 
-		// 전체 문서 교체
-		edit.replace(
-			document.uri,
-			new vscode.Range(0, 0, document.lineCount, 0),
-			fullText
+		// TextEditor를 찾아서 직접 수정 (버전 충돌 방지)
+		const editors = vscode.window.visibleTextEditors.filter(
+			editor => editor.document.uri.toString() === document.uri.toString()
 		);
 
-		await vscode.workspace.applyEdit(edit);
+		if (editors.length > 0) {
+			// TextEditor가 있으면 직접 수정
+			const editor = editors[0];
+			await editor.edit(editBuilder => {
+				const fullRange = new vscode.Range(
+					0, 0,
+					document.lineCount, 0
+				);
+				editBuilder.replace(fullRange, fullText);
+			}, {
+				undoStopBefore: false,
+				undoStopAfter: false
+			});
+		} else {
+			// TextEditor가 없으면 WorkspaceEdit 사용 (fallback)
+			const edit = new vscode.WorkspaceEdit();
+			edit.replace(
+				document.uri,
+				new vscode.Range(0, 0, document.lineCount, 0),
+				fullText
+			);
+			await vscode.workspace.applyEdit(edit);
+		}
 	}
 
 	/**
