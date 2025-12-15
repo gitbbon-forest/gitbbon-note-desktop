@@ -103,12 +103,19 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			}, delay);
 		};
 
+		let isWebviewUpdating = false;
+
 		// Webview에서 메시지 수신
 		webviewPanel.webview.onDidReceiveMessage(
 			async (message) => {
 				switch (message.type) {
 					case 'update':
-						await this.updateDocument(document, message.frontmatter, message.content);
+						isWebviewUpdating = true;
+						try {
+							await this.updateDocument(document, message.frontmatter, message.content);
+						} finally {
+							isWebviewUpdating = false;
+						}
 						// 문서 업데이트 후 타이머 리셋 (Auto Save & Auto Commit)
 						resetTimers();
 						break;
@@ -159,6 +166,9 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		// 문서 변경 감지 (외부에서 변경된 경우)
 		const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument((e) => {
 			if (e.document.uri.toString() === document.uri.toString()) {
+				if (isWebviewUpdating) {
+					return;
+				}
 				const { frontmatter, content } = FrontmatterParser.parse(e.document.getText());
 				webviewPanel.webview.postMessage({
 					type: 'update',
