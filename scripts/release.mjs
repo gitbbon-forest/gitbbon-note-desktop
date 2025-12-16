@@ -96,8 +96,10 @@ async function setupWorktree() {
 
 	// Check if worktree already exists
 	if (fs.existsSync(WORKTREE_DIR)) {
-		log('Worktree already exists, updating...', colors.yellow);
-		exec(`cd "${WORKTREE_DIR}" && git pull origin main`, { silent: false });
+		log('Worktree already exists, syncing with local repository...', colors.yellow);
+		// Fetch latest from local main branch
+		exec(`cd "${WORKTREE_DIR}" && git fetch "${ROOT_DIR}" main:main`, { silent: false });
+		exec(`cd "${WORKTREE_DIR}" && git reset --hard main`, { silent: false });
 	} else {
 		log('Creating new worktree...', colors.yellow);
 		exec(`git worktree add "${WORKTREE_DIR}"`, { silent: false });
@@ -264,7 +266,18 @@ async function main() {
 		exec(`git commit -m "chore: Release v${newVersion}"`);
 		exec(`git tag v${newVersion}`);
 
-		// Step 3: Push to GitHub
+		// Step 3: Confirm push to GitHub
+		log('\n⚠️  Ready to push to GitHub:', colors.yellow);
+		log(`  - Commit: chore: Release v${newVersion}`);
+		log(`  - Tag: v${newVersion}`);
+		const pushConfirm = await prompt('\nPush to GitHub? (y/N): ');
+		if (pushConfirm.toLowerCase() !== 'y') {
+			log('Push cancelled. Rolling back...', colors.yellow);
+			exec(`git reset HEAD~1`);
+			exec(`git tag -d v${newVersion}`);
+			process.exit(0);
+		}
+
 		logStep('3/6', 'Pushing to GitHub...');
 		exec('git push origin main');
 		exec('git push origin --tags');
