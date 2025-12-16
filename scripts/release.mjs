@@ -102,6 +102,13 @@ function validateVersion(version) {
 	return semverRegex.test(version);
 }
 
+function getSuggestedVersion(currentVersion) {
+	const parts = currentVersion.split('.').map(Number);
+	// Bump patch version by default
+	parts[2] = parts[2] + 1;
+	return parts.join('.');
+}
+
 async function runBuild(platform) {
 	logStep('BUILD', `Building ${platform}...`);
 	return new Promise((resolve, reject) => {
@@ -202,12 +209,15 @@ async function main() {
 	log('\n🚀 Gitbbon Release Script', colors.bold + colors.blue);
 	log('='.repeat(40), colors.blue);
 
-	// Step 1: Show current version
+	// Step 1: Show current version and suggested version
 	const currentVersion = getCurrentVersion();
+	const suggestedVersion = getSuggestedVersion(currentVersion);
 	log(`\nCurrent version: ${colors.bold}${currentVersion}${colors.reset}`);
+	log(`Suggested version: ${colors.bold}${suggestedVersion}${colors.reset}`);
 
-	// Step 2: Get new version
-	const newVersion = await prompt(`\nEnter new version (e.g., 1.109.0): `);
+	// Step 2: Get new version (default to suggested if empty)
+	const inputVersion = await prompt(`\nEnter new version [${suggestedVersion}]: `);
+	const newVersion = inputVersion || suggestedVersion;
 
 	if (!validateVersion(newVersion)) {
 		log('Invalid version format. Please use semantic versioning (X.Y.Z)', colors.red);
