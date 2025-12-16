@@ -32,9 +32,13 @@ jobs:
         run: npm ci
 
       - name: Build macOS x64 (minified)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: npm run gulp vscode-darwin-x64-min
 
       - name: Build macOS ARM64 (minified)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: npm run gulp vscode-darwin-arm64-min
 
       - name: List build output
@@ -112,6 +116,8 @@ jobs:
         run: npm ci
 
       - name: Build Windows x64 (minified)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: npm run gulp vscode-win32-x64-min
 
       - name: List build output
@@ -190,6 +196,8 @@ jobs:
         run: npm ci
 
       - name: Build Linux x64 (minified)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: npm run gulp vscode-linux-x64-min
 
       - name: List build output

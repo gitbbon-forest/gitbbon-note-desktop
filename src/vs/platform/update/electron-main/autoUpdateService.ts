@@ -28,6 +28,19 @@ export class AutoUpdateService {
 			return;
 		}
 
+		// 비공개 레포용 GitHub 토큰 설정
+		// 빌드 시점에 환경변수가 문자열로 치환됨 (예: "ghp_xxxx" 또는 undefined)
+		// MVP 단계이며 향후 오픈소스 전환 예정으로 보안 리스크 수용
+		const githubToken = process.env.GH_TOKEN;
+		if (githubToken && githubToken !== 'undefined') {
+			autoUpdater.requestHeaders = {
+				Authorization: `token ${githubToken}`
+			};
+			this.logService.info('[AutoUpdate] GitHub token configured for private repo');
+		} else {
+			this.logService.warn('[AutoUpdate] No GitHub token found - updates may fail for private repo');
+		}
+
 		// 자동 다운로드 비활성화 (사용자에게 먼저 알림)
 		autoUpdater.autoDownload = false;
 		autoUpdater.autoInstallOnAppQuit = true;
