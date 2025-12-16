@@ -89,14 +89,35 @@ function getSuggestedVersion(currentVersion) {
 	return parts.join('.');
 }
 
-async function runBuild(platform) {
-	logStep('BUILD', `Building ${platform}...`);
+async function setupWorktree() {
+	const WORKTREE_DIR = path.join(ROOT_DIR, '..', 'git-note-build');
+
+	logStep('WORKTREE', 'Setting up build worktree...');
+
+	// Check if worktree already exists
+	if (fs.existsSync(WORKTREE_DIR)) {
+		log('Worktree already exists, updating...', colors.yellow);
+		exec(`cd "${WORKTREE_DIR}" && git pull origin main`, { silent: false });
+	} else {
+		log('Creating new worktree...', colors.yellow);
+		exec(`git worktree add "${WORKTREE_DIR}" main`, { silent: false });
+
+		// Install dependencies in worktree
+		log('Installing dependencies in worktree (this may take a while)...', colors.yellow);
+		exec(`cd "${WORKTREE_DIR}" && npm ci`, { silent: false });
+	}
+
+	return WORKTREE_DIR;
+}
+
+async function runBuild(platform, worktreeDir) {
+	logStep('BUILD', `Building ${platform} in worktree...`);
 	return new Promise((resolve, reject) => {
 		const child = spawn('npm', ['run', 'gulp', `vscode-${platform}-min`], {
-			cwd: ROOT_DIR,
+			cwd: worktreeDir,
 			shell: true,
 			stdio: 'inherit',
-			env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=16384' }
+			env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=16384', GH_TOKEN: process.env.GH_TOKEN }
 		});
 
 		child.on('close', (code) => {
@@ -109,7 +130,7 @@ async function runBuild(platform) {
 	});
 }
 
-async function createGitHubRelease(version, changelogEntry) {
+async function createGitHubRelease(version, changelogEntry, worktreeDir) {
 	logStep('RELEASE', 'Creating GitHub Release...');
 
 	const artifacts = [
@@ -123,15 +144,15 @@ async function createGitHubRelease(version, changelogEntry) {
 	const releaseFiles = [];
 
 	for (const artifact of artifacts) {
-		const artifactPath = path.join(ROOT_DIR, artifact);
+		const artifactPath = path.join(worktreeDir, artifact);
 		if (fs.existsSync(artifactPath)) {
 			const basename = path.basename(artifact);
 			if (artifact.includes('linux')) {
-				const tarPath = path.join(ROOT_DIR, '..', `${basename}.tar.gz`);
+				const tarPath = path.join(worktreeDir, '..', `${basename}.tar.gz`);
 				exec(`tar -czf "${tarPath}" -C "${artifactPath}" .`);
 				releaseFiles.push(tarPath);
 			} else {
-				const zipPath = path.join(ROOT_DIR, '..', `${basename}.zip`);
+				const zipPath = path.join(worktreeDir, '..', `${basename}.zip`);
 				exec(`cd "${artifactPath}" && zip -r -y "${zipPath}" .`);
 				releaseFiles.push(zipPath);
 			}
@@ -234,30 +255,31 @@ async function main() {
 
 	try {
 		// Step 5: Update package.json (CHANGELOG already updated by standard-version)
-		logStep('1/5', 'Updating package.json...');
+		logStep('1/6', 'Updating package.json...');
 		updatePackageVersion(newVersion);
 
 		// Step 6: Git commit and tag
-		logStep('2/5', 'Creating git commit and tag...');
+		logStep('2/6', 'Creating git commit and tag...');
 		exec(`git add package.json CHANGELOG.md`);
 		exec(`git commit -m "chore: Release v${newVersion}"`);
 		exec(`git tag v${newVersion}`);
 
-		// Step 7: Build all platforms
-		logStep('3/5', 'Building for all platforms (this may take a while)...');
-		await runBuild('darwin-x64');
-		await runBuild('darwin-arm64');
-		await runBuild('win32-x64');
-		await runBuild('linux-x64');
-
-		// Step 8: Create GitHub Release
-		logStep('4/5', 'Creating GitHub Release and uploading artifacts...');
-		await createGitHubRelease(newVersion, changelogEntry);
-
-		// Step 9: Push to remote
-		logStep('5/5', 'Pushing to remote...');
+		// Step 3: Push to GitHub
+		logStep('3/6', 'Pushing to GitHub...');
 		exec('git push origin main');
 		exec('git push origin --tags');
+
+		// Step 4: Setup worktree for building
+		const worktreeDir = await setupWorktree();
+
+		// Step 5: Build macOS ARM64
+		logStep('5/6', 'Building for macOS ARM64 in worktree...');
+		await runBuild('darwin-arm64', worktreeDir);
+		log('\n⚠️  Building ARM64 only for beta testing. Other platforms will be added later.', colors.yellow);
+
+		// Step 6: Create GitHub Release
+		logStep('6/6', 'Creating GitHub Release and uploading artifacts...');
+		await createGitHubRelease(newVersion, changelogEntry, worktreeDir);
 
 		log('\n' + '='.repeat(40), colors.green);
 		log('🎉 Release completed successfully!', colors.bold + colors.green);
