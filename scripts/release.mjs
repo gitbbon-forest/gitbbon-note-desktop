@@ -132,6 +132,10 @@ async function setupWorktree() {
 	if (fs.existsSync(WORKTREE_DIR)) {
 		log('Worktree already exists, updating from GitHub...', colors.yellow);
 		exec(`cd "${WORKTREE_DIR}" && git fetch origin && git reset --hard origin/main`, { silent: false });
+
+		// Install dependencies to ensure all packages are up to date
+		log('Installing dependencies in worktree (this may take a while)...', colors.yellow);
+		exec(`cd "${WORKTREE_DIR}" && npm ci`, { silent: false });
 	} else {
 		log('Creating new worktree...', colors.yellow);
 		exec(`git worktree add "${WORKTREE_DIR}" main`, { silent: false });
