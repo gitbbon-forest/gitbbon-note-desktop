@@ -408,13 +408,6 @@
 		messageDiv.innerHTML = refsHtml + escapeHtml(commit.message);
 		infoCell.appendChild(messageDiv);
 
-		// Meta info
-		const metaDiv = document.createElement('div');
-		metaDiv.className = 'commit-meta';
-		const date = formatDate(commit.date);
-		metaDiv.textContent = `${commit.shortHash} • ${commit.author} • ${date}`;
-		infoCell.appendChild(metaDiv);
-
 		row.appendChild(infoCell);
 
 		// Click event

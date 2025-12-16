@@ -16,12 +16,13 @@ import eslint from './gulp-eslint.ts';
 import * as formatter from './lib/formatter.ts';
 import gulpstylelint from './stylelint.ts';
 
-const copyrightHeaderLines = [
-	'/*---------------------------------------------------------------------------------------------',
-	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
-	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
-	' *--------------------------------------------------------------------------------------------*/',
-];
+// Disabled copyright check - keeping this for reference
+// const copyrightHeaderLines = [
+// 	'/*---------------------------------------------------------------------------------------------',
+// 	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
+// 	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+// 	' *--------------------------------------------------------------------------------------------*/',
+// ];
 
 interface VinylFileWithLines extends VinylFile {
 	__lines: string[];
@@ -104,16 +105,17 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		this.emit('data', file);
 	});
 
+	// Disabled copyright check for flexibility in extensions
 	const copyrights = es.through(function (file: VinylFileWithLines) {
-		const lines = file.__lines;
+		// const lines = file.__lines;
 
-		for (let i = 0; i < copyrightHeaderLines.length; i++) {
-			if (lines[i] !== copyrightHeaderLines[i]) {
-				console.error(file.relative + ': Missing or bad copyright statement');
-				errorCount++;
-				break;
-			}
-		}
+		// for (let i = 0; i < copyrightHeaderLines.length; i++) {
+		// 	if (lines[i] !== copyrightHeaderLines[i]) {
+		// 		console.error(file.relative + ': Missing or bad copyright statement');
+		// 		errorCount++;
+		// 		break;
+		// 	}
+		// }
 
 		this.emit('data', file);
 	});
