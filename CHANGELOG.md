@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.108.2](https://github.com/microsoft/vscode/compare/v1.108.1...v1.108.2) (2025-12-16)
+
+
+### Features
+
+* Use git worktree for isolated builds ([119f22d](https://github.com/microsoft/vscode/commit/119f22dea73d3148de53976a9ef2915d2b3044d1))
+
+
+### Bug Fixes
+
+* Move electron-updater to dependencies ([c2477eb](https://github.com/microsoft/vscode/commit/c2477eb951b218f3c5409f3737574d176095cc88))
+* Use worktree without branch name to avoid conflicts ([d9a5a57](https://github.com/microsoft/vscode/commit/d9a5a578eb6d2955422c6e9f05ef0617cd6e7546))
+
+
+### Chores
+
+* Release v1.108.2 ([9739236](https://github.com/microsoft/vscode/commit/9739236f2c0b805597af47a30e93aa2d00742191))
+
+### [1.108.2](https://github.com/microsoft/vscode/compare/v1.108.1...v1.108.2) (2025-12-16)
+
+
+### Features
+
+* Use git worktree for isolated builds ([119f22d](https://github.com/microsoft/vscode/commit/119f22dea73d3148de53976a9ef2915d2b3044d1))
+
+
+### Bug Fixes
+
+* Move electron-updater to dependencies ([c2477eb](https://github.com/microsoft/vscode/commit/c2477eb951b218f3c5409f3737574d176095cc88))
+* Use worktree without branch name to avoid conflicts ([d9a5a57](https://github.com/microsoft/vscode/commit/d9a5a578eb6d2955422c6e9f05ef0617cd6e7546))
+
+
+### Chores
+
+* Release v1.108.2 ([9739236](https://github.com/microsoft/vscode/commit/9739236f2c0b805597af47a30e93aa2d00742191))
+
 ### [1.108.1](https://github.com/microsoft/vscode/compare/v0.0.1...v1.108.1) (2025-12-16)
 
 
