@@ -77,26 +77,6 @@ function updatePackageVersion(newVersion) {
 	fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
 }
 
-function updateChangelog(version, changes) {
-	const changelogPath = path.join(ROOT_DIR, 'CHANGELOG.md');
-	const date = new Date().toISOString().split('T')[0];
-
-	let changelog = '';
-	if (fs.existsSync(changelogPath)) {
-		changelog = fs.readFileSync(changelogPath, 'utf8');
-	} else {
-		changelog = '# Changelog\n\nAll notable changes to this project will be documented in this file.\n';
-	}
-
-	const newEntry = `\n## [${version}] - ${date}\n\n${changes}\n`;
-
-	// Insert after the header
-	const headerEnd = changelog.indexOf('\n\n') + 2;
-	changelog = changelog.slice(0, headerEnd) + newEntry + changelog.slice(headerEnd);
-
-	fs.writeFileSync(changelogPath, changelog);
-}
-
 function validateVersion(version) {
 	const semverRegex = /^\d+\.\d+\.\d+$/;
 	return semverRegex.test(version);
@@ -224,36 +204,20 @@ async function main() {
 		process.exit(1);
 	}
 
-	// Step 3: Get changelog entry
-	log('\nEnter changelog entry (press Enter twice to finish):', colors.yellow);
-	let changelogEntry = '';
-	const rl = readline.createInterface({
-		input: process.stdin,
-		output: process.stdout
-	});
-
-	changelogEntry = await new Promise((resolve) => {
-		let lines = [];
-		let emptyLineCount = 0;
-
-		rl.on('line', (line) => {
-			if (line === '') {
-				emptyLineCount++;
-				if (emptyLineCount >= 1 && lines.length > 0) {
-					rl.close();
-					resolve(lines.join('\n'));
-				}
-			} else {
-				emptyLineCount = 0;
-				lines.push(line.startsWith('- ') ? line : `- ${line}`);
-			}
-		});
-	});
-
-	if (!changelogEntry) {
-		log('Changelog entry is required.', colors.red);
+	// Step 3: Run standard-version to generate CHANGELOG
+	logStep('CHANGELOG', 'Generating CHANGELOG from git commits...');
+	try {
+		exec(`npx standard-version --release-as ${newVersion} --skip.commit --skip.tag`, { silent: false });
+	} catch (error) {
+		log('Failed to generate CHANGELOG. Make sure you have conventional commits.', colors.red);
 		process.exit(1);
 	}
+
+	// Read generated changelog for this version
+	const changelogPath = path.join(ROOT_DIR, 'CHANGELOG.md');
+	const changelog = fs.readFileSync(changelogPath, 'utf8');
+	const versionMatch = changelog.match(new RegExp(`## \\[${newVersion}\\][\\s\\S]*?(?=\\n## |$)`));
+	const changelogEntry = versionMatch ? versionMatch[0] : `Release ${newVersion}`;
 
 	// Step 4: Confirm
 	log('\n' + '='.repeat(40), colors.yellow);
@@ -269,32 +233,29 @@ async function main() {
 	}
 
 	try {
-		// Step 5: Update files
-		logStep('1/6', 'Updating package.json...');
+		// Step 5: Update package.json (CHANGELOG already updated by standard-version)
+		logStep('1/5', 'Updating package.json...');
 		updatePackageVersion(newVersion);
 
-		logStep('2/6', 'Updating CHANGELOG.md...');
-		updateChangelog(newVersion, changelogEntry);
-
 		// Step 6: Git commit and tag
-		logStep('3/6', 'Creating git commit and tag...');
+		logStep('2/5', 'Creating git commit and tag...');
 		exec(`git add package.json CHANGELOG.md`);
 		exec(`git commit -m "chore: Release v${newVersion}"`);
 		exec(`git tag v${newVersion}`);
 
 		// Step 7: Build all platforms
-		logStep('4/6', 'Building for all platforms (this may take a while)...');
+		logStep('3/5', 'Building for all platforms (this may take a while)...');
 		await runBuild('darwin-x64');
 		await runBuild('darwin-arm64');
 		await runBuild('win32-x64');
 		await runBuild('linux-x64');
 
 		// Step 8: Create GitHub Release
-		logStep('5/6', 'Creating GitHub Release and uploading artifacts...');
+		logStep('4/5', 'Creating GitHub Release and uploading artifacts...');
 		await createGitHubRelease(newVersion, changelogEntry);
 
 		// Step 9: Push to remote
-		logStep('6/6', 'Pushing to remote...');
+		logStep('5/5', 'Pushing to remote...');
 		exec('git push origin main');
 		exec('git push origin --tags');
 
