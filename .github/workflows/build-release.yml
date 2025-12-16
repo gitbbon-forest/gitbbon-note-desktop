@@ -9,11 +9,14 @@ on:
 env:
   NODE_VERSION: '22.x'
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # Increase Node.js memory limit to 16GB for large TypeScript compilation
+  NODE_OPTIONS: '--max-old-space-size=16384'
 
 jobs:
   build-macos:
     name: Build macOS Universal
     runs-on: macos-latest
+    timeout-minutes: 120
 
     steps:
       - name: Checkout code
@@ -93,6 +96,7 @@ jobs:
   build-windows:
     name: Build Windows
     runs-on: windows-latest
+    timeout-minutes: 120
 
     steps:
       - name: Checkout code
@@ -157,10 +161,19 @@ jobs:
   build-linux:
     name: Build Linux
     runs-on: ubuntu-latest
+    timeout-minutes: 120
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup swap space
+        run: |
+          sudo fallocate -l 16G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          sudo swapon --show
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
