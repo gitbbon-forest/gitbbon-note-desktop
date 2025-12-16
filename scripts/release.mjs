@@ -277,6 +277,7 @@ async function main() {
 		}
 
 		logStep('3/6', 'Pushing to GitHub...');
+		exec('git pull origin main');
 		exec('git push origin main');
 		exec('git push origin --tags');
 
