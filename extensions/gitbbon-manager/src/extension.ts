@@ -73,7 +73,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				await gitGraphProvider.refresh();
 				// Trigger Sync after really final commit (Silent mode)
 				console.log('[Extension] Triggering Sync after Really Final Commit (Silent)...');
-				githubSyncManager.sync(true).catch(e => console.error('Post-commit sync failed:', e));
+				githubSyncManager.sync(true)
+					.then(() => {
+						console.log('[Extension] Post-commit sync completed, refreshing git graph...');
+						return gitGraphProvider.refresh();
+					})
+					.catch(e => console.error('Post-commit sync failed:', e));
 			}
 			return result;
 		}
@@ -83,7 +88,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// 30-minute Periodic Sync (Silent mode)
 	const syncInterval = setInterval(() => {
 		console.log('[Extension] Triggering periodic sync (30m, Silent)...');
-		githubSyncManager.sync(true).catch(e => console.error('Periodic sync failed:', e));
+		githubSyncManager.sync(true)
+			.then(() => {
+				console.log('[Extension] Periodic sync completed, refreshing git graph...');
+				return gitGraphProvider.refresh();
+			})
+			.catch(e => console.error('Periodic sync failed:', e));
 	}, 30 * 60 * 1000); // 30 minutes
 	context.subscriptions.push({ dispose: () => clearInterval(syncInterval) });
 
@@ -95,7 +105,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		// Attempt initial sync in SILENT mode.
 		// If user never authenticated, this will do nothing.
 		console.log('[Extension] Triggering startup sync (Silent)...');
-		githubSyncManager.sync(true).catch(e => console.error('Startup sync failed:', e));
+		githubSyncManager.sync(true)
+			.then(() => {
+				console.log('[Extension] Startup sync completed, refreshing git graph...');
+				return gitGraphProvider.refresh();
+			})
+			.catch(e => console.error('Startup sync failed:', e));
 	}).catch(err => {
 		console.error('Startup failed:', err);
 	});
