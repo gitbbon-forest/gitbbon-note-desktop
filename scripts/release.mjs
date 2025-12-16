@@ -100,7 +100,7 @@ async function setupWorktree() {
 		exec(`cd "${WORKTREE_DIR}" && git pull origin main`, { silent: false });
 	} else {
 		log('Creating new worktree...', colors.yellow);
-		exec(`git worktree add "${WORKTREE_DIR}" main`, { silent: false });
+		exec(`git worktree add "${WORKTREE_DIR}"`, { silent: false });
 
 		// Install dependencies in worktree
 		log('Installing dependencies in worktree (this may take a while)...', colors.yellow);
