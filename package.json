@@ -122,7 +122,8 @@
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "^9.2.1",
     "yauzl": "^3.0.0",
-    "yazl": "^2.4.3"
+    "yazl": "^2.4.3",
+    "electron-updater": "^6.6.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
@@ -166,7 +167,6 @@
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
     "electron": "39.2.3",
-    "electron-updater": "^6.6.2",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",
