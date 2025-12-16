@@ -96,10 +96,8 @@ async function setupWorktree() {
 
 	// Check if worktree already exists
 	if (fs.existsSync(WORKTREE_DIR)) {
-		log('Worktree already exists, syncing with local repository...', colors.yellow);
-		// Fetch latest from local main branch
-		exec(`cd "${WORKTREE_DIR}" && git fetch "${ROOT_DIR}" main:main`, { silent: false });
-		exec(`cd "${WORKTREE_DIR}" && git reset --hard main`, { silent: false });
+		log('Worktree already exists, updating from GitHub...', colors.yellow);
+		exec(`cd "${WORKTREE_DIR}" && git pull`, { silent: false });
 	} else {
 		log('Creating new worktree...', colors.yellow);
 		exec(`git worktree add "${WORKTREE_DIR}"`, { silent: false });
