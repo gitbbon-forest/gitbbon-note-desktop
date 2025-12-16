@@ -7,80 +7,355 @@
 	// VS Code API
 	const vscode = acquireVsCodeApi();
 
+	// Constants (from VS Code scmHistory.ts)
+	const SWIMLANE_HEIGHT = 32; // Adapted to current row height
+	const SWIMLANE_WIDTH = 11;
+	const SWIMLANE_CURVE_RADIUS = 5;
+	const CIRCLE_RADIUS = 4;
+	const CIRCLE_STROKE_WIDTH = 2;
+
+	// Color palette (VS Code style)
+	const colorRegistry = [
+		'#FFB000', // scmGraph.foreground1
+		'#DC267F', // scmGraph.foreground2
+		'#994F00', // scmGraph.foreground3
+		'#40B0A6', // scmGraph.foreground4
+		'#B66DFF', // scmGraph.foreground5
+	];
+
 	// State
 	let commits = [];
 	let hasMore = true;
 	let isLoading = false;
 
-	// 브랜치 색상 팔레트
-	const branchColors = [
-		'#4fc3f7', '#81c784', '#ffb74d', '#f06292',
-		'#ba68c8', '#4db6ac', '#ff8a65', '#a1887f'
-	];
-	const branchColorMap = new Map();
-	let colorIndex = 0;
-
 	// DOM Elements
 	const container = document.getElementById('graph-container');
 
-
-	// 초기화
+	// ========================================
+	// Initialization
+	// ========================================
 	function init() {
-
-
-		// 스크롤 이벤트 (지연 로딩)
 		container.addEventListener('scroll', handleScroll);
-
-		// 준비 완료 알림
 		vscode.postMessage({ type: 'ready' });
 	}
 
-	// 스크롤 핸들러 (지연 로딩)
 	function handleScroll() {
 		if (isLoading || !hasMore) return;
 
 		const { scrollTop, scrollHeight, clientHeight } = container;
-		// 하단 100px 이내로 스크롤 시 추가 로드
 		if (scrollHeight - scrollTop - clientHeight < 100) {
 			isLoading = true;
 			vscode.postMessage({ type: 'loadMore' });
 		}
 	}
 
-	// 브랜치 색상 가져오기
-	function getBranchColor(branchName) {
-		if (!branchColorMap.has(branchName)) {
-			branchColorMap.set(branchName, branchColors[colorIndex % branchColors.length]);
-			colorIndex++;
+	// ========================================
+	// Swimlane Algorithm (ported from VS Code)
+	// ========================================
+
+	/**
+	 * Converts commits to ViewModel array with swimlane information.
+	 * Ported from toISCMHistoryItemViewModelArray in scmHistory.ts
+	 */
+	function toViewModelArray(commits) {
+		let colorIndex = -1;
+		const viewModels = [];
+		const colorMap = new Map(); // parentId -> color
+
+		for (let index = 0; index < commits.length; index++) {
+			const commit = commits[index];
+
+			// Determine kind (HEAD or regular node)
+			const isHead = commit.refs.some(r => r.includes('HEAD'));
+			const kind = isHead ? 'HEAD' : 'node';
+
+			// Get previous output swimlanes (or empty for first commit)
+			const outputSwimlanesFromPreviousItem = viewModels.at(-1)?.outputSwimlanes ?? [];
+			const inputSwimlanes = outputSwimlanesFromPreviousItem.map(s => ({ ...s }));
+			const outputSwimlanes = [];
+
+			let firstParentAdded = false;
+
+			// Add first parent to the output
+			if (commit.parents.length > 0) {
+				for (const node of inputSwimlanes) {
+					if (node.id === commit.hash) {
+						if (!firstParentAdded) {
+							// Determine color for this branch
+							let color = colorMap.get(commit.hash);
+							if (!color) {
+								color = node.color;
+							}
+							outputSwimlanes.push({
+								id: commit.parents[0],
+								color: color
+							});
+							firstParentAdded = true;
+						}
+						continue;
+					}
+					outputSwimlanes.push({ ...node });
+				}
+			}
+
+			// Add unprocessed parent(s) to the output
+			for (let i = firstParentAdded ? 1 : 0; i < commit.parents.length; i++) {
+				// Get or assign new color
+				colorIndex = (colorIndex + 1) % colorRegistry.length;
+				const color = colorRegistry[colorIndex];
+
+				outputSwimlanes.push({
+					id: commit.parents[i],
+					color: color
+				});
+
+				// Store color for later use
+				colorMap.set(commit.parents[i], color);
+			}
+
+			// If this commit wasn't in input swimlanes, it's a new branch start
+			const inputIndex = inputSwimlanes.findIndex(node => node.id === commit.hash);
+			if (inputIndex === -1 && commit.parents.length > 0) {
+				// New commit appearing - assign a color
+				colorIndex = (colorIndex + 1) % colorRegistry.length;
+				const color = colorRegistry[colorIndex];
+
+				// Find first parent in output and update its color if not set
+				const firstParentOutput = outputSwimlanes.find(s => s.id === commit.parents[0]);
+				if (firstParentOutput && !colorMap.has(commit.parents[0])) {
+					firstParentOutput.color = color;
+					colorMap.set(commit.parents[0], color);
+				}
+			}
+
+			viewModels.push({
+				commit,
+				kind,
+				inputSwimlanes,
+				outputSwimlanes
+			});
 		}
-		return branchColorMap.get(branchName);
+
+		return viewModels;
 	}
 
-	// 그래프 렌더링
+	// ========================================
+	// SVG Helper Functions (ported from VS Code)
+	// ========================================
+
+	function createPath(color, strokeWidth = 1) {
+		const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+		path.setAttribute('fill', 'none');
+		path.setAttribute('stroke-width', `${strokeWidth}px`);
+		path.setAttribute('stroke-linecap', 'round');
+		path.style.stroke = color;
+		return path;
+	}
+
+	function drawCircle(index, radius, strokeWidth, color) {
+		const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+		circle.setAttribute('cx', `${SWIMLANE_WIDTH * (index + 1)}`);
+		circle.setAttribute('cy', `${SWIMLANE_HEIGHT / 2}`);
+		circle.setAttribute('r', `${radius}`);
+		circle.style.strokeWidth = `${strokeWidth}px`;
+		if (color) {
+			circle.style.fill = color;
+		}
+		return circle;
+	}
+
+	function drawVerticalLine(x1, y1, y2, color, strokeWidth = 1) {
+		const path = createPath(color, strokeWidth);
+		path.setAttribute('d', `M ${x1} ${y1} V ${y2}`);
+		return path;
+	}
+
+	function findLastIndex(nodes, id) {
+		for (let i = nodes.length - 1; i >= 0; i--) {
+			if (nodes[i].id === id) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	// ========================================
+	// Main Graph Rendering (ported from VS Code)
+	// ========================================
+
+	/**
+	 * Renders a single history item's graph as SVG.
+	 * Ported from renderSCMHistoryItemGraph in scmHistory.ts
+	 */
+	function renderHistoryItemGraph(viewModel) {
+		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		svg.classList.add('graph');
+
+		const commit = viewModel.commit;
+		const inputSwimlanes = viewModel.inputSwimlanes;
+		const outputSwimlanes = viewModel.outputSwimlanes;
+
+		// Find the commit in the input swimlanes
+		const inputIndex = inputSwimlanes.findIndex(node => node.id === commit.hash);
+
+		// Circle index - use the input swimlane index if present, otherwise add it to the end
+		const circleIndex = inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
+
+		// Circle color - use the output swimlane color if present, otherwise the input swimlane color
+		let circleColor = colorRegistry[0]; // Default
+		if (circleIndex < outputSwimlanes.length) {
+			circleColor = outputSwimlanes[circleIndex].color;
+		} else if (circleIndex < inputSwimlanes.length) {
+			circleColor = inputSwimlanes[circleIndex].color;
+		}
+
+		let outputSwimlaneIndex = 0;
+		for (let index = 0; index < inputSwimlanes.length; index++) {
+			const color = inputSwimlanes[index].color;
+
+			// Current commit
+			if (inputSwimlanes[index].id === commit.hash) {
+				// Base commit
+				if (index !== circleIndex) {
+					const d = [];
+					const path = createPath(color);
+
+					// Draw /
+					d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
+					d.push(`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * (index)} ${SWIMLANE_HEIGHT / 2}`);
+
+					// Draw -
+					d.push(`H ${SWIMLANE_WIDTH * (circleIndex + 1)}`);
+
+					path.setAttribute('d', d.join(' '));
+					svg.append(path);
+				} else {
+					outputSwimlaneIndex++;
+				}
+			} else {
+				// Not the current commit
+				if (outputSwimlaneIndex < outputSwimlanes.length &&
+					inputSwimlanes[index].id === outputSwimlanes[outputSwimlaneIndex].id) {
+					if (index === outputSwimlaneIndex) {
+						// Draw |
+						const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, color);
+						svg.append(path);
+					} else {
+						const d = [];
+						const path = createPath(color);
+
+						// Draw |
+						d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
+						d.push(`V 6`);
+
+						// Draw /
+						d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 1 ${(SWIMLANE_WIDTH * (index + 1)) - SWIMLANE_CURVE_RADIUS} ${SWIMLANE_HEIGHT / 2}`);
+
+						// Draw -
+						d.push(`H ${(SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)) + SWIMLANE_CURVE_RADIUS}`);
+
+						// Draw /
+						d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 0 ${SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)} ${(SWIMLANE_HEIGHT / 2) + SWIMLANE_CURVE_RADIUS}`);
+
+						// Draw |
+						d.push(`V ${SWIMLANE_HEIGHT}`);
+
+						path.setAttribute('d', d.join(' '));
+						svg.append(path);
+					}
+
+					outputSwimlaneIndex++;
+				}
+			}
+		}
+
+		// Add remaining parent(s)
+		for (let i = 1; i < commit.parents.length; i++) {
+			const parentOutputIndex = findLastIndex(outputSwimlanes, commit.parents[i]);
+			if (parentOutputIndex === -1) {
+				continue;
+			}
+
+			// Draw -\
+			const d = [];
+			const path = createPath(outputSwimlanes[parentOutputIndex].color);
+
+			// Draw \
+			d.push(`M ${SWIMLANE_WIDTH * parentOutputIndex} ${SWIMLANE_HEIGHT / 2}`);
+			d.push(`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * (parentOutputIndex + 1)} ${SWIMLANE_HEIGHT}`);
+
+			// Draw -
+			d.push(`M ${SWIMLANE_WIDTH * parentOutputIndex} ${SWIMLANE_HEIGHT / 2}`);
+			d.push(`H ${SWIMLANE_WIDTH * (circleIndex + 1)} `);
+
+			path.setAttribute('d', d.join(' '));
+			svg.append(path);
+		}
+
+		// Draw | to *
+		if (inputIndex !== -1) {
+			const path = drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), 0, SWIMLANE_HEIGHT / 2, inputSwimlanes[inputIndex].color);
+			svg.append(path);
+		}
+
+		// Draw | from *
+		if (commit.parents.length > 0) {
+			const path = drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), SWIMLANE_HEIGHT / 2, SWIMLANE_HEIGHT, circleColor);
+			svg.append(path);
+		}
+
+		// Draw * (commit node)
+		if (viewModel.kind === 'HEAD') {
+			// HEAD - double circle
+			const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor);
+			svg.append(outerCircle);
+
+			const innerCircle = drawCircle(circleIndex, CIRCLE_STROKE_WIDTH, CIRCLE_RADIUS);
+			innerCircle.style.fill = 'var(--vscode-sideBar-background, #1e1e1e)';
+			svg.append(innerCircle);
+		} else {
+			if (commit.parents.length > 1) {
+				// Multi-parent (merge) node - double circle
+				const circleOuter = drawCircle(circleIndex, CIRCLE_RADIUS + 2, CIRCLE_STROKE_WIDTH, circleColor);
+				svg.append(circleOuter);
+
+				const circleInner = drawCircle(circleIndex, CIRCLE_RADIUS - 1, CIRCLE_STROKE_WIDTH, circleColor);
+				svg.append(circleInner);
+			} else {
+				// Regular node
+				const circle = drawCircle(circleIndex, CIRCLE_RADIUS + 1, CIRCLE_STROKE_WIDTH, circleColor);
+				svg.append(circle);
+			}
+		}
+
+		// Set dimensions
+		svg.style.height = `${SWIMLANE_HEIGHT}px`;
+		svg.style.width = `${SWIMLANE_WIDTH * (Math.max(inputSwimlanes.length, outputSwimlanes.length, 1) + 1)}px`;
+
+		return svg;
+	}
+
+	// ========================================
+	// Main Render Function
+	// ========================================
+
 	function renderGraph() {
 		container.innerHTML = '';
 
 		if (commits.length === 0) {
-			container.innerHTML = '';
 			return;
 		}
 
-		// 커밋 해시 -> 인덱스 맵 생성
-		const hashToIndex = new Map();
-		commits.forEach((commit, index) => {
-			hashToIndex.set(commit.hash, index);
-		});
+		// Convert commits to view models with swimlane info
+		const viewModels = toViewModelArray(commits);
 
-		// 각 커밋의 레인(열) 할당 및 활성 레인 정보
-		const { lanes, activeLanesPerRow } = assignLanes(commits, hashToIndex);
-
-		// 커밋 렌더링
-		commits.forEach((commit, index) => {
-			const row = createCommitRow(commit, index, lanes, activeLanesPerRow, hashToIndex);
+		// Render each commit
+		viewModels.forEach((viewModel) => {
+			const row = createCommitRow(viewModel);
 			container.appendChild(row);
 		});
 
-		// 더 로드 버튼
+		// Load more button
 		if (hasMore) {
 			const loadMoreDiv = document.createElement('div');
 			loadMoreDiv.className = 'load-more';
@@ -96,85 +371,23 @@
 		}
 	}
 
-	// 레인 할당 (활성 레인 정보도 함께 반환)
-	function assignLanes(commits, hashToIndex) {
-		const lanes = new Array(commits.length).fill(0);
-		const activeLanesPerRow = []; // 각 행에서 활성화된 레인들 (해시 -> {lane, color})
-		const activeLanes = new Map(); // 해시 -> {lane, color}
-
-		for (let i = 0; i < commits.length; i++) {
-			const commit = commits[i];
-
-			// 현재 활성 레인들 스냅샷 저장 (이 행에서 그려질 패싱 스루 라인들)
-			// Deep copy needed for the map values if they were mutable, but here we replace values.
-			// Map 복사
-			const currentActiveLanes = new Map();
-			activeLanes.forEach((val, key) => currentActiveLanes.set(key, val));
-			activeLanesPerRow.push(currentActiveLanes);
-
-			// 현재 커밋의 색상 결정 (부모 라인 예약 시 사용)
-			const branchName = commit.refs.find(r => !r.includes('HEAD') && !r.startsWith('tag:')) || 'main';
-			const myColor = getBranchColor(branchName);
-
-			// 이 커밋이 이미 레인을 가지고 있는지 확인 (부모로부터 예약됨)
-			if (activeLanes.has(commit.hash)) {
-				lanes[i] = activeLanes.get(commit.hash).lane;
-				activeLanes.delete(commit.hash);
-			} else {
-				// 새 레인 찾기
-				let lane = 0;
-				const usedLanes = new Set();
-				activeLanes.forEach(v => usedLanes.add(v.lane));
-
-				while (usedLanes.has(lane)) {
-					lane++;
-				}
-				lanes[i] = lane;
-			}
-
-			// 부모에게 레인 할당 (예약)
-			commit.parents.forEach((parentHash, pIndex) => {
-				if (hashToIndex.has(parentHash) && !activeLanes.has(parentHash)) {
-					if (pIndex === 0) {
-						// 첫 번째 부모는 같은 레인, 색상은 자식(나)의 색상 계승
-						activeLanes.set(parentHash, { lane: lanes[i], color: myColor });
-					} else {
-						// 머지의 두 번째 부모는 새 레인
-						let newLane = lanes[i] + 1;
-						const usedLanes = new Set();
-						activeLanes.forEach(v => usedLanes.add(v.lane));
-
-						while (usedLanes.has(newLane)) {
-							newLane++;
-						}
-						// 머지 부모로 가는 선의 색상
-						const mergeColor = getBranchColor(`merge-${pIndex}-${commit.hash}`);
-						activeLanes.set(parentHash, { lane: newLane, color: mergeColor });
-					}
-				}
-			});
-		}
-
-		return { lanes, activeLanesPerRow };
-	}
-
-	// 커밋 행 생성
-	function createCommitRow(commit, index, lanes, activeLanesPerRow, hashToIndex) {
+	function createCommitRow(viewModel) {
+		const commit = viewModel.commit;
 		const row = document.createElement('div');
 		row.className = 'commit-row';
 		row.dataset.hash = commit.hash;
 
-		// 그래프 셀
+		// Graph cell
 		const graphCell = document.createElement('div');
 		graphCell.className = 'graph-cell';
-		graphCell.appendChild(createGraphSvg(commit, index, lanes, activeLanesPerRow, hashToIndex));
+		graphCell.appendChild(renderHistoryItemGraph(viewModel));
 		row.appendChild(graphCell);
 
-		// 커밋 정보
+		// Commit info
 		const infoCell = document.createElement('div');
 		infoCell.className = 'commit-info';
 
-		// Refs 라벨
+		// Refs labels
 		const refsHtml = commit.refs.map(ref => {
 			let className = 'ref-label';
 			if (ref.includes('HEAD')) {
@@ -189,13 +402,13 @@
 			return `<span class="${className}">${escapeHtml(ref)}</span>`;
 		}).join('');
 
-		// 메시지
+		// Message
 		const messageDiv = document.createElement('div');
 		messageDiv.className = 'commit-message';
 		messageDiv.innerHTML = refsHtml + escapeHtml(commit.message);
 		infoCell.appendChild(messageDiv);
 
-		// 메타 정보
+		// Meta info
 		const metaDiv = document.createElement('div');
 		metaDiv.className = 'commit-meta';
 		const date = formatDate(commit.date);
@@ -204,7 +417,7 @@
 
 		row.appendChild(infoCell);
 
-		// 클릭 이벤트
+		// Click event
 		row.addEventListener('click', () => {
 			vscode.postMessage({ type: 'commitClick', hash: commit.hash });
 		});
@@ -212,133 +425,10 @@
 		return row;
 	}
 
-	// 그래프 SVG 생성
-	function createGraphSvg(commit, index, lanes, activeLanesPerRow, hashToIndex) {
-		const ROW_HEIGHT = 48; // CSS의 min-height와 일치
-		const NODE_Y = ROW_HEIGHT / 2; // 노드는 중앙에
+	// ========================================
+	// Utility Functions
+	// ========================================
 
-		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-		svg.setAttribute('width', '100');
-		svg.setAttribute('height', String(ROW_HEIGHT));
-
-		const lane = lanes[index];
-		const x = 10 + lane * 12; // 레인 간격
-
-		// 메인 브랜치 색상 결정
-		const branchName = commit.refs.find(r => !r.includes('HEAD') && !r.startsWith('tag:')) || 'main';
-		const color = getBranchColor(branchName);
-
-		// 0. 활성 레인들의 패싱 스루 라인 그리기 (이 행을 지나가는 다른 브랜치들)
-		if (index < activeLanesPerRow.length) {
-			const activeAtThisRow = activeLanesPerRow[index];
-			activeAtThisRow.forEach((activeInfo, activeHash) => {
-				const activeLane = activeInfo.lane;
-
-				// 이 커밋의 레인이 아닌 경우에만 패싱 스루 그림
-				if (activeLane !== lane) {
-					const passX = 10 + activeLane * 12;
-					// activeInfo.color를 사용하여 원래 브랜치 색상 유지
-					const passColor = activeInfo.color;
-
-					const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-					line.setAttribute('x1', String(passX));
-					line.setAttribute('y1', '0');
-					line.setAttribute('x2', String(passX));
-					line.setAttribute('y2', String(ROW_HEIGHT));
-					line.setAttribute('stroke', passColor);
-					line.setAttribute('stroke-width', '2');
-					svg.appendChild(line);
-				}
-			});
-		}
-
-		// 1. 위에서 내려오는 선 (이 커밋으로 연결)
-		if (index > 0) {
-			// 이전 커밋들 중 이 커밋을 부모로 가지는 커밋이 있는지 확인
-			let hasConnectionFromAbove = false;
-			for (let i = 0; i < index; i++) {
-				if (commits[i].parents.includes(commit.hash) && lanes[i] === lane) {
-					hasConnectionFromAbove = true;
-					break;
-				}
-			}
-
-			if (hasConnectionFromAbove) {
-				const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-				line.setAttribute('x1', String(x));
-				line.setAttribute('y1', '0');
-				line.setAttribute('x2', String(x));
-				line.setAttribute('y2', String(NODE_Y));
-				line.setAttribute('stroke', color);
-				line.setAttribute('stroke-width', '2');
-				svg.appendChild(line);
-			}
-		}
-
-		// 2. 아래로 내려가는 선 (부모에게 연결)
-		if (commit.parents.length > 0) {
-			const firstParentHash = commit.parents[0];
-			const parentIndex = hashToIndex.get(firstParentHash);
-
-			if (parentIndex !== undefined) {
-				const parentLane = lanes[parentIndex];
-				const parentX = 10 + parentLane * 12;
-
-				// 같은 레인이면 직선으로 아래까지
-				if (lane === parentLane) {
-					const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-					line.setAttribute('x1', String(x));
-					line.setAttribute('y1', String(NODE_Y));
-					line.setAttribute('x2', String(x));
-					line.setAttribute('y2', String(ROW_HEIGHT));
-					line.setAttribute('stroke', color);
-					line.setAttribute('stroke-width', '2');
-					svg.appendChild(line);
-				} else {
-					// 다른 레인이면 곡선
-					const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-					path.setAttribute('d', `M ${x} ${NODE_Y} C ${x} ${NODE_Y + 15}, ${parentX} ${ROW_HEIGHT - 15}, ${parentX} ${ROW_HEIGHT}`);
-					path.setAttribute('stroke', color);
-					path.setAttribute('stroke-width', '2');
-					path.setAttribute('fill', 'none');
-					svg.appendChild(path);
-				}
-			}
-
-			// 머지 커밋의 두 번째 부모
-			for (let pIndex = 1; pIndex < commit.parents.length; pIndex++) {
-				const mergeParentHash = commit.parents[pIndex];
-				const mergeParentIndex = hashToIndex.get(mergeParentHash);
-
-				if (mergeParentIndex !== undefined) {
-					const mergeParentLane = lanes[mergeParentIndex];
-					const mergeParentX = 10 + mergeParentLane * 12;
-					const mergeColor = getBranchColor(`merge-${pIndex}`);
-
-					const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-					path.setAttribute('d', `M ${x} ${NODE_Y} C ${x} ${NODE_Y + 15}, ${mergeParentX} ${ROW_HEIGHT - 15}, ${mergeParentX} ${ROW_HEIGHT}`);
-					path.setAttribute('stroke', mergeColor);
-					path.setAttribute('stroke-width', '2');
-					path.setAttribute('fill', 'none');
-					svg.appendChild(path);
-				}
-			}
-		}
-
-		// 3. 커밋 노드 (원) - 맨 마지막에 그려서 선 위에 표시
-		const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-		circle.setAttribute('cx', String(x));
-		circle.setAttribute('cy', String(NODE_Y));
-		circle.setAttribute('r', '5');
-		circle.setAttribute('fill', color);
-		circle.setAttribute('stroke', 'var(--vscode-sideBar-background, #1e1e1e)');
-		circle.setAttribute('stroke-width', '2');
-		svg.appendChild(circle);
-
-		return svg;
-	}
-
-	// 날짜 포맷
 	function formatDate(isoDate) {
 		const date = new Date(isoDate);
 		const now = new Date();
@@ -355,14 +445,16 @@
 		return date.toLocaleDateString();
 	}
 
-	// HTML 이스케이프
 	function escapeHtml(text) {
 		const div = document.createElement('div');
 		div.textContent = text;
 		return div.innerHTML;
 	}
 
-	// 메시지 핸들러
+	// ========================================
+	// Message Handler
+	// ========================================
+
 	window.addEventListener('message', (event) => {
 		const message = event.data;
 
@@ -381,6 +473,6 @@
 		}
 	});
 
-	// 초기화 실행
+	// Initialize
 	init();
 })();

@@ -51,7 +51,7 @@ body {
 	display: flex;
 	align-items: stretch;
 	padding: 0 8px;
-	height: 48px;
+	min-height: 32px;
 	cursor: pointer;
 	transition: background-color 0.1s;
 }
@@ -63,9 +63,9 @@ body {
 /* 그래프 영역 (SVG) */
 .graph-cell {
 	flex-shrink: 0;
-	width: 100px;
-	height: 48px;
-	position: relative;
+	min-height: 32px;
+	display: flex;
+	align-items: center;
 }
 
 .graph-cell svg {
