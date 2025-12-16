@@ -25,14 +25,27 @@ const colors = {
 	cyan: '\x1b[36m'
 };
 
+/**
+ * @param {string} message
+ * @param {string} [color]
+ */
 function log(message, color = colors.reset) {
 	console.log(`${color}${message}${colors.reset}`);
 }
 
+/**
+ * @param {string} step
+ * @param {string} message
+ */
 function logStep(step, message) {
 	log(`\n${colors.bold}[${step}]${colors.reset} ${message}`, colors.cyan);
 }
 
+/**
+ * @param {string} command
+ * @param {{ silent?: boolean; ignoreError?: boolean }} [options]
+ * @returns {string}
+ */
 function exec(command, options = {}) {
 	try {
 		return execSync(command, {
@@ -50,6 +63,10 @@ function exec(command, options = {}) {
 	}
 }
 
+/**
+ * @param {string} question
+ * @returns {Promise<string>}
+ */
 function prompt(question) {
 	const rl = readline.createInterface({
 		input: process.stdin,
@@ -64,12 +81,18 @@ function prompt(question) {
 	});
 }
 
+/**
+ * @returns {string}
+ */
 function getCurrentVersion() {
 	const packageJsonPath = path.join(ROOT_DIR, 'package.json');
 	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 	return packageJson.version;
 }
 
+/**
+ * @param {string} newVersion
+ */
 function updatePackageVersion(newVersion) {
 	const packageJsonPath = path.join(ROOT_DIR, 'package.json');
 	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
@@ -77,11 +100,19 @@ function updatePackageVersion(newVersion) {
 	fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
 }
 
+/**
+ * @param {string} version
+ * @returns {boolean}
+ */
 function validateVersion(version) {
 	const semverRegex = /^\d+\.\d+\.\d+$/;
 	return semverRegex.test(version);
 }
 
+/**
+ * @param {string} currentVersion
+ * @returns {string}
+ */
 function getSuggestedVersion(currentVersion) {
 	const parts = currentVersion.split('.').map(Number);
 	// Bump patch version by default
@@ -89,6 +120,9 @@ function getSuggestedVersion(currentVersion) {
 	return parts.join('.');
 }
 
+/**
+ * @returns {Promise<string>}
+ */
 async function setupWorktree() {
 	const WORKTREE_DIR = path.join(ROOT_DIR, '..', 'git-note-build');
 
@@ -97,10 +131,10 @@ async function setupWorktree() {
 	// Check if worktree already exists
 	if (fs.existsSync(WORKTREE_DIR)) {
 		log('Worktree already exists, updating from GitHub...', colors.yellow);
-		exec(`cd "${WORKTREE_DIR}" && git pull`, { silent: false });
+		exec(`cd "${WORKTREE_DIR}" && git fetch origin && git reset --hard origin/main`, { silent: false });
 	} else {
 		log('Creating new worktree...', colors.yellow);
-		exec(`git worktree add "${WORKTREE_DIR}"`, { silent: false });
+		exec(`git worktree add "${WORKTREE_DIR}" main`, { silent: false });
 
 		// Install dependencies in worktree
 		log('Installing dependencies in worktree (this may take a while)...', colors.yellow);
@@ -110,6 +144,11 @@ async function setupWorktree() {
 	return WORKTREE_DIR;
 }
 
+/**
+ * @param {string} platform
+ * @param {string} worktreeDir
+ * @returns {Promise<void>}
+ */
 async function runBuild(platform, worktreeDir) {
 	logStep('BUILD', `Building ${platform} in worktree...`);
 	return new Promise((resolve, reject) => {
@@ -130,6 +169,12 @@ async function runBuild(platform, worktreeDir) {
 	});
 }
 
+/**
+ * @param {string} version
+ * @param {string} changelogEntry
+ * @param {string} worktreeDir
+ * @returns {Promise<void>}
+ */
 async function createGitHubRelease(version, changelogEntry, worktreeDir) {
 	logStep('RELEASE', 'Creating GitHub Release...');
 
@@ -141,6 +186,7 @@ async function createGitHubRelease(version, changelogEntry, worktreeDir) {
 	];
 
 	// Create zip/tar files
+	/** @type {string[]} */
 	const releaseFiles = [];
 
 	for (const artifact of artifacts) {
@@ -176,6 +222,10 @@ async function createGitHubRelease(version, changelogEntry, worktreeDir) {
 	log(`\n✅ GitHub Release ${tag} created successfully!`, colors.green);
 }
 
+/**
+ * @param {string} version
+ * @param {string[]} releaseFiles
+ */
 function generateUpdateMetadata(version, releaseFiles) {
 	const releaseDate = new Date().toISOString();
 
@@ -299,7 +349,8 @@ async function main() {
 		log('='.repeat(40), colors.green);
 
 	} catch (error) {
-		log(`\n❌ Release failed: ${error.message}`, colors.red);
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		log(`\n❌ Release failed: ${errorMessage}`, colors.red);
 		log('\nYou may need to manually revert changes:', colors.yellow);
 		log('  git reset HEAD~1', colors.yellow);
 		log(`  git tag -d v${newVersion}`, colors.yellow);
