@@ -1385,9 +1385,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const labels: IEditorInputLabel[] = [];
 		let activeEditorTabIndex = -1;
 		this.tabsModel.getEditors(EditorsOrder.SEQUENTIAL).forEach((editor: EditorInput, tabIndex: number) => {
+			let name = editor.getName();
+			if (name.endsWith('.md')) {
+				name = name.slice(0, -3);
+			}
+
 			labels.push({
 				editor,
-				name: editor.getName(),
+				name,
 				description: editor.getDescription(verbosity),
 				forceDescription: editor.hasCapability(EditorInputCapabilities.ForceDescription),
 				title: editor.getTitle(Verbosity.LONG),
