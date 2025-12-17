@@ -123,7 +123,7 @@ export const App = () => {
 	}
 
 	return (
-		<div className="app" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+		<div className="app" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
 			<div className="title-container">
 				<input
 					id="title-input"
@@ -133,7 +133,7 @@ export const App = () => {
 					placeholder="Title"
 				/>
 			</div>
-			<div className="milkdown-editor" style={{ flexGrow: 1, overflowY: 'auto' }}>
+			<div className="milkdown-editor" style={{ flexGrow: 1 }}>
 				<MilkdownEditor
 					ref={editorRef}
 					initialContent={editorContent}
