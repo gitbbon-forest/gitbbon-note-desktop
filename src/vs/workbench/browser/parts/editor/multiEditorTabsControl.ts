@@ -1386,6 +1386,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		let activeEditorTabIndex = -1;
 		this.tabsModel.getEditors(EditorsOrder.SEQUENTIAL).forEach((editor: EditorInput, tabIndex: number) => {
 			let name = editor.getName();
+			// gitbbon custom
 			if (name.endsWith('.md')) {
 				name = name.slice(0, -3);
 			}
