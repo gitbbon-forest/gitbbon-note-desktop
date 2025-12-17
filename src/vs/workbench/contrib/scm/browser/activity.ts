@@ -157,10 +157,11 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 				command: command.id ? command : undefined
 			};
 
-			store.add(index === 0 ?
-				this.statusbarService.addEntry(statusbarEntry, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, 10000) :
-				this.statusbarService.addEntry(statusbarEntry, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, { location: { id: `status.scm.${index - 1}`, priority: 10000 }, alignment: MainThreadStatusBarAlignment.RIGHT, compact: true })
-			);
+			// gitbbon custom: Hide SCM status bar item
+			// store.add(index === 0 ?
+			// 	this.statusbarService.addEntry(statusbarEntry, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, 10000) :
+			// 	this.statusbarService.addEntry(statusbarEntry, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, { location: { id: `status.scm.${index - 1}`, priority: 10000 }, alignment: MainThreadStatusBarAlignment.RIGHT, compact: true })
+			// );
 		}
 
 		// Source control provider status bar entry
@@ -174,7 +175,8 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 				command: 'scm.setActiveProvider'
 			};
 
-			store.add(this.statusbarService.addEntry(repositoryStatusbarEntry, 'status.scm.provider', MainThreadStatusBarAlignment.LEFT, { location: { id: `status.scm.0`, priority: 10000 }, alignment: MainThreadStatusBarAlignment.LEFT, compact: true }));
+			// gitbbon custom: Hide SCM Provider status bar item
+			// store.add(this.statusbarService.addEntry(repositoryStatusbarEntry, 'status.scm.provider', MainThreadStatusBarAlignment.LEFT, { location: { id: `status.scm.0`, priority: 10000 }, alignment: MainThreadStatusBarAlignment.LEFT, compact: true }));
 		}
 	}
 

@@ -575,7 +575,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		if (this.remoteStatusEntry) {
 			this.remoteStatusEntry.update(properties);
 		} else {
-			this.remoteStatusEntry = this.statusbarService.addEntry(properties, 'status.host', StatusbarAlignment.LEFT, Number.POSITIVE_INFINITY /* first entry */);
+			// gitbbon custom: Hide Remote status bar item
+			// this.remoteStatusEntry = this.statusbarService.addEntry(properties, 'status.host', StatusbarAlignment.LEFT, Number.POSITIVE_INFINITY /* first entry */);
 		}
 	}
 

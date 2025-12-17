@@ -576,10 +576,13 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
-		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', StatusbarAlignment.LEFT, 50 /* Medium Priority */));
+		// gitbbon custom: Hide Problems status bar item
+		// this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', StatusbarAlignment.LEFT, 50 /* Medium Priority */));
+		this.markersStatusItem = this._register({ update: () => { }, dispose: () => { } });
 
 		const addStatusBarEntry = () => {
-			this.markersStatusItemOff = this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'status.problemsVisibility', StatusbarAlignment.LEFT, 49);
+			// gitbbon custom: Hide Problems Visibility status bar item
+			// this.markersStatusItemOff = this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'status.problemsVisibility', StatusbarAlignment.LEFT, 49);
 		};
 
 		// Add the status bar entry if the problems is not visible
