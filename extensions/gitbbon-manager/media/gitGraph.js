@@ -222,6 +222,13 @@
 
 					// Draw /
 					d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
+
+					// Draw | (if height > width * 2, we need to go down to match the curve start)
+					if (SWIMLANE_HEIGHT / 2 > SWIMLANE_WIDTH) {
+						d.push(`V ${SWIMLANE_HEIGHT / 2 - SWIMLANE_WIDTH}`);
+					}
+
+					// Draw / (Curve to horizontal)
 					d.push(`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * (index)} ${SWIMLANE_HEIGHT / 2}`);
 
 					// Draw -
@@ -246,16 +253,30 @@
 
 						// Draw |
 						d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
-						d.push(`V 6`);
+						const arcTopStart = SWIMLANE_HEIGHT / 2 - SWIMLANE_CURVE_RADIUS;
+						d.push(`V ${arcTopStart}`);
 
-						// Draw /
-						d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 1 ${(SWIMLANE_WIDTH * (index + 1)) - SWIMLANE_CURVE_RADIUS} ${SWIMLANE_HEIGHT / 2}`);
+						if (index > outputSwimlaneIndex) {
+							// Left turn (origin -> left)
+							// Draw /
+							d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 1 ${(SWIMLANE_WIDTH * (index + 1)) - SWIMLANE_CURVE_RADIUS} ${SWIMLANE_HEIGHT / 2}`);
 
-						// Draw -
-						d.push(`H ${(SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)) + SWIMLANE_CURVE_RADIUS}`);
+							// Draw -
+							d.push(`H ${(SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)) + SWIMLANE_CURVE_RADIUS}`);
 
-						// Draw /
-						d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 0 ${SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)} ${(SWIMLANE_HEIGHT / 2) + SWIMLANE_CURVE_RADIUS}`);
+							// Draw /
+							d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 0 ${SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)} ${(SWIMLANE_HEIGHT / 2) + SWIMLANE_CURVE_RADIUS}`);
+						} else {
+							// Right turn (origin -> right)
+							// Draw \
+							d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 0 ${(SWIMLANE_WIDTH * (index + 1)) + SWIMLANE_CURVE_RADIUS} ${SWIMLANE_HEIGHT / 2}`);
+
+							// Draw -
+							d.push(`H ${(SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)) - SWIMLANE_CURVE_RADIUS}`);
+
+							// Draw \
+							d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 1 ${SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)} ${(SWIMLANE_HEIGHT / 2) + SWIMLANE_CURVE_RADIUS}`);
+						}
 
 						// Draw |
 						d.push(`V ${SWIMLANE_HEIGHT}`);
@@ -282,7 +303,14 @@
 
 			// Draw \
 			d.push(`M ${SWIMLANE_WIDTH * parentOutputIndex} ${SWIMLANE_HEIGHT / 2}`);
-			d.push(`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * (parentOutputIndex + 1)} ${SWIMLANE_HEIGHT}`);
+
+			// Draw Curve (Horizontal to Vertical)
+			d.push(`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * (parentOutputIndex + 1)} ${SWIMLANE_HEIGHT / 2 + SWIMLANE_WIDTH}`);
+
+			// If height is enough, draw vertical segment after curve
+			if (SWIMLANE_HEIGHT / 2 > SWIMLANE_WIDTH) {
+				d.push(`V ${SWIMLANE_HEIGHT}`);
+			}
 
 			// Draw -
 			d.push(`M ${SWIMLANE_WIDTH * parentOutputIndex} ${SWIMLANE_HEIGHT / 2}`);
