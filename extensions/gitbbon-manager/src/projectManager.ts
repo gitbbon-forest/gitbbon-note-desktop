@@ -276,7 +276,7 @@ export class ProjectManager {
 	 * dugite를 사용하여 내장 Git 바이너리로 실행
 	 * @param options.silent true일 경우 에러 로그를 출력하지 않음 (예: 브랜치 확인 등)
 	 */
-	private async execGit(args: string[], cwd: string, options: { silent?: boolean } = {}): Promise<string> {
+	private async execGit(args: string[], cwd: string, options: { silent?: boolean; env?: Record<string, string> } = {}): Promise<string> {
 		const dugite = await import('dugite');
 
 		const cmd = `git ${args.join(' ')}`;
@@ -284,7 +284,8 @@ export class ProjectManager {
 			console.log(`[ProjectManager] Executing: ${cmd} in ${cwd}`);
 		}
 
-		const result = await dugite.exec(args, cwd);
+		const execOptions = options.env ? { env: { ...process.env, ...options.env } } : undefined;
+		const result = await dugite.exec(args, cwd, execOptions);
 
 		if (result.exitCode !== 0) {
 			if (!options.silent) {
@@ -363,7 +364,7 @@ export class ProjectManager {
 	 * Git diff에서 추가된 텍스트 추출 (처음 등장하는 텍스트 최대 maxLength자)
 	 * @param compareRef 비교 대상 ref (auto-save 브랜치). 없으면 HEAD와 비교
 	 */
-	private async getChangePreview(cwd: string, compareRef?: string, maxLength: number = 20): Promise<string> {
+	private async getChangePreview(cwd: string, compareRef?: string, maxLength: number = 20, options: { env?: Record<string, string> } = {}): Promise<string> {
 		try {
 			// compareRef가 있으면 해당 ref와 비교, 없으면 staged 상태 비교
 			const diffArgs = compareRef
@@ -373,7 +374,7 @@ export class ProjectManager {
 			// -U0 옵션으로 컨텍스트 라인을 제거하여 파싱 용이성 확보
 			diffArgs.push('-U0');
 
-			const diff = await this.execGit(diffArgs, cwd, { silent: true });
+			const diff = await this.execGit(diffArgs, cwd, { silent: true, env: options.env });
 			if (!diff) {
 				return '';
 			}
@@ -403,8 +404,12 @@ export class ProjectManager {
 			return { success: false, message: 'No workspace folder open' };
 		}
 
+		// 임시 인덱스 파일 경로 생성 (사용자 인덱스 보호)
+		const tempIndexFile = path.join(cwd, '.git', `index-autosave-${Date.now()}`);
+		const env = { 'GIT_INDEX_FILE': tempIndexFile };
+
 		try {
-			// 변경 사항 확인
+			// 변경 사항 확인 (현재 작업 트리 vs HEAD/Index)
 			if (!(await this.hasChanges(cwd))) {
 				console.log('[ProjectManager] No changes to auto commit');
 				return { success: true, message: 'No changes to commit' };
@@ -414,9 +419,9 @@ export class ProjectManager {
 			const autoSaveBranch = `auto-save/${currentBranch}`;
 			console.log(`[ProjectManager] Auto committing to branch: ${autoSaveBranch}`);
 
-			// 1. Stage all changes
-			console.log('[ProjectManager] Staging all changes...');
-			await this.execGit(['add', '.'], cwd);
+			// 1. Stage all changes (into TEMP index)
+			console.log('[ProjectManager] Staging all changes to temp index...');
+			await this.execGit(['add', '.'], cwd, { env });
 
 			// 2. auto-save 브랜치 없으면 생성
 			if (!(await this.branchExists(autoSaveBranch, cwd))) {
@@ -427,15 +432,20 @@ export class ProjectManager {
 					// 브랜치 생성 실패 시 (e.g. HEAD 없음) 직접 커밋
 					// getCurrentBranch에서 root commit 보장하므로 거의 발생 안 함
 					console.log('[ProjectManager] Branch creation failed, making direct commit');
-					const fallbackPreview = await this.getChangePreview(cwd);
-					await this.execGit(['commit', '-m', fallbackPreview || '첫 저장'], cwd);
+					const fallbackPreview = await this.getChangePreview(cwd, undefined, 20, { env });
+					// 여기서는 임시 인덱스를 사용하여 커밋을 생성해야 하지만,
+					// 편의상 branch 실패 케이스는 드물므로 기존 로직 유지하되, env 전달
+					// (하지만 commit 명령은 index를 사용하므로 env 전달 필수)
+					// 그러나 commit 명령은 porcelain이므로 GIT_INDEX_FILE을 존중하지만
+					// 일반적인 flow와 다르므로 일단 env 전달.
+					await this.execGit(['commit', '-m', fallbackPreview || '첫 저장'], cwd, { env });
 					return { success: true, message: 'Auto commit created (first commit)' };
 				}
 			}
 
-			// 3. Tree 생성
+			// 3. Tree 생성 (from TEMP index)
 			console.log('[ProjectManager] Creating git tree...');
-			const treeId = await this.execGit(['write-tree'], cwd);
+			const treeId = await this.execGit(['write-tree'], cwd, { env });
 
 			// 4. auto-save 브랜치의 부모 커밋 가져오기 (이미 존재함이 확인됨)
 			let parentCommit: string | null = null;
@@ -446,7 +456,8 @@ export class ProjectManager {
 
 			// 5. 커밋 메시지 생성 (이전 auto-save 커밋과 비교하여 추가된 텍스트의 처음 20자)
 			const compareRef = parentCommit ? autoSaveBranch : undefined;
-			const changePreview = await this.getChangePreview(cwd, compareRef);
+			// getChangePreview도 temp index를 사용해야 함
+			const changePreview = await this.getChangePreview(cwd, compareRef, 20, { env });
 			const commitMessage = changePreview || '변경사항 저장';
 			console.log(`[ProjectManager] Creating commit with message: ${commitMessage}`);
 			let newCommitId: string;
@@ -461,10 +472,9 @@ export class ProjectManager {
 			console.log(`[ProjectManager] Updating ${autoSaveBranch} ref to ${newCommitId}`);
 			await this.execGit(['update-ref', `refs/heads/${autoSaveBranch}`, newCommitId], cwd);
 
-			// 7. Index 초기화 (plumbing 명령어는 index를 건드리지 않으므로 수동 정리)
-			// git reset --mixed: index를 HEAD에 맞추고, working directory는 유지
-			console.log('[ProjectManager] Resetting index after auto commit...');
-			await this.execGit(['reset', '--mixed'], cwd, { silent: true });
+			// 7. Index 초기화 불필요 (Temp Index 사용으로 인해 메인 인덱스 오염 없음)
+			// console.log('[ProjectManager] Resetting index after auto commit...');
+			// await this.execGit(['reset', '--mixed'], cwd, { silent: true });
 
 			console.log(`[ProjectManager] Auto commit created: ${newCommitId}`);
 			// Update lastModified in projects.json
@@ -474,6 +484,15 @@ export class ProjectManager {
 		} catch (error) {
 			console.error('[ProjectManager] Auto commit failed:', error);
 			return { success: false, message: `Auto commit failed: ${error}` };
+		} finally {
+			// 임시 인덱스 파일 삭제
+			if (fs.existsSync(tempIndexFile)) {
+				try {
+					await fs.promises.unlink(tempIndexFile);
+				} catch (e) {
+					console.warn(`[ProjectManager] Failed to delete temp index file: ${e}`);
+				}
+			}
 		}
 	}
 
