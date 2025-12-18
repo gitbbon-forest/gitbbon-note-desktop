@@ -21,7 +21,7 @@ import { IMarkersView } from './markers.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntryAccessor, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
 import { IMarkerService, MarkerStatistics } from '../../../../platform/markers/common/markers.js';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -572,7 +572,8 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 
 	constructor(
 		@IMarkerService private readonly markerService: IMarkerService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		// gitbbon custom: Hide Problems status bar item
+		// @IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
@@ -623,21 +624,22 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		};
 	}
 
-	private getMarkersItemTurnedOff(): IStatusbarEntry {
-		// Update to true, config checked before `getMarkersItemTurnedOff` is called.
-		this.statusbarService.updateEntryVisibility('status.problemsVisibility', true);
-		const openSettingsCommand = 'workbench.action.openSettings';
-		const configureSettingsLabel = '@id:problems.visibility';
-		const tooltip = localize('status.problemsVisibilityOff', "Problems are turned off. Click to open settings.");
-		return {
-			name: localize('status.problemsVisibility', "Problems Visibility"),
-			text: '$(whole-word)',
-			ariaLabel: tooltip,
-			tooltip,
-			kind: 'warning',
-			command: { title: openSettingsCommand, arguments: [configureSettingsLabel], id: openSettingsCommand }
-		};
-	}
+	// gitbbon custom: Hide Problems Visibility status bar item
+	// private getMarkersItemTurnedOff(): IStatusbarEntry {
+	// 	// Update to true, config checked before `getMarkersItemTurnedOff` is called.
+	// 	this.statusbarService.updateEntryVisibility('status.problemsVisibility', true);
+	// 	const openSettingsCommand = 'workbench.action.openSettings';
+	// 	const configureSettingsLabel = '@id:problems.visibility';
+	// 	const tooltip = localize('status.problemsVisibilityOff', "Problems are turned off. Click to open settings.");
+	// 	return {
+	// 		name: localize('status.problemsVisibility', "Problems Visibility"),
+	// 		text: '$(whole-word)',
+	// 		ariaLabel: tooltip,
+	// 		tooltip,
+	// 		kind: 'warning',
+	// 		command: { title: openSettingsCommand, arguments: [configureSettingsLabel], id: openSettingsCommand }
+	// 	};
+	// }
 
 	private getMarkersTooltip(stats: MarkerStatistics): string {
 		const errorTitle = (n: number) => localize('totalErrors', "Errors: {0}", n);
