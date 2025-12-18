@@ -389,23 +389,25 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 
 				const canUseMcp = !!provider.authorizationServers?.length;
 				for (const account of accounts) {
-					const manageExtensionsAction = toAction({
-						id: `configureSessions${account.label}`,
-						label: localize('manageTrustedExtensions', "Manage Trusted Extensions"),
-						enabled: true,
-						run: () => this.commandService.executeCommand('_manageTrustedExtensionsForAccount', { providerId, accountLabel: account.label })
-					});
+					// gitbbon: Hide Manage Trusted Extensions
+					// const manageExtensionsAction = toAction({
+					// 	id: `configureSessions${account.label}`,
+					// 	label: localize('manageTrustedExtensions', "Manage Trusted Extensions"),
+					// 	enabled: true,
+					// 	run: () => this.commandService.executeCommand('_manageTrustedExtensionsForAccount', { providerId, accountLabel: account.label })
+					// });
 
 
-					const providerSubMenuActions: IAction[] = [manageExtensionsAction];
+					const providerSubMenuActions: IAction[] = [/* manageExtensionsAction */];
 					if (canUseMcp) {
-						const manageMCPAction = toAction({
-							id: `configureSessions${account.label}`,
-							label: localize('manageTrustedMCPServers', "Manage Trusted MCP Servers"),
-							enabled: true,
-							run: () => this.commandService.executeCommand('_manageTrustedMCPServersForAccount', { providerId, accountLabel: account.label })
-						});
-						providerSubMenuActions.push(manageMCPAction);
+						// gitbbon: Hide Manage Trusted MCP Servers
+						// const manageMCPAction = toAction({
+						// 	id: `configureSessions${account.label}`,
+						// 	label: localize('manageTrustedMCPServers', "Manage Trusted MCP Servers"),
+						// 	enabled: true,
+						// 	run: () => this.commandService.executeCommand('_manageTrustedMCPServersForAccount', { providerId, accountLabel: account.label })
+						// });
+						// providerSubMenuActions.push(manageMCPAction);
 					}
 					if (account.canSignOut) {
 						providerSubMenuActions.push(toAction({
@@ -431,12 +433,13 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 				// Provide _some_ discoverable way to manage dynamic authentication providers.
 				// This will either show up inside the account submenu or as a top-level menu item if there
 				// are no accounts.
-				const manageDynamicAuthProvidersAction = toAction({
-					id: 'manageDynamicAuthProviders',
-					label: localize('manageDynamicAuthProviders', "Manage Dynamic Authentication Providers..."),
-					enabled: true,
-					run: () => this.commandService.executeCommand('workbench.action.removeDynamicAuthenticationProviders')
-				});
+				// gitbbon: Hide Manage Dynamic Authentication Providers
+				// const manageDynamicAuthProvidersAction = toAction({
+				// 	id: 'manageDynamicAuthProviders',
+				// 	label: localize('manageDynamicAuthProviders', "Manage Dynamic Authentication Providers..."),
+				// 	enabled: true,
+				// 	run: () => this.commandService.executeCommand('workbench.action.removeDynamicAuthenticationProviders')
+				// });
 				if (!accounts) {
 					if (this.problematicProviders.has(providerId)) {
 						const providerUnavailableAction = disposables.add(new Action('providerUnavailable', localize('authProviderUnavailable', '{0} is currently unavailable', provider.label), undefined, false));
@@ -448,7 +451,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 							this.logService.error(e);
 						}
 					}
-					menus.push(manageDynamicAuthProvidersAction);
+					// menus.push(manageDynamicAuthProvidersAction);
 					continue;
 				}
 
@@ -462,14 +465,15 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 					// });
 
 					const providerSubMenuActions: IAction[] = [];
-					const manageMCPAction = toAction({
-						id: `configureSessions${account.label}`,
-						label: localize('manageTrustedMCPServers', "Manage Trusted MCP Servers"),
-						enabled: true,
-						run: () => this.commandService.executeCommand('_manageTrustedMCPServersForAccount', { providerId, accountLabel: account.label })
-					});
-					providerSubMenuActions.push(manageMCPAction);
-					providerSubMenuActions.push(manageDynamicAuthProvidersAction);
+					// gitbbon: Hide Manage Trusted MCP Servers
+					// const manageMCPAction = toAction({
+					// 	id: `configureSessions${account.label}`,
+					// 	label: localize('manageTrustedMCPServers', "Manage Trusted MCP Servers"),
+					// 	enabled: true,
+					// 	run: () => this.commandService.executeCommand('_manageTrustedMCPServersForAccount', { providerId, accountLabel: account.label })
+					// });
+					// providerSubMenuActions.push(manageMCPAction);
+					// providerSubMenuActions.push(manageDynamicAuthProvidersAction);
 					if (account.canSignOut) {
 						providerSubMenuActions.push(toAction({
 							id: 'signOut',
@@ -491,8 +495,14 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 
 		otherCommands.forEach((group, i) => {
 			const actions = group[1];
-			menus = menus.concat(actions);
-			if (i !== otherCommands.length - 1) {
+			// gitbbon: Hide Manage Language Model Access and Manage Accounts and Manage Account Preferences For Extension
+			const filteredActions = actions.filter(action =>
+				action.id !== 'workbench.action.chat.manageLanguageModelAuthentication' &&
+				action.id !== 'workbench.action.manageAccounts' &&
+				action.id !== '_manageAccountPreferencesForExtension'
+			);
+			menus = menus.concat(filteredActions);
+			if (i !== otherCommands.length - 1 && filteredActions.length > 0) {
 				menus.push(new Separator());
 			}
 		});

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { basename } from '../../../../base/common/resources.js';
+
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService, ISCMProvider } from '../common/scm.js';
 import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IStatusbarEntry, IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -19,7 +19,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { getRepositoryResourceCount, getSCMRepositoryIcon, getStatusBarCommandGenericName } from './util.js';
+import { getRepositoryResourceCount } from './util.js';
 import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Command } from '../../../../editor/common/languages.js';
@@ -45,7 +45,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
+
 		@ITitleService private readonly titleService: ITitleService
 	) {
 		super();
@@ -140,22 +140,24 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 			return;
 		}
 
-		const label = activeRepository.repository.provider.rootUri
-			? `${basename(activeRepository.repository.provider.rootUri)} (${activeRepository.repository.provider.label})`
-			: activeRepository.repository.provider.label;
+		// gitbbon custom: Hide SCM status bar item
+		// const label = activeRepository.repository.provider.rootUri
+		// 	? `${basename(activeRepository.repository.provider.rootUri)} (${activeRepository.repository.provider.label})`
+		// 	: activeRepository.repository.provider.label;
 
 		for (let index = 0; index < commands.length; index++) {
-			const command = commands[index];
-			const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
-			const genericCommandName = getStatusBarCommandGenericName(command);
+			// gitbbon custom: Hide SCM status bar item
+			// const command = commands[index];
+			// const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
+			// const genericCommandName = getStatusBarCommandGenericName(command);
 
-			const statusbarEntry: IStatusbarEntry = {
-				name: localize('status.scm', "Source Control") + (genericCommandName ? ` ${genericCommandName}` : ''),
-				text: command.title,
-				ariaLabel: tooltip,
-				tooltip,
-				command: command.id ? command : undefined
-			};
+			// const statusbarEntry: IStatusbarEntry = {
+			// 	name: localize('status.scm', "Source Control") + (genericCommandName ? ` ${genericCommandName}` : ''),
+			// 	text: command.title,
+			// 	ariaLabel: tooltip,
+			// 	tooltip,
+			// 	command: command.id ? command : undefined
+			// };
 
 			// gitbbon custom: Hide SCM status bar item
 			// store.add(index === 0 ?
@@ -166,14 +168,14 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 		// Source control provider status bar entry
 		if (this.scmService.repositoryCount > 1) {
-			const icon = getSCMRepositoryIcon(activeRepository, activeRepository.repository);
-			const repositoryStatusbarEntry: IStatusbarEntry = {
-				name: localize('status.scm.provider', "Source Control Provider"),
-				text: `$(${icon.id}) ${activeRepository.repository.provider.name}`,
-				ariaLabel: label,
-				tooltip: label,
-				command: 'scm.setActiveProvider'
-			};
+			// const icon = getSCMRepositoryIcon(activeRepository, activeRepository.repository);
+			// const repositoryStatusbarEntry: IStatusbarEntry = {
+			// 	name: localize('status.scm.provider', "Source Control Provider"),
+			// 	text: `$(${icon.id}) ${activeRepository.repository.provider.name}`,
+			// 	ariaLabel: label,
+			// 	tooltip: label,
+			// 	command: 'scm.setActiveProvider'
+			// };
 
 			// gitbbon custom: Hide SCM Provider status bar item
 			// store.add(this.statusbarService.addEntry(repositoryStatusbarEntry, 'status.scm.provider', MainThreadStatusBarAlignment.LEFT, { location: { id: `status.scm.0`, priority: 10000 }, alignment: MainThreadStatusBarAlignment.LEFT, compact: true }));
