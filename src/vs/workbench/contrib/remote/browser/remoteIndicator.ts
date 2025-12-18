@@ -138,7 +138,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private readonly onDidChangeEntries: Event<void> = this._onDidChangeEntries.event;
 
 	constructor(
-
+		// gitbbon custom: Hide Remote status bar item
+		// @IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IContextKeyService private contextKeyService: IContextKeyService,

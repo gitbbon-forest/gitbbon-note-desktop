@@ -11,7 +11,8 @@ import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService, ISCMProvide
 import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-
+// gitbbon custom: Hide SCM status bar item
+// import { IStatusbarEntry, IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -45,7 +46,8 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
-
+		// gitbbon custom: Hide SCM status bar item
+		// @IStatusbarService private readonly statusbarService: IStatusbarService,
 		@ITitleService private readonly titleService: ITitleService
 	) {
 		super();
@@ -168,6 +170,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 		// Source control provider status bar entry
 		if (this.scmService.repositoryCount > 1) {
+			// gitbbon custom: Hide SCM status bar item
 			// const icon = getSCMRepositoryIcon(activeRepository, activeRepository.repository);
 			// const repositoryStatusbarEntry: IStatusbarEntry = {
 			// 	name: localize('status.scm.provider', "Source Control Provider"),

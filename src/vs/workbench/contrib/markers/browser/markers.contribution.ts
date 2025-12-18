@@ -572,7 +572,8 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 
 	constructor(
 		@IMarkerService private readonly markerService: IMarkerService,
-
+		// gitbbon custom: Hide Problems status bar item
+		// @IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
@@ -623,6 +624,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		};
 	}
 
+	// gitbbon custom: Hide Problems Visibility status bar item
 	// private getMarkersItemTurnedOff(): IStatusbarEntry {
 	// 	// Update to true, config checked before `getMarkersItemTurnedOff` is called.
 	// 	this.statusbarService.updateEntryVisibility('status.problemsVisibility', true);
