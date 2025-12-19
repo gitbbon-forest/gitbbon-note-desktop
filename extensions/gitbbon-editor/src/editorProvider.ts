@@ -105,11 +105,20 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 
 		let isWebviewUpdating = false;
 
+		// 마지막으로 웹뷰에서 받은 내용을 추적하여 불필요한 역업데이트 방지
+		let lastWebviewText = document.getText();
+
 		// Webview에서 메시지 수신
 		webviewPanel.webview.onDidReceiveMessage(
 			async (message) => {
 				switch (message.type) {
 					case 'update':
+						const fullText = FrontmatterParser.stringify(message.frontmatter, message.content);
+						if (fullText === lastWebviewText) {
+							return; // 내용이 같으면 무시
+						}
+						lastWebviewText = fullText;
+
 						isWebviewUpdating = true;
 						try {
 							await this.updateDocument(document, message.frontmatter, message.content);
@@ -121,10 +130,13 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 						break;
 					case 'ready':
 						// Webview 준비 완료 시 초기 데이터 재전송
+						const initialText = document.getText();
+						lastWebviewText = initialText;
+						const { frontmatter: initFm, content: initContent } = FrontmatterParser.parse(initialText);
 						webviewPanel.webview.postMessage({
 							type: 'init',
-							frontmatter,
-							content
+							frontmatter: initFm,
+							content: initContent
 						});
 						break;
 					case 'reallyFinal':
@@ -148,6 +160,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 							if (result?.success) {
 								// 성공하면 기준 텍스트 갱신
 								lastCommittedText = document.getText();
+								lastWebviewText = lastCommittedText;
 
 								webviewPanel.webview.postMessage({
 									type: 'statusUpdate',
@@ -169,7 +182,16 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 				if (isWebviewUpdating) {
 					return;
 				}
-				const { frontmatter, content } = FrontmatterParser.parse(e.document.getText());
+
+				const currentText = e.document.getText();
+				// 웹뷰에서 전달받은 내용과 현재 문서 내용이 같으면 업데이트를 보내지 않음
+				// (주로 document.save() 시 발생하는 이벤트 필터링)
+				if (currentText === lastWebviewText) {
+					return;
+				}
+				lastWebviewText = currentText;
+
+				const { frontmatter, content } = FrontmatterParser.parse(currentText);
 				webviewPanel.webview.postMessage({
 					type: 'update',
 					frontmatter,
