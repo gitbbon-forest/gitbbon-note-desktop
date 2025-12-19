@@ -13,6 +13,31 @@ else
 	fi
 fi
 
+# Node.js version check
+if [ -f "$ROOT/.nvmrc" ]; then
+	REQUIRED_NODE_VERSION=$(cat "$ROOT/.nvmrc" | tr -d '[:space:]')
+	CURRENT_NODE_VERSION=$(node -v | sed 's/v//')
+	if [[ "$CURRENT_NODE_VERSION" != "$REQUIRED_NODE_VERSION"* ]]; then
+		echo -e "\033[0;33m[Node.js Version Mismatch]\033[0m Current: v$CURRENT_NODE_VERSION, Required: v$REQUIRED_NODE_VERSION"
+
+		# Try to find nvm
+		NVM_SH_H="$HOME/.nvm/nvm.sh"
+		NVM_SH_B="/usr/local/opt/nvm/nvm.sh"
+		if [ -s "$NVM_SH_H" ]; then
+			. "$NVM_SH_H"
+			nvm use
+		elif [ -s "$NVM_SH_B" ]; then
+			. "$NVM_SH_B"
+			nvm use
+		elif command -v nvm &> /dev/null; then
+			nvm use
+		else
+			echo -e "\033[0;31m[Error]\033[0m nvm not found. Please switch to Node.js v$REQUIRED_NODE_VERSION manually."
+			exit 1
+		fi
+	fi
+fi
+
 function code() {
 	cd "$ROOT"
 
