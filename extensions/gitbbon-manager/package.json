@@ -64,8 +64,8 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "ai": "^4.0.0",
     "@ai-sdk/anthropic": "^1.0.0",
+    "ai": "^5.0.116",
     "dotenv": "^17.2.3",
     "dugite": "^3.0.0"
   }

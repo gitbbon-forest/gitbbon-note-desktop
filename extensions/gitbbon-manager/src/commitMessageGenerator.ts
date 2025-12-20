@@ -18,16 +18,8 @@ export class CommitMessageGenerator {
 	private apiKey: string | undefined;
 
 	constructor() {
-		this.apiKey = process.env.VERCEL_AI_GATE_API_KEY;
-		if (this.apiKey) {
-			// Vercel AI Gateway는 AI_GATEWAY_API_KEY 환경변수를 사용
-			process.env.AI_GATEWAY_API_KEY = this.apiKey;
-
-			// Anthropic 프로바이더 생성
-			this.anthropic = createAnthropic();
-			console.log('[CommitMessageGenerator] Initialized with Vercel AI Gate');
-		} else {
-			console.warn('[CommitMessageGenerator] No API key found. Commit message generation will be disabled.');
+		if (!process.env.AI_GATEWAY_API_KEY) {
+			console.error('AI_GATEWAY_API_KEY is not configured. Please check your .env.template file.')
 		}
 	}
 
@@ -37,10 +29,11 @@ export class CommitMessageGenerator {
 	 * @returns 생성된 커밋 메시지 또는 null (API 키가 없거나 오류 발생 시)
 	 */
 	public async generateCommitMessage(diff: string): Promise<string | null> {
-		if (!this.anthropic || !this.apiKey) {
-			console.log('[CommitMessageGenerator] API key not configured, skipping message generation');
+		if (!process.env.AI_GATEWAY_API_KEY) {
+			console.error('AI_GATEWAY_API_KEY is not configured. Please check your .env.template file.')
 			return null;
 		}
+
 
 		if (!diff || diff.trim().length === 0) {
 			console.log('[CommitMessageGenerator] Empty diff, skipping message generation');
@@ -59,9 +52,7 @@ export class CommitMessageGenerator {
 				console.log(`[CommitMessageGenerator] Trying model: ${modelName}`);
 
 				const { text } = await generateText({
-					model: this.anthropic(modelName),
-					maxTokens: 200,
-					temperature: 0.3,
+					model: modelName,
 					prompt: `다음 Git diff를 분석하여 간결하고 명확한 한글 커밋 메시지를 작성해주세요.
 
 규칙:
@@ -98,6 +89,6 @@ ${diff.substring(0, 3000)}
 	 * API 키가 설정되어 있는지 확인합니다.
 	 */
 	public isConfigured(): boolean {
-		return !!this.apiKey;
+		return process.env.AI_GATEWAY_API_KEY !== undefined;
 	}
 }
