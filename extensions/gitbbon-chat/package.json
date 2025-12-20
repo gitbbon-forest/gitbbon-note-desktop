@@ -1,0 +1,74 @@
+{
+  "name": "gitbbon-chat",
+  "displayName": "Gitbbon Chat",
+  "description": "AI Chat for Gitbbon Notes",
+  "version": "0.1.0",
+  "publisher": "gitbbon",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "contributes": {
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "gitbbon-chat-panel",
+          "title": "Gitbbon Chat",
+          "icon": "$(comment-discussion)"
+        }
+      ]
+    },
+    "views": {
+      "gitbbon-chat-panel": [
+        {
+          "id": "gitbbon.chat",
+          "name": "Chat",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "gitbbon.chat.open",
+        "title": "Open Gitbbon Chat",
+        "category": "Gitbbon"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "npm run build:webview && tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "build:webview": "vite build"
+  },
+  "devDependencies": {
+    "@types/node": "22.x",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@types/vscode": "^1.70.0",
+    "@vitejs/plugin-react": "^5.1.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^1.0.0",
+    "ai": "^4.0.0",
+    "deep-chat": "^2.3.0",
+    "dotenv": "^17.2.3",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  }
+}

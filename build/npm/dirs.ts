@@ -29,6 +29,7 @@ export const dirs = [
 	'extensions/terminal-suggest',
 	'extensions/gitbbon-manager',
 	'extensions/gitbbon-editor',
+	'extensions/gitbbon-chat',
 	'remote',
 	'remote/web',
 	'test/automation',
