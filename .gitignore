@@ -24,3 +24,4 @@ product.overrides.json
 .vscode-test
 vscode-telemetry-docs/
 .aider*
+.env

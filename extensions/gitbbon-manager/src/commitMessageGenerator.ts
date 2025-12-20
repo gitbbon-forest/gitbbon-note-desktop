@@ -8,8 +8,10 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-// .env 파일 로드
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
+// 프로젝트 루트의 .env 파일 로드 (다른 확장 기능에서도 접근 가능)
+// __dirname = .../extensions/gitbbon-manager/out
+// out -> gitbbon-manager -> extensions -> git-note (루트)
+dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env') });
 
 export class CommitMessageGenerator {
 	private anthropic: ReturnType<typeof createAnthropic> | null = null;
