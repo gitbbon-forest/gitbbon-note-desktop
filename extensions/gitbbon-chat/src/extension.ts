@@ -5,30 +5,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { streamText, type CoreMessage } from 'ai';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
-
-// 프로젝트 루트의 .env 파일 로드
-// __dirname = .../extensions/gitbbon-chat/out
-dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env') });
+import { type CoreMessage } from 'ai';
+import { AIService } from './services/aiService';
 
 class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = 'gitbbon.chat';
 	private _webviewView?: vscode.WebviewView;
-	// private anthropic property is removed as we use string models
-	private apiKey: string | undefined;
+	private aiService: AIService;
 
 	constructor(private readonly _extensionUri: vscode.Uri) {
-		// 우선순위: VERCEL_AI_GATE_API_KEY -> AI_GATEWAY_API_KEY
-		this.apiKey = process.env.VERCEL_AI_GATE_API_KEY || process.env.AI_GATEWAY_API_KEY;
-
-		if (this.apiKey) {
-			process.env.AI_GATEWAY_API_KEY = this.apiKey;
-			console.log('[GitbbonChat] Initialized with API Key');
-		} else {
-			console.warn('[GitbbonChat] No API key found. Chat will use demo mode.');
-		}
+		this.aiService = new AIService();
 	}
 
 	public resolveWebviewView(
@@ -60,75 +46,42 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 			return;
 		}
 
-		console.log('[GitbbonChat] _handleChatMessage called. API Key present:', !!this.apiKey);
+		console.log('[GitbbonChat] _handleChatMessage called.');
 
-		if (!this.apiKey) {
+		if (!this.aiService.hasApiKey()) {
 			console.warn('[GitbbonChat] Missing API Key');
-			this._webviewView.webview.postMessage({
-				type: 'chat-done',
-			});
+			this._webviewView.webview.postMessage({ type: 'chat-done' });
 			this._webviewView.webview.postMessage({
 				type: 'chat-chunk',
 				chunk: '데모 모드입니다. .env 파일에 AI_GATEWAY_API_KEY를 설정해주세요.'
 			});
-			this._webviewView.webview.postMessage({
-				type: 'chat-done',
-			});
+			this._webviewView.webview.postMessage({ type: 'chat-done' });
 			return;
 		}
 
-		const modelsToTry = [
-			'claude-sonnet-4-20250514',
-			'claude-3-5-sonnet-20241022',
-			'claude-3-opus-20240229'
-		];
+		try {
+			let chunkCount = 0;
+			const stream = this.aiService.streamChat(messages);
 
-		for (const modelName of modelsToTry) {
-			try {
-				console.log(`[GitbbonChat] Trying model: ${modelName}`);
-
-				// Note: Passing string model requires ai sdk to resolve it (e.g. via registry or default provider)
-				// This follows the pattern in commitMessageGenerator.ts
-				const result = await streamText({
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					model: modelName as any, // Cast to any to bypass typing if SDK expects object
-					messages: messages,
-				});
-
-				let chunkCount = 0;
-				for await (const textPart of result.textStream) {
-					chunkCount++;
-					// if (chunkCount % 10 === 0) console.log(`[GitbbonChat] Sending chunk #${chunkCount}`);
-
-					console.log(`[GitbbonChat] Sending chunk #${chunkCount}`);
-					this._webviewView.webview.postMessage({
-						type: 'chat-chunk',
-						chunk: textPart
-					});
-				}
-				console.log(`[GitbbonChat] Stream finished with ${modelName}. Total chunks: ${chunkCount}`);
-
+			for await (const textPart of stream) {
+				chunkCount++;
+				console.log(`[GitbbonChat] Sending chunk #${chunkCount}`);
 				this._webviewView.webview.postMessage({
-					type: 'chat-done'
+					type: 'chat-chunk',
+					chunk: textPart
 				});
-				return; // Success, exit loop
-
-			} catch (error: unknown) {
-				const errorMessage = error instanceof Error ? error.message : String(error);
-				console.warn(`[GitbbonChat] Failed with model ${modelName}:`, errorMessage);
-				// Continue to next model
 			}
-		}
 
-		// If all failed
-		console.error('[GitbbonChat] All models failed');
-		this._webviewView.webview.postMessage({
-			type: 'chat-chunk',
-			chunk: '모든 AI 모델 호출에 실패했습니다.'
-		});
-		this._webviewView.webview.postMessage({
-			type: 'chat-done'
-		});
+			this._webviewView.webview.postMessage({ type: 'chat-done' });
+
+		} catch (error) {
+			console.error('[GitbbonChat] Chat failed:', error);
+			this._webviewView.webview.postMessage({
+				type: 'chat-chunk',
+				chunk: '모든 AI 모델 호출에 실패했습니다.'
+			});
+			this._webviewView.webview.postMessage({ type: 'chat-done' });
+		}
 	}
 
 	private _getHtmlForWebview(_webview: vscode.Webview): string {

@@ -1,0 +1,5 @@
+export const MODELS_TO_TRY = [
+	'claude-sonnet-4-20250514',
+	'claude-3-5-sonnet-20241022',
+	'claude-3-opus-20240229'
+];
