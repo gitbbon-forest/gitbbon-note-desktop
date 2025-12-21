@@ -51,6 +51,7 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "npm run build:webview && tsc -p ./",
+    "package": "npm run compile",
     "watch": "tsc -watch -p ./ & vite build --watch",
     "watch:tsc": "tsc -watch -p ./",
     "watch:webview": "vite build --watch",

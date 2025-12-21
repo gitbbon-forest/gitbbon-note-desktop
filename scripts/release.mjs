@@ -149,6 +149,26 @@ async function setupWorktree() {
 }
 
 /**
+ * @param {string} worktreeDir
+ * @returns {Promise<void>}
+ */
+async function buildExtensions(worktreeDir) {
+	logStep('EXTENSIONS', 'Building extensions in worktree...');
+
+	const extensions = ['gitbbon-editor', 'gitbbon-manager', 'gitbbon-chat'];
+
+	for (const name of extensions) {
+		const extDir = path.join(worktreeDir, 'extensions', name);
+		if (fs.existsSync(extDir)) {
+			log(`Building ${name}...`, colors.yellow);
+			exec(`cd "${extDir}" && npm run package`, { silent: false });
+		} else {
+			log(`Extension ${name} not found.`, colors.red);
+		}
+	}
+}
+
+/**
  * @param {string} platform
  * @param {string} worktreeDir
  * @returns {Promise<void>}
@@ -309,11 +329,11 @@ async function main() {
 
 	try {
 		// Step 5: Update package.json (CHANGELOG already updated by standard-version)
-		logStep('1/6', 'Updating package.json...');
+		logStep('1/7', 'Updating package.json...');
 		updatePackageVersion(newVersion);
 
 		// Step 6: Git commit and tag
-		logStep('2/6', 'Creating git commit and tag...');
+		logStep('2/7', 'Creating git commit and tag...');
 		exec(`git add package.json CHANGELOG.md`);
 		exec(`git commit -m "chore: Release v${newVersion}"`);
 		exec(`git tag v${newVersion}`);
@@ -330,21 +350,26 @@ async function main() {
 			process.exit(0);
 		}
 
-		logStep('3/6', 'Pushing to GitHub...');
+		logStep('3/7', 'Pushing to GitHub...');
 		exec('git pull origin main');
 		exec('git push origin main');
 		exec('git push origin --tags');
 
 		// Step 4: Setup worktree for building
+		logStep('4/7', 'Setting up build worktree...');
 		const worktreeDir = await setupWorktree();
 
-		// Step 5: Build macOS ARM64
-		logStep('5/6', 'Building for macOS ARM64 in worktree...');
+		// Step 5: Build extensions
+		logStep('5/7', 'Building extensions in worktree...');
+		await buildExtensions(worktreeDir);
+
+		// Step 6: Build macOS ARM64
+		logStep('6/7', 'Building for macOS ARM64 in worktree...');
 		await runBuild('darwin-arm64', worktreeDir);
 		log('\n⚠️  Building ARM64 only for beta testing. Other platforms will be added later.', colors.yellow);
 
-		// Step 6: Create GitHub Release
-		logStep('6/6', 'Creating GitHub Release and uploading artifacts...');
+		// Step 7: Create GitHub Release
+		logStep('7/7', 'Creating GitHub Release and uploading artifacts...');
 		await createGitHubRelease(newVersion, changelogEntry, worktreeDir);
 
 		log('\n' + '='.repeat(40), colors.green);
