@@ -390,7 +390,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			const icon = themeIcon || resources.joinPath(extension.extensionLocation, descriptor.icon);
 			const id = `workbench.view.extension.${descriptor.id}`;
 			const title = descriptor.title || id;
-			const viewContainer = this.registerCustomViewContainer(id, title, icon, order++, extension.identifier, location);
+			let viewOrder = order++;
+			if (descriptor.id === 'gitbbon-chat-sidebar') {
+				viewOrder = 0;
+			}
+			const viewContainer = this.registerCustomViewContainer(id, title, icon, viewOrder, extension.identifier, location);
 
 			// Move those views that belongs to this container
 			if (existingViewContainers.length) {

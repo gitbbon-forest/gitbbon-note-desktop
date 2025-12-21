@@ -23,16 +23,16 @@
   },
   "contributes": {
     "viewsContainers": {
-      "panel": [
+      "secondarySidebar": [
         {
-          "id": "gitbbon-chat-panel",
+          "id": "gitbbon-chat-sidebar",
           "title": "Gitbbon Chat",
           "icon": "$(comment-discussion)"
         }
       ]
     },
     "views": {
-      "gitbbon-chat-panel": [
+      "gitbbon-chat-sidebar": [
         {
           "id": "gitbbon.chat",
           "name": "Chat",
