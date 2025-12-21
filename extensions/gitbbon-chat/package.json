@@ -64,8 +64,9 @@
     "vite": "^7.3.0"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^1.0.0",
-    "ai": "^4.0.0",
+    "@ai-sdk/anthropic": "^2.0.56",
+    "@ai-sdk/react": "^2.0.118",
+    "ai": "^5.0.116",
     "deep-chat": "^2.3.0",
     "dotenv": "^17.2.3",
     "react": "^19.2.3",

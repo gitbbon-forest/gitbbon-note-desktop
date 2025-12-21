@@ -5,8 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { generateText } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
+import { streamText, type CoreMessage } from 'ai';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
@@ -17,15 +16,16 @@ dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env') });
 class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = 'gitbbon.chat';
 	private _webviewView?: vscode.WebviewView;
-	private anthropic: ReturnType<typeof createAnthropic> | null = null;
+	// private anthropic property is removed as we use string models
 	private apiKey: string | undefined;
 
 	constructor(private readonly _extensionUri: vscode.Uri) {
-		this.apiKey = process.env.VERCEL_AI_GATE_API_KEY;
+		// 우선순위: VERCEL_AI_GATE_API_KEY -> AI_GATEWAY_API_KEY
+		this.apiKey = process.env.VERCEL_AI_GATE_API_KEY || process.env.AI_GATEWAY_API_KEY;
+
 		if (this.apiKey) {
 			process.env.AI_GATEWAY_API_KEY = this.apiKey;
-			this.anthropic = createAnthropic();
-			console.log('[GitbbonChat] Initialized with Vercel AI Gateway');
+			console.log('[GitbbonChat] Initialized with API Key');
 		} else {
 			console.warn('[GitbbonChat] No API key found. Chat will use demo mode.');
 		}
@@ -47,71 +47,88 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 
 		// 웹뷰에서 메시지 수신
 		webviewView.webview.onDidReceiveMessage(async (message) => {
-			if (message.type === 'chat') {
-				await this._handleChatMessage(message.text);
+			console.log('[GitbbonChat] Received message from webview:', message.type);
+			if (message.type === 'chat-request') {
+				console.log('[GitbbonChat] Handling chat-request with messages:', message.messages.length);
+				await this._handleChatMessage(message.messages);
 			}
 		});
 	}
 
-	private async _handleChatMessage(userMessage: string): Promise<void> {
+	private async _handleChatMessage(messages: CoreMessage[]): Promise<void> {
 		if (!this._webviewView) {
 			return;
 		}
 
-		if (!this.anthropic || !this.apiKey) {
-			// API 키가 없으면 데모 응답
+		console.log('[GitbbonChat] _handleChatMessage called. API Key present:', !!this.apiKey);
+
+		if (!this.apiKey) {
+			console.warn('[GitbbonChat] Missing API Key');
 			this._webviewView.webview.postMessage({
-				type: 'response',
-				text: `데모 모드입니다. API 키를 설정하면 실제 AI 응답을 받을 수 있습니다.\n\n받은 메시지: "${userMessage}"`
+				type: 'chat-done',
+			});
+			this._webviewView.webview.postMessage({
+				type: 'chat-chunk',
+				chunk: '데모 모드입니다. .env 파일에 AI_GATEWAY_API_KEY를 설정해주세요.'
+			});
+			this._webviewView.webview.postMessage({
+				type: 'chat-done',
 			});
 			return;
 		}
 
-		try {
-			const modelsToTry = [
-				'claude-sonnet-4-20250514',
-				'claude-3-5-sonnet-20241022',
-				'claude-3-opus-20240229'
-			];
+		const modelsToTry = [
+			'claude-sonnet-4-20250514',
+			'claude-3-5-sonnet-20241022',
+			'claude-3-opus-20240229'
+		];
 
-			for (const modelName of modelsToTry) {
-				try {
-					console.log(`[GitbbonChat] Trying model: ${modelName}`);
+		for (const modelName of modelsToTry) {
+			try {
+				console.log(`[GitbbonChat] Trying model: ${modelName}`);
 
-					const { text } = await generateText({
-						model: this.anthropic(modelName),
-						maxTokens: 1000,
-						temperature: 0.7,
-						prompt: userMessage,
-					});
-
-					if (text) {
-						this._webviewView.webview.postMessage({
-							type: 'response',
-							text: text.trim()
-						});
-						return;
-					}
+				// Note: Passing string model requires ai sdk to resolve it (e.g. via registry or default provider)
+				// This follows the pattern in commitMessageGenerator.ts
+				const result = await streamText({
 					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				} catch (error: any) {
-					console.warn(`[GitbbonChat] Failed with model ${modelName}:`, error.message);
-					continue;
-				}
-			}
+					model: modelName as any, // Cast to any to bypass typing if SDK expects object
+					messages: messages,
+				});
 
-			// 모든 모델 실패
-			this._webviewView.webview.postMessage({
-				type: 'response',
-				error: '모든 AI 모델 호출에 실패했습니다.'
-			});
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		} catch (error: any) {
-			console.error('[GitbbonChat] Error:', error);
-			this._webviewView.webview.postMessage({
-				type: 'response',
-				error: `오류가 발생했습니다: ${error.message}`
-			});
+				let chunkCount = 0;
+				for await (const textPart of result.textStream) {
+					chunkCount++;
+					// if (chunkCount % 10 === 0) console.log(`[GitbbonChat] Sending chunk #${chunkCount}`);
+
+					console.log(`[GitbbonChat] Sending chunk #${chunkCount}`);
+					this._webviewView.webview.postMessage({
+						type: 'chat-chunk',
+						chunk: textPart
+					});
+				}
+				console.log(`[GitbbonChat] Stream finished with ${modelName}. Total chunks: ${chunkCount}`);
+
+				this._webviewView.webview.postMessage({
+					type: 'chat-done'
+				});
+				return; // Success, exit loop
+
+			} catch (error: unknown) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				console.warn(`[GitbbonChat] Failed with model ${modelName}:`, errorMessage);
+				// Continue to next model
+			}
 		}
+
+		// If all failed
+		console.error('[GitbbonChat] All models failed');
+		this._webviewView.webview.postMessage({
+			type: 'chat-chunk',
+			chunk: '모든 AI 모델 호출에 실패했습니다.'
+		});
+		this._webviewView.webview.postMessage({
+			type: 'chat-done'
+		});
 	}
 
 	private _getHtmlForWebview(_webview: vscode.Webview): string {
@@ -124,7 +141,7 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${_webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval'; font-src ${_webview.cspSource};">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${_webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval'; connect-src 'self' https:; font-src ${_webview.cspSource};">
 	<title>Gitbbon Chat</title>
 	<link href="${styleUri}" rel="stylesheet">
 </head>
