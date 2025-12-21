@@ -149,6 +149,30 @@ async function setupWorktree() {
 }
 
 /**
+ * @param {string} worktreeDir
+ * @returns {Promise<void>}
+ */
+async function buildExtensions(worktreeDir) {
+	logStep('EXTENSIONS', 'Building extensions in worktree...');
+
+	const extensions = [
+		{ name: 'gitbbon-editor', script: 'package' },
+		{ name: 'gitbbon-manager', script: 'compile' },
+		{ name: 'gitbbon-chat', script: 'compile' }
+	];
+
+	for (const ext of extensions) {
+		const extDir = path.join(worktreeDir, 'extensions', ext.name);
+		if (fs.existsSync(extDir)) {
+			log(`Building ${ext.name}...`, colors.yellow);
+			exec(`cd "${extDir}" && npm run ${ext.script}`, { silent: false });
+		} else {
+			log(`Extension ${ext.name} not found.`, colors.red);
+		}
+	}
+}
+
+/**
  * @param {string} platform
  * @param {string} worktreeDir
  * @returns {Promise<void>}
@@ -338,13 +362,16 @@ async function main() {
 		// Step 4: Setup worktree for building
 		const worktreeDir = await setupWorktree();
 
-		// Step 5: Build macOS ARM64
-		logStep('5/6', 'Building for macOS ARM64 in worktree...');
+		// Step 5: Build extensions
+		await buildExtensions(worktreeDir);
+
+		// Step 6: Build macOS ARM64
+		logStep('6/6', 'Building for macOS ARM64 in worktree...');
 		await runBuild('darwin-arm64', worktreeDir);
 		log('\n⚠️  Building ARM64 only for beta testing. Other platforms will be added later.', colors.yellow);
 
-		// Step 6: Create GitHub Release
-		logStep('6/6', 'Creating GitHub Release and uploading artifacts...');
+		// Step 7: Create GitHub Release
+		logStep('7/6', 'Creating GitHub Release and uploading artifacts...');
 		await createGitHubRelease(newVersion, changelogEntry, worktreeDir);
 
 		log('\n' + '='.repeat(40), colors.green);
