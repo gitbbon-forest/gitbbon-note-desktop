@@ -9,8 +9,9 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 
 // 프로젝트 루트의 .env 파일 로드 (다른 확장 기능에서도 접근 가능)
-// __dirname = .../extensions/gitbbon-manager/out
-// out -> gitbbon-manager -> extensions -> git-note (루트)
+// 1. 배포 환경: 확장 기능 루트 디렉토리 (__dirname = .../extensions/gitbbon-manager/out)
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
+// 2. 개발 환경: 프로젝트 루트 디렉토리 (out -> gitbbon-manager -> extensions -> git-note (루트))
 dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env') });
 
 export class CommitMessageGenerator {

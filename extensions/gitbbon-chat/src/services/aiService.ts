@@ -12,7 +12,9 @@ export class AIService {
 
 	private initializeApiKey(): void {
 		// 프로젝트 루트의 .env 파일 로드
-		// __dirname = .../extensions/gitbbon-chat/out/services
+		// 1. 배포 환경: 확장 기능 루트 디렉토리 (__dirname = .../extensions/gitbbon-chat/out/services)
+		dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
+		// 2. 개발 환경: 프로젝트 루트 디렉토리
 		const envPath = path.join(__dirname, '..', '..', '..', '.env');
 		dotenv.config({ path: envPath });
 
