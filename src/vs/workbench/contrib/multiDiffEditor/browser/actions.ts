@@ -12,6 +12,7 @@ import { Action2, MenuId } from '../../../../platform/actions/common/actions.js'
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITextEditorOptions, TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { resolveCommandsContext } from '../../../browser/parts/editor/editorCommandsContext.js';
@@ -199,5 +200,28 @@ export class ExpandAllAction extends Action2 {
 			const viewModel = await editor.getViewModel();
 			viewModel.expandAll();
 		}
+	}
+}
+
+export class TestButtonAction extends Action2 {
+	constructor() {
+		super({
+			id: 'multiDiffEditor.testButton',
+			title: localize2('TestButton', 'Test Button'),
+			icon: Codicon.beaker,
+			precondition: ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID),
+			menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+				id,
+				when: ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID),
+				group: 'navigation',
+				order: 0
+			})),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const notificationService = accessor.get(INotificationService);
+		notificationService.info('Test Button Clicked!');
 	}
 }

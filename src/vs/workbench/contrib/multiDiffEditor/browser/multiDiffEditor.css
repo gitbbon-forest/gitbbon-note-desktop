@@ -1,0 +1,42 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.multi-diff-header {
+	height: 60px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background-color: var(--vscode-editor-background);
+	border-bottom: 1px solid var(--vscode-widget-border);
+	flex-shrink: 0;
+}
+
+.multi-diff-beaker-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 8px 16px;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 14px;
+	font-weight: 600;
+	transition: background-color 0.1s;
+}
+
+.multi-diff-beaker-button:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.multi-diff-beaker-button .codicon {
+	margin-right: 8px;
+	font-size: 18px;
+}
+
+.multi-diff-selectbox-container {
+	width: 200px;
+}

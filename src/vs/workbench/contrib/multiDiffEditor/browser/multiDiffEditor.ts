@@ -11,7 +11,10 @@ import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../editor/b
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { FloatingClickMenu } from '../../../../platform/actions/browser/floatingMenu.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -34,6 +37,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'multiDiffEditor';
@@ -58,6 +62,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorProgressService private editorProgressService: IEditorProgressService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 	) {
 		super(
 			MultiDiffEditor.ID,
@@ -73,10 +78,45 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		);
 	}
 
+	private _headerContainer: HTMLElement | undefined;
+	private _editorContainer: HTMLElement | undefined;
+
 	protected createEditor(parent: HTMLElement): void {
+		// Create Header Container
+		this._headerContainer = DOM.append(parent, DOM.$('.multi-diff-header'));
+
+		// Create SelectBox Options & Map
+		const options: ISelectOptionItem[] = [
+			{ text: '이전 버전과 비교' },
+			{ text: 'Save Point와 비교' },
+			{ text: '임시 저장과 비교' }
+		];
+		const optionIds = ['default', 'savepoint', 'draft'];
+
+		// Create SelectBox
+		const selectBox = this._register(new SelectBox(options, 0, this.contextViewService, defaultSelectBoxStyles));
+
+		// Render SelectBox
+		const selectBoxContainer = DOM.append(this._headerContainer, DOM.$('.multi-diff-selectbox-container'));
+		selectBox.render(selectBoxContainer);
+
+		// Handle Selection
+		this._register(selectBox.onDidSelect(e => {
+			const selectedId = optionIds[e.index];
+			this.instantiationService.invokeFunction(accessor => {
+				const commandService = accessor.get(ICommandService);
+				commandService.executeCommand('gitbbon.switchComparisonMode', { mode: selectedId });
+			});
+		}));
+
+		// Create Editor Container
+		this._editorContainer = DOM.append(parent, DOM.$('.multi-diff-editor-container'));
+		this._editorContainer.style.height = 'calc(100% - 60px)';
+		this._editorContainer.style.position = 'relative';
+
 		this._multiDiffEditorWidget = this._register(this.instantiationService.createInstance(
 			MultiDiffEditorWidget,
-			parent,
+			this._editorContainer,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
 		));
 
@@ -101,11 +141,11 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		this._viewModel = await input.getViewModel();
 		this._sessionResourceContextKey?.set(input.resource);
 		this._contentOverlay?.updateResource(input.resource);
-		this._multiDiffEditorWidget!.setViewModel(this._viewModel);
+		this._multiDiffEditorWidget?.setViewModel(this._viewModel);
 
 		const viewState = this.loadEditorViewState(input, context);
 		if (viewState) {
-			this._multiDiffEditorWidget!.setViewState(viewState);
+			this._multiDiffEditorWidget?.setViewState(viewState);
 		}
 		this._applyOptions(options);
 	}
@@ -129,11 +169,24 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		await super.clearInput();
 		this._sessionResourceContextKey?.set(null);
 		this._contentOverlay?.updateResource(undefined);
-		this._multiDiffEditorWidget!.setViewModel(undefined);
+		this._multiDiffEditorWidget?.setViewModel(undefined);
 	}
 
 	layout(dimension: DOM.Dimension): void {
-		this._multiDiffEditorWidget!.layout(dimension);
+		const headerHeight = 60;
+		const editorHeight = Math.max(0, dimension.height - headerHeight);
+
+		if (this._headerContainer) {
+			this._headerContainer.style.height = `${headerHeight}px`;
+			this._headerContainer.style.width = `${dimension.width}px`;
+		}
+
+		if (this._editorContainer) {
+			this._editorContainer.style.height = `${editorHeight}px`;
+			this._editorContainer.style.width = `${dimension.width}px`;
+		}
+
+		this._multiDiffEditorWidget?.layout(new DOM.Dimension(dimension.width, editorHeight));
 	}
 
 	override getControl(): ICompositeControl | undefined {

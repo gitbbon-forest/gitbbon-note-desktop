@@ -49,7 +49,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 					resource.goToFileResource,
 				);
 			}),
-			input.isTransient ?? false
+			input.isTransient ?? false,
+			'default' // Default comparison mode
 		);
 	}
 
@@ -63,7 +64,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				resource.modifiedUri ? URI.parse(resource.modifiedUri) : undefined,
 				resource.goToFileUri ? URI.parse(resource.goToFileUri) : undefined,
 			)),
-			false
+			false,
+			data.comparisonMode ?? 'default'
 		);
 	}
 
@@ -85,6 +87,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		public readonly label: string | undefined,
 		public readonly initialResources: readonly MultiDiffEditorItem[] | undefined,
 		public readonly isTransient: boolean = false,
+		public readonly comparisonMode: string = 'default',
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -162,6 +165,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				modifiedUri: resource.modifiedUri?.toString(),
 				goToFileUri: resource.goToFileUri?.toString(),
 			})),
+			comparisonMode: this.comparisonMode
 		};
 	}
 
@@ -433,6 +437,7 @@ interface ISerializedMultiDiffEditorInput {
 		modifiedUri: string | undefined;
 		goToFileUri: string | undefined;
 	}[] | undefined;
+	comparisonMode?: string;
 }
 
 export class MultiDiffEditorSerializer implements IEditorSerializer {
