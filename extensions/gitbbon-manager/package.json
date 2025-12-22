@@ -60,6 +60,7 @@
     "unit-test": "npm run compile && mocha out/test/*.unit.test.js"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/vscode": "^1.70.0",
     "typescript": "^5.9.3"
