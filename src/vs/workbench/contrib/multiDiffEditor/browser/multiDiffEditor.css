@@ -38,5 +38,6 @@
 }
 
 .multi-diff-selectbox-container {
-	width: 200px;
+	width: 280px;
+	padding: 12px 24px;
 }

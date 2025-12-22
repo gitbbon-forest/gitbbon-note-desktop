@@ -150,8 +150,11 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		this._contentOverlay?.updateResource(input.resource);
 		this._multiDiffEditorWidget?.setViewModel(this._viewModel);
 
-		// 커밋 변경 시 SelectBox를 기본값(이전 버전과 비교)으로 리셋
-		this._selectBox?.select(0);
+		// Git Graph에서 커밋 클릭 시 (scm-history-item 스킴)에만 SelectBox를 기본값으로 리셋
+		const multiDiffSource = input.multiDiffSource;
+		if (multiDiffSource?.scheme === 'scm-history-item') {
+			this._selectBox?.select(0);
+		}
 
 		const viewState = this.loadEditorViewState(input, context);
 		if (viewState) {

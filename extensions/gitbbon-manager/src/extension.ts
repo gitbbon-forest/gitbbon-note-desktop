@@ -215,7 +215,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 						}
 						break;
 					case 'default':
-						parentCommitId = undefined; // Default behavior (compare with parent)
+						// 이전 버전(커밋의 실제 부모)과 비교
+						try {
+							const commitParent = await resolveRefToCommitHash(`${historyItemId}^`);
+							parentCommitId = commitParent;
+							console.log(`Default mode: comparing with parent commit ${commitParent}`);
+						} catch (e) {
+							console.error('Failed to resolve parent commit:', e);
+							vscode.window.showWarningMessage('부모 커밋을 찾을 수 없습니다.');
+						}
 						break;
 				}
 
@@ -277,31 +285,40 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 						};
 
 						// MultiDiffEditorInput resources 구성
-						// savepoint/draft 모드: parentCommitId가 이전 버전이므로 왼쪽에 표시
-						// 따라서 originalUri = parentCommitId, modifiedUri = historyItemId
-						// 하지만 사용자가 원하는 것: Save Point/auto-save(이전)가 왼쪽
-						// 현재 커밋(historyItemId)이 왼쪽, Save Point(parentCommitId)가 오른쪽이 되어야 함
+						// default 모드: 부모(parentCommitId)가 왼쪽, 현재(historyItemId)가 오른쪽 (일반적인 diff)
+						// savepoint/draft 모드: 현재(historyItemId)가 왼쪽, Save Point/auto-save가 오른쪽
+						const shouldSwap = args.mode === 'savepoint' || args.mode === 'draft';
+
 						const resources = changedFiles.map(change => {
 							let originalUri: vscode.Uri | undefined;
 							let modifiedUri: vscode.Uri | undefined;
 
-							// savepoint/draft: 현재 커밋(historyItemId)이 왼쪽, Save Point/auto-save가 오른쪽
+							// 왼쪽 = original, 오른쪽 = modified
+							const leftRef = shouldSwap ? historyItemId : parentCommitId!;
+							const rightRef = shouldSwap ? parentCommitId! : historyItemId;
+
 							switch (change.status) {
-								case 'A': // Added (현재 커밋에서 추가됨 → 이 경우 스왑하면 삭제된 것처럼 보임)
-									// 스왑: 왼쪽=historyItemId(없음), 오른쪽=parentCommitId(있음) → Deleted처럼 표시
-									originalUri = toGitUri(change.file, historyItemId);
+								case 'A': // Added
+									if (shouldSwap) {
+										originalUri = toGitUri(change.file, historyItemId);
+									} else {
+										modifiedUri = toGitUri(change.file, historyItemId);
+									}
 									break;
-								case 'D': // Deleted (현재 커밋에서 삭제됨)
-									// 스왑: 왼쪽=historyItemId(있음), 오른쪽=parentCommitId(없음) → Added처럼 표시
-									modifiedUri = toGitUri(change.file, parentCommitId!);
+								case 'D': // Deleted
+									if (shouldSwap) {
+										modifiedUri = toGitUri(change.file, parentCommitId!);
+									} else {
+										originalUri = toGitUri(change.file, parentCommitId!);
+									}
 									break;
 								case 'R': // Renamed
-									originalUri = toGitUri(change.file, historyItemId);
-									modifiedUri = toGitUri(change.originalFile!, parentCommitId!);
+									originalUri = toGitUri(shouldSwap ? change.file : change.originalFile!, leftRef);
+									modifiedUri = toGitUri(shouldSwap ? change.originalFile! : change.file, rightRef);
 									break;
 								default: // Modified
-									originalUri = toGitUri(change.file, historyItemId);
-									modifiedUri = toGitUri(change.file, parentCommitId!);
+									originalUri = toGitUri(change.file, leftRef);
+									modifiedUri = toGitUri(change.file, rightRef);
 									break;
 							}
 
