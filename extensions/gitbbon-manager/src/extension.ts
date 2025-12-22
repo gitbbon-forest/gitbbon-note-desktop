@@ -122,11 +122,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	});
 
 	// Comparison Mode Switch Command
+	// 현재 커밋 컨텍스트를 저장 (모드 변경 간 유지)
+	let currentCommitContext: { historyItemId: string; rootUri: vscode.Uri } | undefined;
+
 	const switchComparisonModeCommand = vscode.commands.registerCommand(
 		'gitbbon.switchComparisonMode',
 		async (args: { mode: string; multiDiffSource: string }) => {
 			console.log('Switch Comparison Mode triggered:', args);
-
 			if (!args.multiDiffSource) {
 				vscode.window.showErrorMessage('No Multi Diff Source provided.');
 				return;
@@ -134,32 +136,83 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 			try {
 				const uri = vscode.Uri.parse(args.multiDiffSource);
-				const query = JSON.parse(uri.query);
+				console.log('uri.scheme:', uri.scheme);
 
-				// Extract necessary info from the URI query (ScmHistoryItem format)
-				// Format: { repositoryId, historyItemId, historyItemParentId, ... }
-				const { historyItemId } = query;
+				// scm-history-item 스킴인 경우 컨텍스트 갱신
+				if (uri.scheme === 'scm-history-item') {
+					const query = JSON.parse(uri.query);
+					const { historyItemId } = query;
+					const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+					if (historyItemId && rootUri) {
+						currentCommitContext = { historyItemId, rootUri };
+						console.log('Updated commit context:', currentCommitContext);
+					}
+				}
 
-				if (!historyItemId) {
-					vscode.window.showErrorMessage('Invalid Multi Diff Source: No history item ID found.');
+				// 저장된 컨텍스트가 없으면 에러
+				if (!currentCommitContext) {
+					vscode.window.showWarningMessage('비교 모드 변경은 Git Graph에서 커밋을 다시 선택해 주세요.');
 					return;
 				}
 
-				// Determine repository root
-				// For now, assuming single root or extracting from URI path
-				const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-				if (!rootUri) {
-					return;
-				}
+				const { historyItemId, rootUri } = currentCommitContext;
+
+				// Get current branch name dynamically
+				const getCurrentBranch = (): Promise<string> => {
+					return new Promise((resolve, reject) => {
+						const cp = require('child_process');
+						cp.exec('git rev-parse --abbrev-ref HEAD', { cwd: rootUri.fsPath }, (err: Error | null, stdout: string) => {
+							if (err) {
+								reject(err);
+								return;
+							}
+							resolve(stdout.trim());
+						});
+					});
+				};
+
+				// Resolve branch/ref name to commit hash
+				const resolveRefToCommitHash = (ref: string): Promise<string> => {
+					return new Promise((resolve, reject) => {
+						const cp = require('child_process');
+						cp.exec(`git rev-parse ${ref}`, { cwd: rootUri.fsPath }, (err: Error | null, stdout: string) => {
+							if (err) {
+								reject(err);
+								return;
+							}
+							resolve(stdout.trim());
+						});
+					});
+				};
 
 				let parentCommitId: string | undefined = undefined;
 
+
+				console.log("🚀 ~ activate ~ args.mode:", args.mode)
 				switch (args.mode) {
 					case 'savepoint':
-						parentCommitId = 'main';
+						// 현재 브랜치의 마지막 버전(커밋 해시)과 비교
+						try {
+							const currentBranch = await getCurrentBranch();
+							const commitHash = await resolveRefToCommitHash(currentBranch);
+							parentCommitId = commitHash;
+							console.log(`Savepoint mode: comparing with '${currentBranch}' -> commit ${commitHash}`);
+						} catch (e) {
+							console.error('Failed to resolve branch to commit:', e);
+						}
 						break;
 					case 'draft':
-						parentCommitId = 'auto-save/main';
+						// auto-save/현재브랜치의 커밋 해시와 비교
+						try {
+							const currentBranch = await getCurrentBranch();
+							const autoSaveBranch = `auto-save/${currentBranch}`;
+							const commitHash = await resolveRefToCommitHash(autoSaveBranch);
+							parentCommitId = commitHash;
+							console.log(`Draft mode: comparing with '${autoSaveBranch}' -> commit ${commitHash}`);
+						} catch (e) {
+							console.error('Failed to resolve auto-save branch to commit:', e);
+							vscode.window.showWarningMessage(`auto-save 브랜치를 찾을 수 없습니다.`);
+						}
 						break;
 					case 'default':
 						parentCommitId = undefined; // Default behavior (compare with parent)
@@ -168,14 +221,105 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 				console.log(`Switching mode to ${args.mode}, parent: ${parentCommitId}`);
 
-				// Re-open editor with new parent
-				// We use the command we implemented in Core: gitbbon.openCommitInMultiDiffEditor
-				await vscode.commands.executeCommand(
-					'gitbbon.openCommitInMultiDiffEditor',
-					rootUri,
-					historyItemId,
-					parentCommitId
-				);
+				if (!parentCommitId) {
+					// Default 모드: 기존 Core 명령어 사용
+					await vscode.commands.executeCommand(
+						'gitbbon.openCommitInMultiDiffEditor',
+						rootUri,
+						historyItemId,
+						undefined
+					);
+				} else {
+					// Custom 비교: git diff를 직접 실행하여 파일 목록 가져오기
+					const getChangedFiles = (): Promise<{ status: string, file: string, originalFile?: string }[]> => {
+						return new Promise((resolve, reject) => {
+							const cp = require('child_process');
+							cp.exec(
+								`git diff --name-status ${parentCommitId}..${historyItemId}`,
+								{ cwd: rootUri.fsPath },
+								(err: Error | null, stdout: string) => {
+									if (err) {
+										reject(err);
+										return;
+									}
+									const files = stdout.trim().split('\n').filter(l => l).map(line => {
+										const parts = line.split('\t');
+										const status = parts[0];
+										if (status.startsWith('R')) {
+											// Renamed: R100\toldname\tnewname
+											return { status: 'R', file: parts[2], originalFile: parts[1] };
+										}
+										return { status, file: parts[1] };
+									});
+									resolve(files);
+								}
+							);
+						});
+					};
+
+					try {
+						const changedFiles = await getChangedFiles();
+						console.log(`[switchComparisonMode] Changed files:`, changedFiles);
+
+						if (changedFiles.length === 0) {
+							vscode.window.showInformationMessage('변경된 파일이 없습니다.');
+							return;
+						}
+
+						// git: 스킴 URI 생성 헬퍼
+						const toGitUri = (filePath: string, ref: string): vscode.Uri => {
+							const fileUri = vscode.Uri.file(`${rootUri.fsPath}/${filePath}`);
+							const params = { path: fileUri.fsPath, ref };
+							return fileUri.with({
+								scheme: 'git',
+								query: JSON.stringify(params)
+							});
+						};
+
+						// MultiDiffEditorInput resources 구성
+						// savepoint/draft 모드: parentCommitId가 이전 버전이므로 왼쪽에 표시
+						// 따라서 originalUri = parentCommitId, modifiedUri = historyItemId
+						// 하지만 사용자가 원하는 것: Save Point/auto-save(이전)가 왼쪽
+						// 현재 커밋(historyItemId)이 왼쪽, Save Point(parentCommitId)가 오른쪽이 되어야 함
+						const resources = changedFiles.map(change => {
+							let originalUri: vscode.Uri | undefined;
+							let modifiedUri: vscode.Uri | undefined;
+
+							// savepoint/draft: 현재 커밋(historyItemId)이 왼쪽, Save Point/auto-save가 오른쪽
+							switch (change.status) {
+								case 'A': // Added (현재 커밋에서 추가됨 → 이 경우 스왑하면 삭제된 것처럼 보임)
+									// 스왑: 왼쪽=historyItemId(없음), 오른쪽=parentCommitId(있음) → Deleted처럼 표시
+									originalUri = toGitUri(change.file, historyItemId);
+									break;
+								case 'D': // Deleted (현재 커밋에서 삭제됨)
+									// 스왑: 왼쪽=historyItemId(있음), 오른쪽=parentCommitId(없음) → Added처럼 표시
+									modifiedUri = toGitUri(change.file, parentCommitId!);
+									break;
+								case 'R': // Renamed
+									originalUri = toGitUri(change.file, historyItemId);
+									modifiedUri = toGitUri(change.originalFile!, parentCommitId!);
+									break;
+								default: // Modified
+									originalUri = toGitUri(change.file, historyItemId);
+									modifiedUri = toGitUri(change.file, parentCommitId!);
+									break;
+							}
+
+							return { originalUri, modifiedUri };
+						});
+
+						// Multi Diff Editor 열기
+						const label = `${historyItemId.substring(0, 8)} vs ${parentCommitId.substring(0, 8)}`;
+						await vscode.commands.executeCommand('_workbench.openMultiDiffEditor', {
+							title: label,
+							resources
+						});
+
+					} catch (e) {
+						console.error('[switchComparisonMode] Failed to get changed files:', e);
+						vscode.window.showErrorMessage('변경된 파일 목록을 가져오지 못했습니다.');
+					}
+				}
 
 			} catch (e) {
 				console.error('Failed to switch comparison mode:', e);

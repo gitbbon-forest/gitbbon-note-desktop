@@ -80,6 +80,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	private _headerContainer: HTMLElement | undefined;
 	private _editorContainer: HTMLElement | undefined;
+	private _selectBox: SelectBox | undefined;
 
 	protected createEditor(parent: HTMLElement): void {
 		// Create Header Container
@@ -94,14 +95,14 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		const optionIds = ['default', 'savepoint', 'draft'];
 
 		// Create SelectBox
-		const selectBox = this._register(new SelectBox(options, 0, this.contextViewService, defaultSelectBoxStyles));
+		this._selectBox = this._register(new SelectBox(options, 0, this.contextViewService, defaultSelectBoxStyles));
 
 		// Render SelectBox
 		const selectBoxContainer = DOM.append(this._headerContainer, DOM.$('.multi-diff-selectbox-container'));
-		selectBox.render(selectBoxContainer);
+		this._selectBox.render(selectBoxContainer);
 
 		// Handle Selection
-		this._register(selectBox.onDidSelect(e => {
+		this._register(this._selectBox.onDidSelect(e => {
 			const selectedId = optionIds[e.index];
 			this.instantiationService.invokeFunction(accessor => {
 				const commandService = accessor.get(ICommandService);
@@ -148,6 +149,9 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		this._sessionResourceContextKey?.set(input.resource);
 		this._contentOverlay?.updateResource(input.resource);
 		this._multiDiffEditorWidget?.setViewModel(this._viewModel);
+
+		// 커밋 변경 시 SelectBox를 기본값(이전 버전과 비교)으로 리셋
+		this._selectBox?.select(0);
 
 		const viewState = this.loadEditorViewState(input, context);
 		if (viewState) {

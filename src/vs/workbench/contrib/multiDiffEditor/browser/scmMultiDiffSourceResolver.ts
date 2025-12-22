@@ -143,9 +143,24 @@ export class ScmHistoryItemResolver implements IMultiDiffSourceResolver {
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 		const { repositoryId, historyItemId, historyItemParentId, historyItemDisplayId } = ScmHistoryItemResolver.parseUri(uri)!;
 
+		console.log('[ScmHistoryItemResolver] resolveDiffSource called:', {
+			repositoryId,
+			historyItemId,
+			historyItemParentId,
+			historyItemDisplayId
+		});
+
 		const repository = this._scmService.getRepository(repositoryId);
 		const historyProvider = repository?.provider.historyProvider.get();
+
+		console.log('[ScmHistoryItemResolver] historyProvider available:', !!historyProvider);
+
 		const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItemId, historyItemParentId) ?? [];
+
+		console.log('[ScmHistoryItemResolver] historyItemChanges count:', historyItemChanges.length);
+		if (historyItemChanges.length > 0) {
+			console.log('[ScmHistoryItemResolver] First change:', historyItemChanges[0]);
+		}
 
 		const resources = ValueWithChangeEvent.const<readonly MultiDiffEditorItem[]>(
 			historyItemChanges.map(change => {
@@ -243,19 +258,28 @@ export class OpenCommitInMultiDiffEditorAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, repositoryRootUri: URI, commitHash: string, parentCommitId?: string): Promise<void> {
+		console.log('[OpenCommitInMultiDiffEditor] Called with:', {
+			repositoryRootUri: repositoryRootUri?.toString(),
+			commitHash,
+			parentCommitId
+		});
+
 		const scmService = accessor.get(ISCMService);
 		const editorService = accessor.get(IEditorService);
 
 		// Find repository
 		const repository = [...scmService.repositories].find(r => r.provider.rootUri?.toString() === repositoryRootUri.toString());
 		if (!repository) {
-			console.warn('Repository not found for URI:', repositoryRootUri);
+			console.warn('[OpenCommitInMultiDiffEditor] Repository not found for URI:', repositoryRootUri);
 			return;
 		}
+		console.log('[OpenCommitInMultiDiffEditor] Found repository:', repository.provider.id);
 
 		// Construct Multi Diff Source URI for the commit
 		const multiDiffSource = ScmHistoryItemResolver.getMultiDiffSourceUri(repository.provider, commitHash, parentCommitId, undefined);
-		const label = `Commit ${commitHash.substring(0, 8)} ${parentCommitId ? `vs ${parentCommitId}` : ''}`;
+		console.log('[OpenCommitInMultiDiffEditor] multiDiffSource URI:', multiDiffSource.toString());
+
+		const label = `Commit ${commitHash.substring(0, 8)} ${parentCommitId ? `vs ${parentCommitId.substring(0, 8)}` : ''}`;
 
 		await editorService.openEditor({ label, multiDiffSource });
 	}
