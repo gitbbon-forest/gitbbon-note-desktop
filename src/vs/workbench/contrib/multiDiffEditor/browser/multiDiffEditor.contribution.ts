@@ -16,7 +16,7 @@ import { MultiDiffEditorInput, MultiDiffEditorResolverContribution, MultiDiffEdi
 import { CollapseAllAction, ExpandAllAction, GoToFileAction, GoToNextChangeAction, GoToPreviousChangeAction, TestButtonAction } from './actions.js';
 import { IMultiDiffSourceResolverService, MultiDiffSourceResolverService } from './multiDiffSourceResolverService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { OpenScmGroupAction, ScmMultiDiffSourceResolverContribution } from './scmMultiDiffSourceResolver.js';
+import { OpenCommitInMultiDiffEditorAction, OpenScmGroupAction, ScmMultiDiffSourceResolverContribution } from './scmMultiDiffSourceResolver.js';
 import './multiDiffEditor.css';
 
 registerAction2(GoToFileAction);
@@ -53,4 +53,5 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 
 // SCM integration
 registerAction2(OpenScmGroupAction);
+registerAction2(OpenCommitInMultiDiffEditorAction);
 registerWorkbenchContribution2(ScmMultiDiffSourceResolverContribution.ID, ScmMultiDiffSourceResolverContribution, WorkbenchPhase.BlockStartup /* only registering an editor resolver  */);

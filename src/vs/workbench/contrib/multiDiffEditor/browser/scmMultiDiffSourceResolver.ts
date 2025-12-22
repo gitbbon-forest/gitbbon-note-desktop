@@ -232,3 +232,31 @@ export class OpenScmGroupAction extends Action2 {
 		await OpenScmGroupAction.openMultiFileDiffEditor(editorService, options.title, URI.revive(options.repositoryUri), options.resourceGroupId);
 	}
 }
+
+export class OpenCommitInMultiDiffEditorAction extends Action2 {
+	constructor() {
+		super({
+			id: 'gitbbon.openCommitInMultiDiffEditor',
+			title: localize2('openCommit', 'Open Commit'),
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor, repositoryRootUri: URI, commitHash: string): Promise<void> {
+		const scmService = accessor.get(ISCMService);
+		const editorService = accessor.get(IEditorService);
+
+		// Find repository
+		const repository = [...scmService.repositories].find(r => r.provider.rootUri?.toString() === repositoryRootUri.toString());
+		if (!repository) {
+			console.warn('Repository not found for URI:', repositoryRootUri);
+			return;
+		}
+
+		// Construct Multi Diff Source URI for the commit
+		const multiDiffSource = ScmHistoryItemResolver.getMultiDiffSourceUri(repository.provider, commitHash, undefined, undefined);
+		const label = `Commit ${commitHash.substring(0, 8)}`;
+
+		await editorService.openEditor({ label, multiDiffSource });
+	}
+}
