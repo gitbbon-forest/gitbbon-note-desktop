@@ -64,6 +64,33 @@
 }
 
 .multi-diff-selectbox-container {
-	width: 280px;
-	padding: 12px 24px;
+	display: flex;
+	align-items: center;
+	padding: 6px 12px;
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border-radius: 4px;
+	cursor: pointer;
+	box-sizing: border-box;
+	transition: background-color 0.1s;
+	width: fit-content;
+}
+
+.multi-diff-selectbox-container:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.multi-diff-selectbox-container .monaco-select-box {
+	background-color: transparent !important;
+	border: none !important;
+	color: inherit !important;
+	font-size: 13px !important;
+	font-weight: 500 !important;
+	padding-right: 8px !important;
+}
+
+.multi-diff-selectbox-container .codicon-chevron-down {
+	font-size: 14px;
+	color: inherit;
+	opacity: 0.8;
 }
