@@ -13,7 +13,7 @@ import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { MultiDiffEditor } from './multiDiffEditor.js';
 import { MultiDiffEditorInput, MultiDiffEditorResolverContribution, MultiDiffEditorSerializer } from './multiDiffEditorInput.js';
-import { CollapseAllAction, ExpandAllAction, GoToFileAction, GoToNextChangeAction, GoToPreviousChangeAction, TestButtonAction } from './actions.js';
+import { CollapseAllAction, ExpandAllAction, GoToFileAction, GoToNextChangeAction, GoToPreviousChangeAction, RestoreAction } from './actions.js';
 import { IMultiDiffSourceResolverService, MultiDiffSourceResolverService } from './multiDiffSourceResolverService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { OpenCommitInMultiDiffEditorAction, OpenScmGroupAction, ScmMultiDiffSourceResolverContribution } from './scmMultiDiffSourceResolver.js';
@@ -24,7 +24,7 @@ registerAction2(GoToNextChangeAction);
 registerAction2(GoToPreviousChangeAction);
 registerAction2(CollapseAllAction);
 registerAction2(ExpandAllAction);
-registerAction2(TestButtonAction);
+registerAction2(RestoreAction);
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 	.registerConfiguration({

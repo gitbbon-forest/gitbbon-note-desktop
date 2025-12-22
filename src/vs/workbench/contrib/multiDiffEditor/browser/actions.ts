@@ -203,25 +203,62 @@ export class ExpandAllAction extends Action2 {
 	}
 }
 
-export class TestButtonAction extends Action2 {
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ScmHistoryItemResolver } from './scmMultiDiffSourceResolver.js';
+
+export class RestoreAction extends Action2 {
 	constructor() {
 		super({
-			id: 'multiDiffEditor.testButton',
-			title: localize2('TestButton', 'Test Button'),
-			icon: Codicon.beaker,
+			id: 'multiDiffEditor.restore',
+			title: localize2('restore', 'Restore'),
+			icon: Codicon.discard,
 			precondition: ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID),
-			menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
-				id,
+			menu: {
 				when: ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID),
+				id: MenuId.MultiDiffEditorFileToolbar,
+				order: 0,
 				group: 'navigation',
-				order: 0
-			})),
-			f1: true,
+			},
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const uri = args[0] as URI;
+		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
 		const notificationService = accessor.get(INotificationService);
-		notificationService.info('Test Button Clicked!');
+		const activeEditorPane = editorService.activeEditorPane;
+
+		if (!(activeEditorPane instanceof MultiDiffEditor)) {
+			return;
+		}
+
+		const input = activeEditorPane.input;
+		if (!(input instanceof MultiDiffEditorInput)) {
+			return;
+		}
+
+		// Parse Commit Hash from Multi Diff Source URI
+		const multiDiffSource = input.multiDiffSource;
+		const historyItemInfo = ScmHistoryItemResolver.parseUri(multiDiffSource);
+
+		if (!historyItemInfo || !historyItemInfo.historyItemId) {
+			notificationService.warn('Cannot restore: Commit information not found.');
+			return;
+		}
+
+		const commitHash = historyItemInfo.historyItemId;
+
+		// Get File URI from Diff Item
+		const item = activeEditorPane.findDocumentDiffItem(uri);
+		// Typically modifiedUri points to the file in that commit
+		const fileUri = item?.modifiedUri;
+
+		if (!fileUri) {
+			notificationService.warn('Cannot restore: File information not found.');
+			return;
+		}
+
+		await commandService.executeCommand('gitbbon.restoreFile', commitHash, fileUri);
 	}
 }

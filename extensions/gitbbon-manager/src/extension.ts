@@ -121,7 +121,51 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		console.error('Startup failed:', err);
 	});
 
+	// Restore File Command
+	const restoreFileCommand = vscode.commands.registerCommand('gitbbon.restoreFile', async (commitHash: string, fileUri: vscode.Uri) => {
+		const workspaceFolder = vscode.workspace.getWorkspaceFolder(fileUri);
+		if (!workspaceFolder) {
+			vscode.window.showErrorMessage('워크스페이스를 찾을 수 없습니다.');
+			return;
+		}
+
+		try {
+			const relativePath = vscode.workspace.asRelativePath(fileUri);
+
+			const confirm = await vscode.window.showWarningMessage(
+				`'${relativePath}' 파일을 ${commitHash.substring(0, 7)} 버전으로 복구하시겠습니까? (현재 변경사항은 덮어쓰여집니다)`,
+				'복구',
+				'취소'
+			);
+
+			if (confirm !== '복구') {
+				return;
+			}
+
+			// git checkout {commitHash} -- {relativePath}
+			const { exec } = require('child_process');
+			const command = `git checkout ${commitHash} -- "${relativePath}"`;
+
+			await new Promise((resolve, reject) => {
+				exec(command, { cwd: workspaceFolder.uri.fsPath }, (error: any, stdout: any, stderr: any) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve(stdout);
+				});
+			});
+
+			vscode.window.showInformationMessage(`${relativePath} 파일이 복구되었습니다.`);
+		} catch (error) {
+			console.error('File restore failed:', error);
+			vscode.window.showErrorMessage(`파일 복구 실패: ${error}`);
+		}
+	});
+	context.subscriptions.push(restoreFileCommand);
+
 	// Comparison Mode Switch Command
+
 	// 현재 커밋 컨텍스트를 저장 (모드 변경 간 유지)
 	let currentCommitContext: { historyItemId: string; rootUri: vscode.Uri } | undefined;
 
@@ -345,6 +389,138 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}
 	);
 	context.subscriptions.push(switchComparisonModeCommand);
+
+	// Restore to Version Command
+	const restoreToVersionCommand = vscode.commands.registerCommand(
+		'gitbbon.restoreToVersion',
+		async (args: { commitHash: string; multiDiffSource: string }) => {
+			console.log('Restore to Version triggered:', args);
+
+			if (!args.commitHash) {
+				vscode.window.showErrorMessage('No commit hash provided for restoration.');
+				return;
+			}
+
+			// 1. Resolve Root URI
+			let rootUri: vscode.Uri | undefined;
+			if (args.multiDiffSource) {
+				try {
+					const uri = vscode.Uri.parse(args.multiDiffSource);
+					if (uri.scheme === 'scm-history-item') {
+						rootUri = vscode.workspace.workspaceFolders?.[0]?.uri; // fallback to first folder usually works
+					}
+				} catch (e) {
+					console.error('Failed to parse multiDiffSource:', e);
+				}
+			}
+			if (!rootUri) {
+				rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+			}
+			if (!rootUri) {
+				vscode.window.showErrorMessage('No workspace folder found.');
+				return;
+			}
+
+			const cwd = rootUri.fsPath;
+			const targetCommitHash = args.commitHash;
+
+			// Confirm with user
+			const confirm = await vscode.window.showWarningMessage(
+				`현재 상태를 커밋 '${targetCommitHash.substring(0, 7)}' 상태로 복원하시겠습니까? (현재 내용은 자동으로 백업됩니다)`,
+				{ modal: true },
+				'복원하기'
+			);
+			if (confirm !== '복원하기') {
+				return;
+			}
+
+			try {
+				await vscode.window.withProgress({
+					location: vscode.ProgressLocation.Notification,
+					title: "버전 복원 중...",
+					cancellable: false
+				}, async (progress) => {
+
+					// Step 1: Safety Check & Backup (Really Final)
+					progress.report({ message: "현재 작업 내용 백업 중..." });
+					// Check for uncommitted changes
+					const hasChanges = await new Promise<boolean>((resolve) => {
+						const cp = require('child_process');
+						cp.exec('git status --porcelain', { cwd }, (err: Error | null, stdout: string) => {
+							resolve(!!(stdout && stdout.trim().length > 0));
+						});
+					});
+
+					if (hasChanges) {
+						console.log('[Restore] Changes detected, triggering Really Final...');
+						const backupResult = await projectManager.reallyFinalCommit();
+						if (!backupResult.success) {
+							throw new Error(`Backup failed: ${backupResult.message}`);
+						}
+					} else {
+						console.log('[Restore] Clean state, skipping backup.');
+					}
+
+					// Step 2: Get Target Commit Title
+					progress.report({ message: "타겟 커밋 정보 조회 중..." });
+					const targetTitle = await new Promise<string>((resolve, reject) => {
+						const cp = require('child_process');
+						cp.exec(`git log -1 --pretty=%s ${targetCommitHash}`, { cwd }, (err: Error | null, stdout: string) => {
+							if (err) {
+								reject(err);
+							} else {
+								resolve(stdout.trim());
+							}
+						});
+					});
+
+					// Step 3: Read Tree (Restore Content)
+					progress.report({ message: "과거 상태 불러오는 중..." });
+					await new Promise<void>((resolve, reject) => {
+						const cp = require('child_process');
+						// -u: updates the index and checking out files
+						// --reset: performs a merge rather than a hard overwrite if possible, but here we want to match target
+						// Actually 'git read-tree -u --reset <tree-ish>' matches the index and worktree to the tree-ish.
+						cp.exec(`git read-tree -u --reset ${targetCommitHash}`, { cwd }, (err: Error | null, stderr: string) => {
+							if (err) {
+								console.error('git read-tree failed:', stderr);
+								reject(err);
+							} else {
+								resolve();
+							}
+						});
+					});
+
+					// Step 4: Create Restore Commit
+					progress.report({ message: "복원 커밋 생성 중..." });
+					const restoreMessage = `복원 : ${targetTitle} (${targetCommitHash.substring(0, 7)})`;
+					await new Promise<void>((resolve, reject) => {
+						const cp = require('child_process');
+						cp.exec(`git commit -m "${restoreMessage}"`, { cwd }, (err: Error | null, stderr: string) => {
+							if (err) {
+								reject(err);
+							} else {
+								resolve();
+							}
+						});
+					});
+
+					// Step 5: Sync
+					progress.report({ message: "원격 저장소 동기화 중..." });
+					await githubSyncManager.sync(false);
+
+					// Refresh Git Graph
+					await gitGraphProvider.refresh();
+
+					vscode.window.showInformationMessage(`성공적으로 복원되었습니다: ${restoreMessage}`);
+				});
+			} catch (e) {
+				console.error('[Restore] Failed:', e);
+				vscode.window.showErrorMessage(`복원 실패: ${e}`);
+			}
+		}
+	);
+	context.subscriptions.push(restoreToVersionCommand);
 
 	console.log('Gitbbon Manager extension activated!');
 }
