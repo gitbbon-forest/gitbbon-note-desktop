@@ -121,6 +121,70 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		console.error('Startup failed:', err);
 	});
 
+	// Comparison Mode Switch Command
+	const switchComparisonModeCommand = vscode.commands.registerCommand(
+		'gitbbon.switchComparisonMode',
+		async (args: { mode: string; multiDiffSource: string }) => {
+			console.log('Switch Comparison Mode triggered:', args);
+
+			if (!args.multiDiffSource) {
+				vscode.window.showErrorMessage('No Multi Diff Source provided.');
+				return;
+			}
+
+			try {
+				const uri = vscode.Uri.parse(args.multiDiffSource);
+				const query = JSON.parse(uri.query);
+
+				// Extract necessary info from the URI query (ScmHistoryItem format)
+				// Format: { repositoryId, historyItemId, historyItemParentId, ... }
+				const { historyItemId } = query;
+
+				if (!historyItemId) {
+					vscode.window.showErrorMessage('Invalid Multi Diff Source: No history item ID found.');
+					return;
+				}
+
+				// Determine repository root
+				// For now, assuming single root or extracting from URI path
+				const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+				if (!rootUri) {
+					return;
+				}
+
+				let parentCommitId: string | undefined = undefined;
+
+				switch (args.mode) {
+					case 'savepoint':
+						parentCommitId = 'main';
+						break;
+					case 'draft':
+						parentCommitId = 'auto-save/main';
+						break;
+					case 'default':
+						parentCommitId = undefined; // Default behavior (compare with parent)
+						break;
+				}
+
+				console.log(`Switching mode to ${args.mode}, parent: ${parentCommitId}`);
+
+				// Re-open editor with new parent
+				// We use the command we implemented in Core: gitbbon.openCommitInMultiDiffEditor
+				await vscode.commands.executeCommand(
+					'gitbbon.openCommitInMultiDiffEditor',
+					rootUri,
+					historyItemId,
+					parentCommitId
+				);
+
+			} catch (e) {
+				console.error('Failed to switch comparison mode:', e);
+				vscode.window.showErrorMessage('Failed to switch comparison mode.');
+			}
+		}
+	);
+	context.subscriptions.push(switchComparisonModeCommand);
+
 	console.log('Gitbbon Manager extension activated!');
 }
 

@@ -472,7 +472,11 @@
 
 		// Click event
 		row.addEventListener('click', () => {
-			vscode.postMessage({ type: 'commitClick', hash: commit.hash });
+			vscode.postMessage({
+				type: 'commitClick',
+				hash: commit.hash,
+				parentHash: commit.parents.length > 0 ? commit.parents[0] : undefined
+			});
 		});
 
 		return row;

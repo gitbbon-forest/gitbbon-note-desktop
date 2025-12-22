@@ -105,7 +105,13 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 			const selectedId = optionIds[e.index];
 			this.instantiationService.invokeFunction(accessor => {
 				const commandService = accessor.get(ICommandService);
-				commandService.executeCommand('gitbbon.switchComparisonMode', { mode: selectedId });
+				if (this.input instanceof MultiDiffEditorInput) {
+					const multiDiffSource = this.input.multiDiffSource?.toString();
+					commandService.executeCommand('gitbbon.switchComparisonMode', {
+						mode: selectedId,
+						multiDiffSource: multiDiffSource
+					});
+				}
 			});
 		}));
 

@@ -72,10 +72,9 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 					break;
 				case 'commitClick':
 					// 커밋 클릭 시 Multi Diff Editor 열기
-					// vscode.window.showInformationMessage(`커밋: ${message.hash}`);
 					if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
 						const rootUri = vscode.workspace.workspaceFolders[0].uri;
-						vscode.commands.executeCommand('gitbbon.openCommitInMultiDiffEditor', rootUri, message.hash);
+						vscode.commands.executeCommand('gitbbon.openCommitInMultiDiffEditor', rootUri, message.hash, message.parentHash);
 					}
 					break;
 			}

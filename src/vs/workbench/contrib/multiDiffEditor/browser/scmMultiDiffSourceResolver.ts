@@ -242,7 +242,7 @@ export class OpenCommitInMultiDiffEditorAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, repositoryRootUri: URI, commitHash: string): Promise<void> {
+	async run(accessor: ServicesAccessor, repositoryRootUri: URI, commitHash: string, parentCommitId?: string): Promise<void> {
 		const scmService = accessor.get(ISCMService);
 		const editorService = accessor.get(IEditorService);
 
@@ -254,8 +254,8 @@ export class OpenCommitInMultiDiffEditorAction extends Action2 {
 		}
 
 		// Construct Multi Diff Source URI for the commit
-		const multiDiffSource = ScmHistoryItemResolver.getMultiDiffSourceUri(repository.provider, commitHash, undefined, undefined);
-		const label = `Commit ${commitHash.substring(0, 8)}`;
+		const multiDiffSource = ScmHistoryItemResolver.getMultiDiffSourceUri(repository.provider, commitHash, parentCommitId, undefined);
+		const label = `Commit ${commitHash.substring(0, 8)} ${parentCommitId ? `vs ${parentCommitId}` : ''}`;
 
 		await editorService.openEditor({ label, multiDiffSource });
 	}
