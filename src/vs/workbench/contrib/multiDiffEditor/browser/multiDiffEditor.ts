@@ -81,6 +81,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	private _headerContainer: HTMLElement | undefined;
 	private _editorContainer: HTMLElement | undefined;
 	private _selectBox: SelectBox | undefined;
+	private _restoreButton: HTMLElement | undefined;
 
 	protected createEditor(parent: HTMLElement): void {
 		// Create Header Container
@@ -97,9 +98,33 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		// Create SelectBox
 		this._selectBox = this._register(new SelectBox(options, 0, this.contextViewService, defaultSelectBoxStyles));
 
-		// Render SelectBox
+		// Render SelectBox (Left side)
 		const selectBoxContainer = DOM.append(this._headerContainer, DOM.$('.multi-diff-selectbox-container'));
 		this._selectBox.render(selectBoxContainer);
+
+		// Render Restore Button (Right side)
+		this._restoreButton = DOM.append(this._headerContainer, DOM.$('button.multi-diff-restore-button'));
+		this._restoreButton.textContent = '이 버전으로 복원';
+		const icon = DOM.prepend(this._restoreButton, DOM.$('.codicon.codicon-history'));
+		this._restoreButton.style.display = 'none';
+
+		this._register(DOM.addDisposableListener(this._restoreButton, DOM.EventType.CLICK, async () => {
+			if (this.input instanceof MultiDiffEditorInput) {
+				const multiDiffSource = this.input.multiDiffSource;
+				if (multiDiffSource?.scheme === 'scm-history-item') {
+					const query = JSON.parse(multiDiffSource.query);
+					const { historyItemId } = query;
+
+					this.instantiationService.invokeFunction(accessor => {
+						const commandService = accessor.get(ICommandService);
+						commandService.executeCommand('gitbbon.restoreToVersion', {
+							commitHash: historyItemId,
+							multiDiffSource: multiDiffSource.toString()
+						});
+					});
+				}
+			}
+		}));
 
 		// Handle Selection
 		this._register(this._selectBox.onDidSelect(e => {
@@ -154,6 +179,13 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		const multiDiffSource = input.multiDiffSource;
 		if (multiDiffSource?.scheme === 'scm-history-item') {
 			this._selectBox?.select(0);
+			if (this._restoreButton) {
+				this._restoreButton.style.display = 'flex';
+			}
+		} else {
+			if (this._restoreButton) {
+				this._restoreButton.style.display = 'none';
+			}
 		}
 
 		const viewState = this.loadEditorViewState(input, context);
@@ -183,6 +215,9 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		this._sessionResourceContextKey?.set(null);
 		this._contentOverlay?.updateResource(undefined);
 		this._multiDiffEditorWidget?.setViewModel(undefined);
+		if (this._restoreButton) {
+			this._restoreButton.style.display = 'none';
+		}
 	}
 
 	layout(dimension: DOM.Dimension): void {
