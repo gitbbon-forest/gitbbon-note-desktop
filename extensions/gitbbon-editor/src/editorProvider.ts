@@ -77,7 +77,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			}
 
 			// MVP: 복잡한 로직 대신 3초 고정 디바운스 사용
-			const delay = 3000;
+			const delay = 500;
 
 			autoCommitTimer = setTimeout(async () => {
 				try {

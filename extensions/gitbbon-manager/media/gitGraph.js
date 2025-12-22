@@ -417,17 +417,49 @@
 
 		// Refs labels
 		const refsHtml = commit.refs.map(ref => {
+			let normalizedRef = ref;
+
+			// Handle "HEAD -> branch" case (extract the branch name)
+			if (normalizedRef.startsWith('HEAD -> ')) {
+				normalizedRef = normalizedRef.replace('HEAD -> ', '');
+			}
+
+			// Rule 1: Hide HEAD (detached)
+			if (normalizedRef === 'HEAD') {
+				return '';
+			}
+
+			// Rule 2: Hide origin/*
+			if (normalizedRef.startsWith('origin/')) {
+				return '';
+			}
+
 			let className = 'ref-label';
-			if (ref.includes('HEAD')) {
-				className += ' head';
-			} else if (ref.startsWith('origin/') || ref.includes('->')) {
-				className += ' remote';
-			} else if (ref.startsWith('tag:')) {
+			let displayName = normalizedRef;
+			let icon = '';
+
+			// Rule 3: auto-save/main -> 임시 저장 (Draft)
+			if (normalizedRef === 'auto-save/main') {
+				displayName = '임시 저장';
+				className += ' draft';
+				icon = '🕒 ';
+			}
+			// Rule 4: main -> 세이브 포인트 (Save Point)
+			else if (normalizedRef === 'main') {
+				displayName = '세이브 포인트';
+				className += ' savepoint';
+				icon = '🚩 ';
+			}
+			// Handle tags
+			else if (normalizedRef.startsWith('tag:')) {
 				className += ' tag';
-			} else {
+			}
+			// Regular branches
+			else {
 				className += ' branch';
 			}
-			return `<span class="${className}">${escapeHtml(ref)}</span>`;
+
+			return `<span class="${className}">${icon}${escapeHtml(displayName)}</span>`;
 		}).join('');
 
 		// Message
