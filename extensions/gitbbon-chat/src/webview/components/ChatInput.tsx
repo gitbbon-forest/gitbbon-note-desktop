@@ -5,12 +5,14 @@ interface ChatInputProps {
 	setInputValue: (value: string) => void;
 	isLoading: boolean;
 	onSubmit: (e: React.FormEvent) => void;
+	inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isLoading, onSubmit }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isLoading, onSubmit, inputRef }) => {
 	return (
 		<form onSubmit={onSubmit} className="chat-input-form">
 			<input
+				ref={inputRef}
 				value={inputValue}
 				onChange={(e) => setInputValue(e.target.value)}
 				placeholder="Say something..."

@@ -45,6 +45,20 @@
         "command": "gitbbon.chat.open",
         "title": "Open Gitbbon Chat",
         "category": "Gitbbon"
+      },
+      {
+        "command": "gitbbon.chat.sendText",
+        "title": "AI에게 물어보기",
+        "category": "Gitbbon",
+        "icon": "$(sparkle)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "gitbbon.chat.sendText",
+        "key": "ctrl+l",
+        "mac": "cmd+l",
+        "when": "editorTextFocus && editorHasSelection"
       }
     ]
   },

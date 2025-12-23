@@ -79,6 +79,29 @@ export const App = () => {
 		setSaveStatus('committed');
 	}, []);
 
+	// gitbbon custom: AI에게 물어보기 기능 - 선택된 텍스트를 채팅으로 전송
+	const handleAskAI = useCallback((text?: string) => {
+		const selectedText = text || editorRef.current?.getSelectedText();
+		if (selectedText) {
+			vscode.postMessage({
+				type: 'askAI',
+				text: selectedText,
+			});
+		}
+	}, []);
+
+	// Cmd+L / Ctrl+L 단축키 처리
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
+				e.preventDefault();
+				handleAskAI();
+			}
+		};
+		window.addEventListener('keydown', handleKeyDown);
+		return () => window.removeEventListener('keydown', handleKeyDown);
+	}, [handleAskAI]);
+
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
 			const message = event.data;
@@ -138,6 +161,7 @@ export const App = () => {
 					ref={editorRef}
 					initialContent={editorContent}
 					onChange={handleEditorChangeWithTitle}
+					onAskAI={handleAskAI}
 				/>
 			</div>
 			<ReallyFinalButton

@@ -172,6 +172,17 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 							vscode.window.showErrorMessage(`진짜최종 실패: ${error}`);
 						}
 						break;
+					// gitbbon custom: AI에게 물어보기 - 선택된 텍스트를 채팅으로 전송
+					case 'askAI':
+						if (message.text) {
+							const fileName = document.fileName.split('/').pop() || 'unknown';
+							await vscode.commands.executeCommand('gitbbon.chat.sendText', {
+								text: message.text,
+								fileName: fileName,
+								// Milkdown에서는 정확한 라인 정보를 알 수 없으므로 생략
+							});
+						}
+						break;
 				}
 			}
 		);
