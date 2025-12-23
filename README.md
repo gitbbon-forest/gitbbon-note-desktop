@@ -219,19 +219,41 @@ npm run gulp vscode-win32-x64-min
 
 ---
 
-## 6. 비즈니스 모델: "The Freedom Strategy"
+ ## 6. 비즈니스 모델: "The Freedom Strategy"
 
-사용자의 데이터를 볼모로 잡지 않습니다.
+ 사용자의 데이터를 볼모로 잡지 않습니다.
 
-1. **Zero Lock-in:** 처음부터 사용자의 GitHub 저장소를 사용하므로, 언제든 Gitbbon을 떠나도 데이터는 온전히 사용자의 깃허브에 남습니다.
-2. **Freemium:** 기본 기능은 무료이며, 고급 AI 기능(문서 자동 수정, 충돌 해결 등) 사용 시 과금합니다.
-3. **Long-term Goal:** 자체 저장소 호스팅 서비스는 장기 과제로 검토합니다.
+ 1. **Zero Lock-in:** 처음부터 사용자의 GitHub 저장소를 사용하므로, 언제든 Gitbbon을 떠나도 데이터는 온전히 사용자의 깃허브에 남습니다.
+ 2. **Freemium:** 기본 기능은 무료이며, 고급 AI 기능(문서 자동 수정, 충돌 해결 등) 사용 시 과금합니다.
+ 3. **Long-term Goal:** 자체 저장소 호스팅 서비스는 장기 과제로 검토합니다.
 
----
+ ---
 
-## 7. 내장 확장 프로그램 (Built-in Extensions)
+ ## 7. 환경 설정 (Environment Setup)
 
-Gitbbon은 코어 기능을 모듈화하여 다음 확장 프로그램으로 구성됩니다:
+ Gitbbon의 AI 기능(Chat, 자동 커밋 메시지 등)을 사용하려면 API 키 설정이 필요합니다.
+
+ 1. **Vercel AI SDK** 호환 API 키 준비 (예: Anthropic API Key)
+ 2. 각 확장 프로그램 디렉토리의 `.env.template` 파일을 `.env`로 복사하고 키를 입력하세요.
+
+ ```bash
+ # gitbbon-chat (AI 채팅)
+ cp extensions/gitbbon-chat/.env.template extensions/gitbbon-chat/.env
+
+ # gitbbon-manager (자동 커밋 메시지)
+ cp extensions/gitbbon-manager/.env.template extensions/gitbbon-manager/.env
+ ```
+
+ **extensions/gitbbon-chat/.env 예시:**
+ ```env
+ AI_GATEWAY_API_KEY=sk-ant-api03-...
+ ```
+
+ ---
+
+ ## 8. 내장 확장 프로그램 (Built-in Extensions)
+
+ Gitbbon은 코어 기능을 모듈화하여 다음 확장 프로그램으로 구성됩니다:
 
 ### 📦 gitbbon-manager
 

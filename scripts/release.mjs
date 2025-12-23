@@ -160,6 +160,14 @@ async function buildExtensions(worktreeDir) {
 	for (const name of extensions) {
 		const extDir = path.join(worktreeDir, 'extensions', name);
 		if (fs.existsSync(extDir)) {
+			// Copy .env from root to extension directory if it exists
+			const envSource = path.join(ROOT_DIR, '.env');
+			const envDest = path.join(extDir, '.env');
+			if (fs.existsSync(envSource)) {
+				log(`Copying .env to ${name}...`, colors.yellow);
+				fs.copyFileSync(envSource, envDest);
+			}
+
 			log(`Building ${name}...`, colors.yellow);
 			exec(`cd "${extDir}" && npm run package`, { silent: false });
 		} else {
