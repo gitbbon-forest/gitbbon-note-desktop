@@ -205,3 +205,52 @@ body {
 #graph-container::-webkit-scrollbar-thumb:hover {
 	background: var(--vscode-scrollbarSlider-hoverBackground);
 }
+
+/* Highlighted Commits (Current/Right - newer version) */
+.commit-row.highlighted {
+	background-color: rgba(255, 200, 0, 0.15);
+	position: relative;
+}
+
+.commit-row.highlighted .highlight-indicator {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	margin-right: 4px;
+	flex-shrink: 0;
+}
+
+.commit-row.highlighted .highlight-indicator svg {
+	width: 18px;
+	height: 18px;
+	stroke: #ffc800;
+}
+
+/* Highlighted Commits (Compare Target/Left - older version) */
+.commit-row.highlighted-compare {
+	background-color: rgba(0, 180, 255, 0.1);
+	position: relative;
+}
+
+.commit-row.highlighted-compare .highlight-indicator {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	margin-right: 4px;
+	flex-shrink: 0;
+}
+
+.commit-row.highlighted-compare .highlight-indicator svg {
+	width: 18px;
+	height: 18px;
+	stroke: #00b4ff;
+}
+
+/* Default hidden state for indicator */
+.highlight-indicator {
+	display: none;
+}

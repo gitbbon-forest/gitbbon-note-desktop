@@ -336,22 +336,27 @@
 		if (viewModel.kind === 'HEAD') {
 			// HEAD - double circle
 			const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor);
+			outerCircle.classList.add('commit-node');
 			svg.append(outerCircle);
 
 			const innerCircle = drawCircle(circleIndex, CIRCLE_STROKE_WIDTH, CIRCLE_RADIUS);
 			innerCircle.style.fill = 'var(--vscode-sideBar-background, #1e1e1e)';
+			innerCircle.classList.add('commit-node-inner');
 			svg.append(innerCircle);
 		} else {
 			if (commit.parents.length > 1) {
 				// Multi-parent (merge) node - double circle
 				const circleOuter = drawCircle(circleIndex, CIRCLE_RADIUS + 2, CIRCLE_STROKE_WIDTH, circleColor);
+				circleOuter.classList.add('commit-node');
 				svg.append(circleOuter);
 
 				const circleInner = drawCircle(circleIndex, CIRCLE_RADIUS - 1, CIRCLE_STROKE_WIDTH, circleColor);
+				circleInner.classList.add('commit-node-inner');
 				svg.append(circleInner);
 			} else {
 				// Regular node
 				const circle = drawCircle(circleIndex, CIRCLE_RADIUS + 1, CIRCLE_STROKE_WIDTH, circleColor);
+				circle.classList.add('commit-node');
 				svg.append(circle);
 			}
 		}
@@ -509,6 +514,144 @@
 	}
 
 	// ========================================
+	// Highlight Functions
+	// ========================================
+
+	/**
+	 * Clear all highlight classes from commit rows
+	 */
+	function clearHighlights() {
+		const rows = container.querySelectorAll('.commit-row');
+		rows.forEach(row => {
+			row.classList.remove('highlighted', 'highlighted-compare');
+
+			// Remove arrow icons and restore original circles
+			const graphSvg = row.querySelector('.graph-cell svg');
+			if (graphSvg) {
+				const arrowIcon = graphSvg.querySelector('.arrow-icon');
+				if (arrowIcon) {
+					arrowIcon.remove();
+				}
+
+				// Restore hidden circles
+				const commitNode = graphSvg.querySelector('.commit-node');
+				const commitNodeInner = graphSvg.querySelector('.commit-node-inner');
+				if (commitNode) {
+					commitNode.style.display = '';
+				}
+				if (commitNodeInner) {
+					commitNodeInner.style.display = '';
+				}
+			}
+		});
+	}
+
+	/**
+	 * Create arrow icon SVG element for replacing commit node
+	 * @param {string} direction - 'left' or 'right'
+	 * @param {string} color - stroke color
+	 * @param {number} cx - center x position
+	 * @param {number} cy - center y position
+	 * @param {number} size - icon size
+	 */
+	function createArrowIcon(direction, color, cx, cy, size) {
+		const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+		g.classList.add('arrow-icon');
+		g.setAttribute('data-direction', direction);
+
+		// Create background circle
+		const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+		bgCircle.setAttribute('cx', cx);
+		bgCircle.setAttribute('cy', cy);
+		bgCircle.setAttribute('r', size / 2);
+		bgCircle.style.fill = color;
+		bgCircle.style.stroke = 'none';
+		g.appendChild(bgCircle);
+
+		// Create arrow path
+		const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+		arrow.style.fill = 'none';
+		arrow.style.stroke = 'var(--vscode-sideBar-background, #1e1e1e)';
+		arrow.style.strokeWidth = '1.5px';
+		arrow.style.strokeLinecap = 'round';
+		arrow.style.strokeLinejoin = 'round';
+
+		// Scale path to fit icon size
+		const scale = size / 24;
+		const offsetX = cx - size / 2;
+		const offsetY = cy - size / 2;
+
+		if (direction === 'right') {
+			// Right arrow path (scaled and translated)
+			arrow.setAttribute('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
+			arrow.setAttribute('d', 'm12.75 15 3-3m0 0-3-3m3 3h-7.5');
+		} else {
+			// Left arrow path (scaled and translated)
+			arrow.setAttribute('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
+			arrow.setAttribute('d', 'm11.25 9-3 3m0 0 3 3m-3-3h7.5');
+		}
+		g.appendChild(arrow);
+
+		return g;
+	}
+
+	/**
+	 * Highlight specific commits in the graph
+	 * @param {string} hash - The main commit hash to highlight (right/newer)
+	 * @param {string} [compareHash] - The comparison target commit hash (left/older)
+	 */
+	function highlightCommits(hash, compareHash) {
+		clearHighlights();
+
+		// Find and highlight main commit (right arrow - newer version)
+		if (hash) {
+			const mainRow = container.querySelector(`.commit-row[data-hash^="${hash}"]`);
+			if (mainRow) {
+				mainRow.classList.add('highlighted');
+				replaceNodeWithArrow(mainRow, 'right', '#ffc800');
+				// Scroll into view if not visible
+				mainRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+			}
+		}
+
+		// Find and highlight comparison target (left arrow - older version)
+		if (compareHash) {
+			const compareRow = container.querySelector(`.commit-row[data-hash^="${compareHash}"]`);
+			if (compareRow) {
+				compareRow.classList.add('highlighted-compare');
+				replaceNodeWithArrow(compareRow, 'left', '#ffc800');
+			}
+		}
+	}
+
+	/**
+	 * Replace the commit node circle with an arrow icon
+	 */
+	function replaceNodeWithArrow(row, direction, color) {
+		const graphSvg = row.querySelector('.graph-cell svg');
+		if (!graphSvg) { return; }
+
+		const commitNode = graphSvg.querySelector('.commit-node');
+		const commitNodeInner = graphSvg.querySelector('.commit-node-inner');
+		if (!commitNode) { return; }
+
+		// Get circle position
+		const cx = parseFloat(commitNode.getAttribute('cx'));
+		const cy = parseFloat(commitNode.getAttribute('cy'));
+		const size = 16; // Arrow icon size
+
+		// Hide original circles
+		commitNode.style.display = 'none';
+		if (commitNodeInner) {
+			commitNodeInner.style.display = 'none';
+		}
+
+		// Create and add arrow icon
+		const arrowIcon = createArrowIcon(direction, color, cx, cy, size);
+		graphSvg.appendChild(arrowIcon);
+	}
+
+	// ========================================
 	// Message Handler
 	// ========================================
 
@@ -526,6 +669,14 @@
 			case 'error':
 				container.innerHTML = `<div class="error-state">${escapeHtml(message.message)}</div>`;
 				isLoading = false;
+				break;
+
+			case 'highlight':
+				highlightCommits(message.hash, message.compareHash);
+				break;
+
+			case 'clearHighlight':
+				clearHighlights();
 				break;
 		}
 	});

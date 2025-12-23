@@ -169,6 +169,48 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// 현재 커밋 컨텍스트를 저장 (모드 변경 간 유지)
 	let currentCommitContext: { historyItemId: string; rootUri: vscode.Uri } | undefined;
 
+	// 커밋 해시 → 커밋 정보 캐시 (탭 전환 시 하이라이트 갱신용)
+	// key: shortHash (8자리), value: { current: fullHash, compare: fullHash }
+	const multiDiffHashCache = new Map<string, { current: string; compare: string }>();
+
+	// 탭 라벨에서 커밋 해시 추출 (예: "Commit 00244f2a vs 53e53594 (1 file)")
+	const extractHashesFromTabLabel = (label: string): { current: string; compare: string } | null => {
+		const match = label.match(/Commit\s+([a-f0-9]+)\s+vs\s+([a-f0-9]+)/i);
+		if (match) {
+			return { current: match[1], compare: match[2] };
+		}
+		return null;
+	};
+
+	// 탭 변경 감지 리스너 등록
+	const tabChangeListener = vscode.window.tabGroups.onDidChangeTabs((event) => {
+		// 활성 탭 변경 감지
+		const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+		if (!activeTab) {
+			return;
+		}
+
+		const tabLabel = activeTab.label;
+		const extractedHashes = extractHashesFromTabLabel(tabLabel);
+
+		if (extractedHashes) {
+			// Multi Diff 탭이면 캐시에서 full hash 찾기 또는 short hash로 하이라이트
+			const cachedCommits = multiDiffHashCache.get(extractedHashes.current);
+			if (cachedCommits) {
+				console.log(`[Tab Change] Highlighting from cache for: ${tabLabel}`, cachedCommits);
+				gitGraphProvider.highlightCommits(cachedCommits.current, cachedCommits.compare);
+			} else {
+				// 캐시에 없으면 추출한 short hash로 직접 하이라이트
+				console.log(`[Tab Change] Highlighting with extracted hashes: ${tabLabel}`, extractedHashes);
+				gitGraphProvider.highlightCommits(extractedHashes.current, extractedHashes.compare);
+			}
+		} else {
+			// Multi Diff 탭이 아니면 하이라이트 해제
+			gitGraphProvider.clearHighlights();
+		}
+	});
+	context.subscriptions.push(tabChangeListener);
+
 	const switchComparisonModeCommand = vscode.commands.registerCommand(
 		'gitbbon.switchComparisonMode',
 		async (args: { mode: string; multiDiffSource: string }) => {
@@ -375,6 +417,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 							title: label,
 							resources
 						});
+
+						// 캐시에 저장하고 하이라이트 트리거 (shortHash를 키로 사용)
+						const shortHash = historyItemId.substring(0, 8);
+						multiDiffHashCache.set(shortHash, { current: historyItemId, compare: parentCommitId });
+						gitGraphProvider.highlightCommits(historyItemId, parentCommitId);
+						console.log(`[switchComparisonMode] Cached (key: ${shortHash}) and highlighted`);
 
 					} catch (e) {
 						console.error('[switchComparisonMode] Failed to get changed files:', e);

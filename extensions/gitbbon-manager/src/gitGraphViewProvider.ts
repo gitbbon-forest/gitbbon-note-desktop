@@ -74,6 +74,8 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 					if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
 						const rootUri = vscode.workspace.workspaceFolders[0].uri;
 						vscode.commands.executeCommand('gitbbon.openCommitInMultiDiffEditor', rootUri, message.hash, message.parentHash);
+						// 즉시 하이라이트 적용
+						this.highlightCommits(message.hash, message.parentHash);
 					}
 					break;
 			}
@@ -95,6 +97,28 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 		this._commits = [];
 		this._hasMore = true;
 		await this._loadInitialCommits();
+	}
+
+	/**
+	 * Highlight specific commits in the graph
+	 * @param commitHash The main commit to highlight (current selection)
+	 * @param compareHash The comparison target commit to highlight
+	 */
+	public highlightCommits(commitHash: string, compareHash?: string): void {
+		this._view?.webview.postMessage({
+			type: 'highlight',
+			hash: commitHash,
+			compareHash: compareHash
+		});
+	}
+
+	/**
+	 * Clear all highlights in the graph
+	 */
+	public clearHighlights(): void {
+		this._view?.webview.postMessage({
+			type: 'clearHighlight'
+		});
 	}
 
 	/**
