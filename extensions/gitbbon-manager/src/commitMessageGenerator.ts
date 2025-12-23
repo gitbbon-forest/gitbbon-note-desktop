@@ -5,22 +5,44 @@
 
 import { generateText } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
-
-// 프로젝트 루트의 .env 파일 로드 (다른 확장 기능에서도 접근 가능)
-// 1. 배포 환경: 확장 기능 루트 디렉토리 (__dirname = .../extensions/gitbbon-manager/out)
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
-// 2. 개발 환경: 프로젝트 루트 디렉토리 (out -> gitbbon-manager -> extensions -> git-note (루트))
-dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env') });
+// import * as dotenv from 'dotenv';
+// import * as path from 'path';
 
 export class CommitMessageGenerator {
 	private anthropic: ReturnType<typeof createAnthropic> | null = null;
 	private apiKey: string | undefined;
 
 	constructor() {
+		this.initializeApiKey();
+	}
+
+	private initializeApiKey(): void {
+		// [WARNING] TEMPORARY HARDCODED API KEY
+		// This key is paid via credit and is intended for internal testing only.
+		// TODO: Remove this before public release or when env loading is fixed.
+		const HARDCODED_KEY = 'vck_4XdyhTvmnGMqyMBjZSTfGjgTTw0OfkKanAuoABTT2mJhFd49bt4YtYL5';
+
+		// .env 로드 로직 제거됨 (하드코딩으로 대체)
+		/*
+		// .env 파일 경로: 확장 기능 루트 디렉토리
+		const envPath = path.join(__dirname, '..', '.env');
+
+		const result = dotenv.config({ path: envPath });
+		if (result.error) {
+			console.error(`[CommitMessageGenerator] Failed to load .env from: ${envPath}`, result.error);
+		} else {
+			console.log(`[CommitMessageGenerator] Loaded .env from: ${envPath}`);
+		}
+		*/
+
+		// 우선순위: Env Var -> Hardcoded
 		if (!process.env.AI_GATEWAY_API_KEY) {
-			console.error('AI_GATEWAY_API_KEY is not configured. Please check your .env.template file.')
+			process.env.AI_GATEWAY_API_KEY = HARDCODED_KEY;
+			console.log('[CommitMessageGenerator] Using temporary hardcoded API Key.');
+		}
+
+		if (!process.env.AI_GATEWAY_API_KEY) {
+			console.error('AI_GATEWAY_API_KEY is not configured. Please check your .env.template file.');
 		}
 	}
 
@@ -31,7 +53,7 @@ export class CommitMessageGenerator {
 	 */
 	public async generateCommitMessage(diff: string): Promise<string | null> {
 		if (!process.env.AI_GATEWAY_API_KEY) {
-			console.error('AI_GATEWAY_API_KEY is not configured. Please check your .env.template file.')
+			console.error('AI_GATEWAY_API_KEY is not configured. Please check your .env.template file.');
 			return null;
 		}
 

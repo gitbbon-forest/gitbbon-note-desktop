@@ -1,6 +1,6 @@
 import { streamText, type CoreMessage } from 'ai';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
+// import * as dotenv from 'dotenv';
+// import * as path from 'path';
 import { MODELS_TO_TRY } from '../config/constants';
 
 export class AIService {
@@ -11,19 +11,30 @@ export class AIService {
 	}
 
 	private initializeApiKey(): void {
-		// 프로젝트 루트의 .env 파일 로드
-		// 1. 배포 환경: 확장 기능 루트 디렉토리 (__dirname = .../extensions/gitbbon-chat/out/services)
-		dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
-		// 2. 개발 환경: 프로젝트 루트 디렉토리
-		const envPath = path.join(__dirname, '..', '..', '..', '.env');
-		dotenv.config({ path: envPath });
+		// [WARNING] TEMPORARY HARDCODED API KEY
+		// This key is paid via credit and is intended for internal testing only.
+		// TODO: Remove this before public release or when env loading is fixed.
+		const HARDCODED_KEY = 'vck_4XdyhTvmnGMqyMBjZSTfGjgTTw0OfkKanAuoABTT2mJhFd49bt4YtYL5';
 
-		// 우선순위: VERCEL_AI_GATE_API_KEY -> AI_GATEWAY_API_KEY
-		this.apiKey = process.env.VERCEL_AI_GATE_API_KEY || process.env.AI_GATEWAY_API_KEY;
+		// .env 로드 로직 제거됨 (하드코딩으로 대체)
+		/*
+		// .env 파일 경로: 확장 기능 루트 디렉토리
+		const envPath = path.join(__dirname, '..', '..', '.env');
+
+		const result = dotenv.config({ path: envPath });
+		if (result.error) {
+			console.error(`[GitbbonChat] Failed to load .env from: ${envPath}`, result.error);
+		} else {
+			console.log(`[GitbbonChat] Loaded .env from: ${envPath}`);
+		}
+		*/
+
+		// 우선순위: VERCEL_AI_GATE_API_KEY -> AI_GATEWAY_API_KEY -> Hardcoded
+		this.apiKey = process.env.VERCEL_AI_GATE_API_KEY || process.env.AI_GATEWAY_API_KEY || HARDCODED_KEY;
 
 		if (this.apiKey) {
 			process.env.AI_GATEWAY_API_KEY = this.apiKey;
-			console.log('[GitbbonChat] Initialized with API Key');
+			console.log('[GitbbonChat] Initialized with API Key (Hardcoded fallback active)');
 		} else {
 			console.warn('[GitbbonChat] No API key found. Chat will use demo mode.');
 		}
