@@ -99,6 +99,7 @@ body {
 	padding: 12px;
 	border-top: 1px solid var(--vscode-panel-border);
 	background-color: var(--vscode-sideBar-background);
+	align-items: flex-end;
 }
 
 .chat-input-field {
@@ -112,6 +113,12 @@ body {
 	font-size: inherit;
 	outline: none;
 	transition: border-color 0.2s;
+	/* textarea specific */
+	resize: none;
+	min-height: 40px;
+	max-height: 200px;
+	overflow-y: auto;
+	line-height: 1.4;
 }
 
 .chat-input-field:focus {

@@ -14,7 +14,7 @@ const App: React.FC = () => {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [inputValue, setInputValue] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
-	const inputRef = useRef<HTMLInputElement>(null);
+	const inputRef = useRef<HTMLTextAreaElement>(null);
 
 	// 메시지 ID 생성
 	const generateId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
