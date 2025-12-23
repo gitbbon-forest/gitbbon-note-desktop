@@ -78,14 +78,17 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		);
 	}
 
-	private _headerContainer: HTMLElement | undefined;
+	private _selectBoxContainer: HTMLElement | undefined;
+	private _messageContainer: HTMLElement | undefined;
 	private _editorContainer: HTMLElement | undefined;
 	private _selectBox: SelectBox | undefined;
-	private _restoreButton: HTMLElement | undefined;
+
+	// Responsive breakpoint - matches diffEditor.renderSideBySideInlineBreakpoint
+	private static readonly SIDE_BY_SIDE_BREAKPOINT = 900;
 
 	protected createEditor(parent: HTMLElement): void {
-		// Create Header Container
-		this._headerContainer = DOM.append(parent, DOM.$('.multi-diff-header'));
+		// Create SelectBox Container (Centered at top)
+		this._selectBoxContainer = DOM.append(parent, DOM.$('.multi-diff-selectbox-header'));
 
 		// Create SelectBox Options & Map
 		const options: ISelectOptionItem[] = [
@@ -98,33 +101,9 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		// Create SelectBox
 		this._selectBox = this._register(new SelectBox(options, 0, this.contextViewService, defaultSelectBoxStyles));
 
-		// Render SelectBox (Left side)
-		const selectBoxContainer = DOM.append(this._headerContainer, DOM.$('.multi-diff-selectbox-container'));
-		this._selectBox.render(selectBoxContainer);
-
-		// Render Restore Button (Right side)
-		this._restoreButton = DOM.append(this._headerContainer, DOM.$('button.multi-diff-restore-button'));
-		this._restoreButton.textContent = '이 버전으로 복원';
-		const icon = DOM.prepend(this._restoreButton, DOM.$('.codicon.codicon-history'));
-		this._restoreButton.style.display = 'none';
-
-		this._register(DOM.addDisposableListener(this._restoreButton, DOM.EventType.CLICK, async () => {
-			if (this.input instanceof MultiDiffEditorInput) {
-				const multiDiffSource = this.input.multiDiffSource;
-				if (multiDiffSource?.scheme === 'scm-history-item') {
-					const query = JSON.parse(multiDiffSource.query);
-					const { historyItemId } = query;
-
-					this.instantiationService.invokeFunction(accessor => {
-						const commandService = accessor.get(ICommandService);
-						commandService.executeCommand('gitbbon.restoreToVersion', {
-							commitHash: historyItemId,
-							multiDiffSource: multiDiffSource.toString()
-						});
-					});
-				}
-			}
-		}));
+		// Render SelectBox (Centered)
+		const selectBoxWrapper = DOM.append(this._selectBoxContainer, DOM.$('.multi-diff-selectbox-container'));
+		this._selectBox.render(selectBoxWrapper);
 
 		// Handle Selection
 		this._register(this._selectBox.onDidSelect(e => {
@@ -141,9 +120,12 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 			});
 		}));
 
+		// Create Message Container (Below SelectBox)
+		this._messageContainer = DOM.append(parent, DOM.$('.multi-diff-message-container'));
+		this._messageContainer.style.display = 'none'; // Hidden by default
+
 		// Create Editor Container
 		this._editorContainer = DOM.append(parent, DOM.$('.multi-diff-editor-container'));
-		this._editorContainer.style.height = 'calc(100% - 60px)';
 		this._editorContainer.style.position = 'relative';
 
 		this._multiDiffEditorWidget = this._register(this.instantiationService.createInstance(
@@ -175,17 +157,61 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		this._contentOverlay?.updateResource(input.resource);
 		this._multiDiffEditorWidget?.setViewModel(this._viewModel);
 
-		// Git Graph에서 커밋 클릭 시 (scm-history-item 스킴)에만 SelectBox를 기본값으로 리셋
+		// Show/hide SelectBox header based on commitMessages presence
 		const multiDiffSource = input.multiDiffSource;
-		if (multiDiffSource?.scheme === 'scm-history-item') {
-			this._selectBox?.select(0);
-			if (this._restoreButton) {
-				this._restoreButton.style.display = 'flex';
+		const hasCommitMessages = this.input instanceof MultiDiffEditorInput && !!this.input.commitMessages;
+
+		if (this._selectBoxContainer) {
+			if (hasCommitMessages || multiDiffSource?.scheme === 'scm-history-item') {
+				this._selectBoxContainer.style.display = 'flex';
+				// Only reset to default for initial scm-history-item opens
+				if (multiDiffSource?.scheme === 'scm-history-item') {
+					this._selectBox?.select(0);
+				}
+			} else {
+				this._selectBoxContainer.style.display = 'none';
 			}
-		} else {
-			if (this._restoreButton) {
-				this._restoreButton.style.display = 'none';
-			}
+		}
+
+		// Commit Messages with Restore Buttons
+		if (this.input instanceof MultiDiffEditorInput && this.input.commitMessages && this._messageContainer) {
+			const { left, right, leftHash, rightHash } = this.input.commitMessages;
+			DOM.clearNode(this._messageContainer);
+
+			const createBox = (label: string, content: string, commitHash: string | undefined, side: 'left' | 'right') => {
+				const box = DOM.append(this._messageContainer!, DOM.$(`.message-box.${side}`));
+
+				// Header row with label and restore button
+				const header = DOM.append(box, DOM.$('.message-header'));
+				DOM.append(header, DOM.$('.message-label')).textContent = label;
+
+				if (commitHash) {
+					const restoreBtn = DOM.append(header, DOM.$('button.message-restore-button'));
+					DOM.prepend(restoreBtn, DOM.$('.codicon.codicon-history'));
+					restoreBtn.appendChild(document.createTextNode('복원'));
+
+					this._register(DOM.addDisposableListener(restoreBtn, DOM.EventType.CLICK, () => {
+						this.instantiationService.invokeFunction(accessor => {
+							const commandService = accessor.get(ICommandService);
+							commandService.executeCommand('gitbbon.restoreToVersion', {
+								commitHash: commitHash,
+								multiDiffSource: multiDiffSource?.toString()
+							});
+						});
+					}));
+				}
+
+				// Content
+				DOM.append(box, DOM.$('.message-content')).textContent = content;
+			};
+
+			// Show Left (Original) and Right (Modified)
+			createBox('Original', left, leftHash, 'left');
+			createBox('Modified', right, rightHash, 'right');
+
+			this._messageContainer.style.display = 'flex';
+		} else if (this._messageContainer) {
+			this._messageContainer.style.display = 'none';
 		}
 
 		const viewState = this.loadEditorViewState(input, context);
@@ -215,19 +241,39 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		this._sessionResourceContextKey?.set(null);
 		this._contentOverlay?.updateResource(undefined);
 		this._multiDiffEditorWidget?.setViewModel(undefined);
-		if (this._restoreButton) {
-			this._restoreButton.style.display = 'none';
+		if (this._selectBoxContainer) {
+			this._selectBoxContainer.style.display = 'none';
+		}
+		if (this._messageContainer) {
+			this._messageContainer.style.display = 'none';
 		}
 	}
 
 	layout(dimension: DOM.Dimension): void {
-		const headerHeight = 60;
-		const editorHeight = Math.max(0, dimension.height - headerHeight);
+		const selectBoxHeight = 50;
+		let messageHeight = 0;
 
-		if (this._headerContainer) {
-			this._headerContainer.style.height = `${headerHeight}px`;
-			this._headerContainer.style.width = `${dimension.width}px`;
+		// SelectBox container
+		if (this._selectBoxContainer && this._selectBoxContainer.style.display !== 'none') {
+			this._selectBoxContainer.style.width = `${dimension.width}px`;
 		}
+
+		// Message container with 900px responsive breakpoint
+		if (this._messageContainer && this._messageContainer.style.display !== 'none') {
+			this._messageContainer.style.width = `${dimension.width}px`;
+
+			// Toggle stacked class based on width (matches diffEditor breakpoint)
+			if (dimension.width < MultiDiffEditor.SIDE_BY_SIDE_BREAKPOINT) {
+				this._messageContainer.classList.add('stacked');
+			} else {
+				this._messageContainer.classList.remove('stacked');
+			}
+
+			messageHeight = this._messageContainer.clientHeight;
+		}
+
+		const visibleSelectBoxHeight = (this._selectBoxContainer?.style.display !== 'none') ? selectBoxHeight : 0;
+		const editorHeight = Math.max(0, dimension.height - visibleSelectBoxHeight - messageHeight);
 
 		if (this._editorContainer) {
 			this._editorContainer.style.height = `${editorHeight}px`;

@@ -271,6 +271,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					});
 				};
 
+				const getCommitMessage = (hash: string): Promise<string> => {
+					return new Promise((resolve) => {
+						const cp = require('child_process');
+						// Get subject only (%s)
+						cp.exec(`git log -1 --pretty=%s ${hash}`, { cwd: rootUri.fsPath }, (err: Error | null, stdout: string) => {
+							if (err) {
+								console.error(`Failed to get message for ${hash}`, err);
+								resolve('No message');
+							} else {
+								resolve(stdout.trim());
+							}
+						});
+					});
+				};
+
 				let parentCommitId: string | undefined = undefined;
 
 
@@ -324,12 +339,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 						undefined
 					);
 				} else {
+					// Determine left (original) and right (modified) refs first
+					// default mode: parent (left) vs current (right)
+					// savepoint/draft mode: current (left) vs savepoint/draft (right)
+					const shouldSwap = args.mode === 'savepoint' || args.mode === 'draft';
+					const leftRef = shouldSwap ? historyItemId : parentCommitId!;
+					const rightRef = shouldSwap ? parentCommitId! : historyItemId;
+
 					// Custom 비교: git diff를 직접 실행하여 파일 목록 가져오기
 					const getChangedFiles = (): Promise<{ status: string, file: string, originalFile?: string }[]> => {
 						return new Promise((resolve, reject) => {
 							const cp = require('child_process');
+							// Use leftRef..rightRef to match the diff direction
 							cp.exec(
-								`git diff --name-status ${parentCommitId}..${historyItemId}`,
+								`git diff --name-status ${leftRef}..${rightRef}`,
 								{ cwd: rootUri.fsPath },
 								(err: Error | null, stdout: string) => {
 									if (err) {
@@ -339,11 +362,30 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 									const files = stdout.trim().split('\n').filter(l => l).map(line => {
 										const parts = line.split('\t');
 										const status = parts[0];
+
+										// Git outputs non-ASCII filenames with quotes and octal escapes
+										const normalizeGitPath = (path: string): string => {
+											if (!path) return path;
+											let normalized = path.startsWith('"') && path.endsWith('"')
+												? path.slice(1, -1)
+												: path;
+											normalized = normalized.replace(/\\([0-7]{3})/g, (_, oct) => {
+												return String.fromCharCode(parseInt(oct, 8));
+											});
+											try {
+												const bytes = new Uint8Array(
+													normalized.split('').map(char => char.charCodeAt(0))
+												);
+												return new TextDecoder('utf-8').decode(bytes);
+											} catch {
+												return normalized;
+											}
+										};
 										if (status.startsWith('R')) {
 											// Renamed: R100\toldname\tnewname
-											return { status: 'R', file: parts[2], originalFile: parts[1] };
+											return { status: 'R', file: normalizeGitPath(parts[2]), originalFile: normalizeGitPath(parts[1]) };
 										}
-										return { status, file: parts[1] };
+										return { status, file: normalizeGitPath(parts[1]) };
 									});
 									resolve(files);
 								}
@@ -370,37 +412,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 							});
 						};
 
-						// MultiDiffEditorInput resources 구성
-						// default 모드: 부모(parentCommitId)가 왼쪽, 현재(historyItemId)가 오른쪽 (일반적인 diff)
-						// savepoint/draft 모드: 현재(historyItemId)가 왼쪽, Save Point/auto-save가 오른쪽
-						const shouldSwap = args.mode === 'savepoint' || args.mode === 'draft';
-
 						const resources = changedFiles.map(change => {
 							let originalUri: vscode.Uri | undefined;
 							let modifiedUri: vscode.Uri | undefined;
 
-							// 왼쪽 = original, 오른쪽 = modified
-							const leftRef = shouldSwap ? historyItemId : parentCommitId!;
-							const rightRef = shouldSwap ? parentCommitId! : historyItemId;
-
 							switch (change.status) {
 								case 'A': // Added
-									if (shouldSwap) {
-										originalUri = toGitUri(change.file, historyItemId);
-									} else {
-										modifiedUri = toGitUri(change.file, historyItemId);
-									}
+									modifiedUri = toGitUri(change.file, rightRef);
 									break;
 								case 'D': // Deleted
-									if (shouldSwap) {
-										modifiedUri = toGitUri(change.file, parentCommitId!);
-									} else {
-										originalUri = toGitUri(change.file, parentCommitId!);
-									}
+									originalUri = toGitUri(change.file, leftRef);
 									break;
 								case 'R': // Renamed
-									originalUri = toGitUri(shouldSwap ? change.file : change.originalFile!, leftRef);
-									modifiedUri = toGitUri(shouldSwap ? change.originalFile! : change.file, rightRef);
+									originalUri = toGitUri(change.originalFile!, leftRef);
+									modifiedUri = toGitUri(change.file, rightRef);
 									break;
 								default: // Modified
 									originalUri = toGitUri(change.file, leftRef);
@@ -411,11 +436,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 							return { originalUri, modifiedUri };
 						});
 
+						// Fetch commit messages
+						const leftMessage = await getCommitMessage(leftRef);
+						const rightMessage = await getCommitMessage(rightRef);
+
 						// Multi Diff Editor 열기
 						const label = `${historyItemId.substring(0, 8)} vs ${parentCommitId.substring(0, 8)}`;
 						await vscode.commands.executeCommand('_workbench.openMultiDiffEditor', {
 							title: label,
-							resources
+							resources,
+							commitMessages: {
+								left: leftMessage,
+								right: rightMessage,
+								leftHash: leftRef,
+								rightHash: rightRef
+							}
 						});
 
 						// 캐시에 저장하고 하이라이트 트리거 (shortHash를 키로 사용)

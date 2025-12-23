@@ -281,6 +281,33 @@ export class OpenCommitInMultiDiffEditorAction extends Action2 {
 
 		const label = `Commit ${commitHash.substring(0, 8)} ${parentCommitId ? `vs ${parentCommitId.substring(0, 8)}` : ''}`;
 
-		await editorService.openEditor({ label, multiDiffSource });
+		// Fetch commit messages
+		let leftMessage = 'No message';
+		let rightMessage = 'No message';
+
+		const historyProvider = repository.provider.historyProvider.get();
+		if (historyProvider) {
+			try {
+				if (parentCommitId) {
+					const leftCommit = await historyProvider.resolveHistoryItem(parentCommitId);
+					leftMessage = leftCommit?.message ?? 'No message';
+				}
+				const rightCommit = await historyProvider.resolveHistoryItem(commitHash);
+				rightMessage = rightCommit?.message ?? 'No message';
+			} catch (e) {
+				console.error('[OpenCommitInMultiDiffEditor] Failed to fetch commit messages:', e);
+			}
+		}
+
+		await editorService.openEditor({
+			label,
+			multiDiffSource,
+			commitMessages: {
+				left: leftMessage,
+				right: rightMessage,
+				leftHash: parentCommitId,
+				rightHash: commitHash
+			}
+		});
 	}
 }

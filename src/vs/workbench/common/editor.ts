@@ -566,6 +566,11 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	 * Whether the editor should be serialized and stored for subsequent sessions.
 	 */
 	readonly isTransient?: boolean;
+
+	/**
+	 * Optional commit messages to display in the editor.
+	 */
+	readonly commitMessages?: { left: string; right: string; leftHash?: string; rightHash?: string };
 }
 
 export interface IMultiDiffEditorResource extends IResourceDiffEditorInput {

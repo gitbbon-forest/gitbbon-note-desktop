@@ -50,7 +50,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				);
 			}),
 			input.isTransient ?? false,
-			'default' // Default comparison mode
+			'default', // Default comparison mode
+			input.commitMessages
 		);
 	}
 
@@ -65,7 +66,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				resource.goToFileUri ? URI.parse(resource.goToFileUri) : undefined,
 			)),
 			false,
-			data.comparisonMode ?? 'default'
+			data.comparisonMode ?? 'default',
+			data.commitMessages
 		);
 	}
 
@@ -88,6 +90,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		public readonly initialResources: readonly MultiDiffEditorItem[] | undefined,
 		public readonly isTransient: boolean = false,
 		public readonly comparisonMode: string = 'default',
+		public readonly commitMessages: { left: string; right: string; leftHash?: string; rightHash?: string } | undefined = undefined,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -165,7 +168,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				modifiedUri: resource.modifiedUri?.toString(),
 				goToFileUri: resource.goToFileUri?.toString(),
 			})),
-			comparisonMode: this.comparisonMode
+			comparisonMode: this.comparisonMode,
+			commitMessages: this.commitMessages
 		};
 	}
 
@@ -438,6 +442,7 @@ interface ISerializedMultiDiffEditorInput {
 		goToFileUri: string | undefined;
 	}[] | undefined;
 	comparisonMode?: string;
+	commitMessages?: { left: string; right: string; leftHash?: string; rightHash?: string };
 }
 
 export class MultiDiffEditorSerializer implements IEditorSerializer {

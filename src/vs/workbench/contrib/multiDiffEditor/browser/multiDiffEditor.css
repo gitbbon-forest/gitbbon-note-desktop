@@ -3,40 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.multi-diff-header {
-	height: 60px;
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 0 16px;
-	background-color: var(--vscode-editor-background);
-	border-bottom: 1px solid var(--vscode-widget-border);
-	flex-shrink: 0;
-	box-sizing: border-box;
-}
-
-.multi-diff-restore-button {
+/* SelectBox Header (Centered) */
+.multi-diff-selectbox-header {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	padding: 6px 12px;
-	background-color: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
-	border: none;
-	border-radius: 4px;
-	cursor: pointer;
-	font-size: 13px;
-	font-weight: 500;
-	transition: background-color 0.1s;
-}
-
-.multi-diff-restore-button:hover {
-	background-color: var(--vscode-button-secondaryHoverBackground);
-}
-
-.multi-diff-restore-button .codicon {
-	margin-right: 6px;
-	font-size: 16px;
+	padding: 10px 16px;
+	background-color: var(--vscode-editor-background);
+	border-bottom: 1px solid var(--vscode-widget-border);
+	box-sizing: border-box;
 }
 
 .multi-diff-beaker-button {
@@ -93,4 +68,88 @@
 	font-size: 14px;
 	color: inherit;
 	opacity: 0.8;
+}
+
+/* Message Container - matches diffEditor.renderSideBySideInlineBreakpoint (900px) */
+.multi-diff-message-container {
+	display: flex;
+	padding: 10px 16px;
+	background-color: var(--vscode-editor-background);
+	border-bottom: 1px solid var(--vscode-widget-border);
+	gap: 16px;
+	box-sizing: border-box;
+	width: 100%;
+}
+
+/* Side-by-side mode (default) */
+.multi-diff-message-container .message-box {
+	flex: 1 1 0;
+	min-width: 0;
+	padding: 10px;
+	background-color: var(--vscode-textBlockQuote-background);
+	border: 1px solid var(--vscode-textBlockQuote-border);
+	border-radius: 4px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	overflow: hidden;
+}
+
+/* Stacked mode (< 900px) */
+.multi-diff-message-container.stacked {
+	flex-direction: column;
+}
+
+.multi-diff-message-container.stacked .message-box {
+	flex: none;
+	width: 100%;
+}
+
+/* Message box header row */
+.multi-diff-message-container .message-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.multi-diff-message-container .message-label {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--vscode-descriptionForeground);
+	text-transform: uppercase;
+}
+
+.multi-diff-message-container .message-content {
+	font-size: 13px;
+	color: var(--vscode-editor-foreground);
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-family: var(--vscode-font-family);
+}
+
+/* Restore button inside message box */
+.multi-diff-message-container .message-restore-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 2px 8px;
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 11px;
+	font-weight: 500;
+	transition: background-color 0.1s;
+	white-space: nowrap;
+}
+
+.multi-diff-message-container .message-restore-button:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.multi-diff-message-container .message-restore-button .codicon {
+	margin-right: 4px;
+	font-size: 12px;
 }
