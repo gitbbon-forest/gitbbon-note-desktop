@@ -1,6 +1,36 @@
 import { generateText, streamText, type ModelMessage } from 'ai';
 import { createEditorTools } from '../tools/editorTools';
 
+// --- 상수: Manager 시스템 프롬프트 (API 레벨 캐싱 효율을 위해 분리) ---
+const MANAGER_SYSTEM_PROMPT = `당신은 에디터 문맥 수집가이자 간단한 질문 응답자입니다.
+
+[역할]
+1. 에디터 컨텍스트가 필요한 요청 → 도구 호출
+2. 컨텍스트 없이 답변 가능한 요청 → 직접 텍스트로 답변
+
+[도구 선택 기준]
+1. get_selection() - 현재 선택된 텍스트가 필요할 때
+   - 대상: 선택 영역, 이 코드, 이거, 여기, 해당 부분 등 지시어 사용 시
+   - 작업: 수정, 리팩터링, 설명, 리뷰, 번역, 디버깅, 최적화 요청 시
+
+2. get_current_file() - 파일 전체 맥락이 필요할 때
+   - 대상: 전체, 파일, 문서, 구조, 흐름 언급 시
+   - 작업: 전체 분석, 구조 파악, 아키텍처 질문 시
+
+3. get_chat_history(count, query) - 이전 대화 참조가 필요할 때
+   - 대상: 아까, 이전에, 방금, 다시, 그거 등 과거 참조 시
+
+[직접 답변 가능한 경우 - 도구 호출 없이 텍스트로 응답]
+- 인사: 안녕, 고마워, 잘가 등
+- 일반 질문: 개념 설명, 문법 질문, 일반 지식
+- 간단한 대화: 잡담, 확인, 칭찬
+
+[규칙]
+- 복합 요청 시 여러 도구 호출 가능
+- 불확실하면 도구 호출하지 않고 직접 답변
+- 직접 답변 시 친절하고 자연스럽게 응답
+`;
+
 export class AIService {
 	private apiKey: string | undefined;
 
@@ -55,35 +85,11 @@ export class AIService {
 			const { toolResults: results, text: managerText } = await generateText({
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				model: managerModelName,
-				system: `당신은 에디터 문맥 수집가이자 간단한 질문 응답자입니다.
-
-[역할]
-1. 에디터 컨텍스트가 필요한 요청 → 도구 호출
-2. 컨텍스트 없이 답변 가능한 요청 → 직접 텍스트로 답변
-
-[도구 선택 기준]
-1. get_selection() - 현재 선택된 텍스트가 필요할 때
-   - 대상: 선택 영역, 이 코드, 이거, 여기, 해당 부분 등 지시어 사용 시
-   - 작업: 수정, 리팩터링, 설명, 리뷰, 번역, 디버깅, 최적화 요청 시
-
-2. get_current_file() - 파일 전체 맥락이 필요할 때
-   - 대상: 전체, 파일, 문서, 구조, 흐름 언급 시
-   - 작업: 전체 분석, 구조 파악, 아키텍처 질문 시
-
-3. get_chat_history(count, query) - 이전 대화 참조가 필요할 때
-   - 대상: 아까, 이전에, 방금, 다시, 그거 등 과거 참조 시
-
-[직접 답변 가능한 경우 - 도구 호출 없이 텍스트로 응답]
-- 인사: 안녕, 고마워, 잘가 등
-- 일반 질문: 개념 설명, 문법 질문, 일반 지식
-- 간단한 대화: 잡담, 확인, 칭찬
-
-[규칙]
-- 복합 요청 시 여러 도구 호출 가능
-- 불확실하면 도구 호출하지 않고 직접 답변
-- 직접 답변 시 친절하고 자연스럽게 응답
-`,
-				prompt: userInput,
+				// messages 형식으로 시스템 프롬프트 전달 (OpenAI 자동 캐싱: prefix 1024토큰 이상 시 적용)
+				messages: [
+					{ role: 'system', content: MANAGER_SYSTEM_PROMPT },
+					{ role: 'user', content: userInput }
+				],
 				tools: tools,
 			});
 			toolResults = results;
@@ -127,10 +133,9 @@ export class AIService {
 
 		console.log(`[GitbbonChat] Phase 2: Worker (${workerModelName}) starting...`);
 
-		const systemPrompt = `
-당신은 글쓰기 도우미 AI입니다.
-Manager가 수집한 컨텍스트를 바탕으로 요청을 처리하세요.
+		const WORKER_BASE_PROMPT = '당신은 글쓰기 도우미 AI입니다. Manager가 수집한 컨텍스트를 바탕으로 요청을 처리하세요.';
 
+		const dynamicContext = `
 ${contextInfo}
 
 ${selectionResult ? `\n[Selected Text]\n${selectionResult}\n` : ''}
@@ -139,15 +144,14 @@ ${historyResult ? `\n[Chat History]\n${historyResult}\n` : ''}
 		`.trim();
 
 		try {
-			// 워커에게는 현재 사용자 메시지만 전달 (컨텍스트는 systemPrompt에 포함)
-			const workerMessages: ModelMessage[] = [
-				{ role: 'user', content: userInput }
-			];
-
+			// OpenAI 자동 캐싱: 동일한 prefix(시스템 프롬프트)가 있으면 자동으로 캐시 적용
 			const result = await streamText({
 				model: workerModelName as string,
-				system: systemPrompt,
-				messages: workerMessages,
+				messages: [
+					{ role: 'system', content: WORKER_BASE_PROMPT },
+					{ role: 'system', content: dynamicContext },
+					{ role: 'user', content: userInput }
+				],
 			});
 
 			for await (const textPart of result.textStream) {
