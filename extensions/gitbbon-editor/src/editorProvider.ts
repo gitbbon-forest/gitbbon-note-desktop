@@ -13,7 +13,53 @@ import { getNonce } from './util';
  */
 export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 
+	// 활성 webviewPanel 추적 (선택 텍스트/콘텐츠 요청을 위해)
+	private static activeWebviewPanel: vscode.WebviewPanel | null = null;
+	private static activeDocument: vscode.TextDocument | null = null;
+	private static pendingSelectionResolve: ((value: string | null) => void) | null = null;
+
 	constructor(private readonly context: vscode.ExtensionContext) { }
+
+	/**
+	 * 현재 활성화된 Gitbbon Editor에서 선택된 텍스트 가져오기
+	 */
+	public static async getSelection(): Promise<string | null> {
+		if (!this.activeWebviewPanel) {
+			return null;
+		}
+
+		return new Promise((resolve) => {
+			this.pendingSelectionResolve = resolve;
+			this.activeWebviewPanel!.webview.postMessage({ type: 'getSelection' });
+			// 1초 타임아웃
+			setTimeout(() => {
+				if (this.pendingSelectionResolve === resolve) {
+					this.pendingSelectionResolve = null;
+					resolve(null);
+				}
+			}, 1000);
+		});
+	}
+
+	/**
+	 * 현재 활성화된 Gitbbon Editor의 전체 콘텐츠 가져오기
+	 */
+	public static getContent(): string | null {
+		if (!this.activeDocument) {
+			return null;
+		}
+		return this.activeDocument.getText();
+	}
+
+	/**
+	 * Webview에서 선택 응답 처리
+	 */
+	private static handleSelectionResponse(text: string | null): void {
+		if (this.pendingSelectionResolve) {
+			this.pendingSelectionResolve(text);
+			this.pendingSelectionResolve = null;
+		}
+	}
 
 	/**
 	 * Custom Editor 생성 시 호출
@@ -34,6 +80,18 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 
 		// Webview HTML 설정
 		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
+
+		// 활성 패널/문서 추적 (선택 텍스트/콘텐츠 요청을 위해)
+		GitbbonEditorProvider.activeWebviewPanel = webviewPanel;
+		GitbbonEditorProvider.activeDocument = document;
+
+		// 패널 활성 상태 변경 감지
+		webviewPanel.onDidChangeViewState((e) => {
+			if (e.webviewPanel.active) {
+				GitbbonEditorProvider.activeWebviewPanel = webviewPanel;
+				GitbbonEditorProvider.activeDocument = document;
+			}
+		});
 
 		// 문서 내용 파싱
 		const { frontmatter, content } = FrontmatterParser.parse(document.getText());
@@ -182,6 +240,10 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 								// Milkdown에서는 정확한 라인 정보를 알 수 없으므로 생략
 							});
 						}
+						break;
+					// gitbbon-chat에서 요청하는 선택 텍스트 응답
+					case 'selectionResponse':
+						GitbbonEditorProvider.handleSelectionResponse(message.text || null);
 						break;
 				}
 			}

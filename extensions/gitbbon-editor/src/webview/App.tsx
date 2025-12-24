@@ -132,6 +132,14 @@ export const App = () => {
 						setSaveStatus(message.status as SaveStatus);
 					}
 					break;
+				// gitbbon-chat에서 선택 텍스트 요청
+				case 'getSelection':
+					const selectedText = editorRef.current?.getSelectedText() || null;
+					vscode.postMessage({
+						type: 'selectionResponse',
+						text: selectedText,
+					});
+					break;
 			}
 		};
 

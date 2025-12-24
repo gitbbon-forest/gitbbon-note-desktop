@@ -46,6 +46,24 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(openEditorCommand);
 
+	// Command: Get selection from Gitbbon Editor (for gitbbon-chat)
+	const getSelectionCommand = vscode.commands.registerCommand(
+		'gitbbon.editor.getSelection',
+		async () => {
+			return await GitbbonEditorProvider.getSelection();
+		}
+	);
+	context.subscriptions.push(getSelectionCommand);
+
+	// Command: Get content from Gitbbon Editor (for gitbbon-chat)
+	const getContentCommand = vscode.commands.registerCommand(
+		'gitbbon.editor.getContent',
+		() => {
+			return GitbbonEditorProvider.getContent();
+		}
+	);
+	context.subscriptions.push(getContentCommand);
+
 	console.log('Gitbbon Editor extension activated!');
 }
 

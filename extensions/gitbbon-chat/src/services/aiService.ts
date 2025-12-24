@@ -72,15 +72,14 @@ export class AIService {
 		}
 
 		// Prepare gathered context info
-		const selectionResult = toolResults.find(t => t.toolName === 'get_selection')?.result;
-		const fileResult = toolResults.find(t => t.toolName === 'get_current_file')?.result;
+		const selectionResult = toolResults.find(t => t.toolName === 'get_selection')?.output;
+		const fileResult = toolResults.find(t => t.toolName === 'get_current_file')?.output;
 
 		const contextInfo = `
 [Context Info]
 - Selection: ${selectionResult ? JSON.stringify(selectionResult).slice(0, 5000) : 'None'}
 - File Content: ${fileResult ? 'Provided (Truncated in logs)' : 'None'}
 		`.trim();
-		console.log(`[GitbbonChat] contextInfo : ${contextInfo}`);
 
 		if (fileResult) {
 			// Append file content separately to avoid cluttering log
@@ -102,11 +101,13 @@ ${fileResult ? `\n\n[File Content]\n${fileResult}` : ''}
 		`.trim();
 
 		try {
-			const result = await streamText({
+			const workerParams = {
 				model: workerModelName as string,
 				system: systemPrompt,
-				messages: messages, // History included
-			});
+				messages: messages,
+			};
+			console.log(`[GitbbonChat] workerParams : ${JSON.stringify(workerParams)}`);
+			const result = await streamText(workerParams);
 
 			for await (const textPart of result.textStream) {
 				yield textPart;
