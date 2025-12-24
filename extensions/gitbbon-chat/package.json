@@ -8,6 +8,9 @@
   "engines": {
     "vscode": "^1.70.0"
   },
+  "enabledApiProposals": [
+    "findTextInFiles"
+  ],
   "categories": [
     "Other"
   ],

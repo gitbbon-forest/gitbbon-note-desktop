@@ -147,8 +147,110 @@ export function createEditorTools(messages: ModelMessage[]) {
 				return formatted;
 			},
 		}),
+
+		search_in_workspace: tool({
+			description: '프로젝트 전체에서 키워드나 패턴을 검색합니다. (ripgrep 엔진 사용)',
+			inputSchema: z.object({
+				query: z.string().describe('검색할 키워드 또는 정규표현식'),
+				isRegex: z.boolean().optional().describe('정규표현식 사용 여부 (기본: false)'),
+				filePattern: z.string().optional().describe('검색할 파일 경로 패턴 (예: src/**/*.ts)'),
+				context: z.number().min(0).max(500).optional().describe('검색어 앞뒤로 포함할 문자 수 (기본: 100)'),
+				maxResults: z.number().min(1).max(30).optional().describe('최대 검색 결과 수 (기본: 3)'),
+			}),
+			execute: async ({ query, isRegex, filePattern, context, maxResults }) => {
+				const workspaceFolders = vscode.workspace.workspaceFolders;
+				if (!workspaceFolders || workspaceFolders.length === 0) {
+					return "Error: 열린 워크스페이스가 없습니다.";
+				}
+
+				const matches: string[] = [];
+				const MAX_RESULTS = maxResults ?? 3;
+				const CONTEXT_LENGTH = context ?? 100;
+
+				// findTextInFiles API 타입 정의 (런타임에 존재할 수 있음)
+				interface TextSearchMatch {
+					uri: vscode.Uri;
+					ranges: vscode.Range[];
+					preview: { text: string };
+				}
+
+				type FindTextInFilesFunc = (
+					query: { pattern: string; isRegExp?: boolean; isCaseSensitive?: boolean; isWordMatch?: boolean },
+					options: { include?: vscode.GlobPattern; exclude?: string },
+					callback: (result: TextSearchMatch) => void
+				) => Thenable<void>;
+
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const workspaceAny = vscode.workspace as any;
+
+				// 파일별 매치를 수집하기 위한 맵
+				const fileMatches = new Map<string, { uri: vscode.Uri; lines: { lineNum: number; text: string }[] }>();
+
+				try {
+					const findTextInFiles: FindTextInFilesFunc = workspaceAny.findTextInFiles.bind(vscode.workspace);
+
+					await findTextInFiles(
+						{
+							pattern: query,
+							isRegExp: !!isRegex,
+							isCaseSensitive: false,
+							isWordMatch: false,
+						},
+						{
+							include: filePattern
+								? new vscode.RelativePattern(workspaceFolders[0], filePattern)
+								: undefined,
+							exclude: '**/{node_modules,.git,dist,out}/**',
+						},
+						(result: TextSearchMatch) => {
+							if (matches.length >= MAX_RESULTS) return;
+
+							const relativePath = vscode.workspace.asRelativePath(result.uri);
+
+							// 같은 파일의 여러 매치를 수집
+							if (!fileMatches.has(relativePath)) {
+								fileMatches.set(relativePath, { uri: result.uri, lines: [] });
+							}
+
+							const fileData = fileMatches.get(relativePath)!;
+
+							// 모든 ranges (동일 파일 내 여러 매치)를 처리
+							for (const range of result.ranges) {
+								const lineNum = range.start.line + 1;
+								// preview.text에서 context 길이만큼 자르기
+								const previewText = result.preview.text.trim().slice(0, CONTEXT_LENGTH * 2);
+								fileData.lines.push({ lineNum, text: previewText });
+							}
+						}
+					);
+
+					// 수집된 결과를 포맷팅
+					for (const [relativePath, data] of fileMatches) {
+						if (matches.length >= MAX_RESULTS) break;
+
+						const linesInfo = data.lines
+							.slice(0, 5) // 파일당 최대 5개 매치
+							.map(l => `  (Line ${l.lineNum}): ${l.text}`)
+							.join('\n');
+
+						matches.push(`[${relativePath}]\n${linesInfo}`);
+					}
+
+				} catch (e) {
+					console.error('[editorTools] search_in_workspace failed:', e);
+					return `Error: 검색 실패 - ${e}`;
+				}
+
+				if (matches.length === 0) {
+					return `"${query}"에 대한 검색 결과가 없습니다.`;
+				}
+
+				return `Found ${matches.length} files with matches:\n\n` + matches.join('\n\n');
+			},
+		}),
 	};
 }
 
 // 하위 호환성을 위한 기본 export (messages 없이 사용 시)
 export const editorTools = createEditorTools([]);
+
