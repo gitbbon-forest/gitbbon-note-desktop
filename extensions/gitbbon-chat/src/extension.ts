@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { type CoreMessage } from 'ai';
+import { type ModelMessage } from 'ai';
 import { AIService } from './services/aiService';
 
 class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
@@ -69,7 +69,7 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
-	private async _handleChatMessage(messages: CoreMessage[]): Promise<void> {
+	private async _handleChatMessage(messages: ModelMessage[]): Promise<void> {
 		if (!this._webviewView) {
 			return;
 		}
@@ -89,7 +89,7 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 
 		try {
 			let chunkCount = 0;
-			const stream = this.aiService.streamChat(messages);
+			const stream = this.aiService.streamAgentChat(messages);
 
 			for await (const textPart of stream) {
 				chunkCount++;

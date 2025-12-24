@@ -72,7 +72,6 @@
     "build:webview": "vite build"
   },
   "devDependencies": {
-
     "@types/node": "22.x",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
@@ -83,11 +82,13 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.56",
+    "@ai-sdk/openai": "^3.0.1",
     "@ai-sdk/react": "^2.0.118",
-    "ai": "^5.0.116",
+    "ai": "^6.0.3",
     "deep-chat": "^2.3.0",
     "dotenv": "^17.2.3",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "zod": "^4.2.1"
   }
 }
