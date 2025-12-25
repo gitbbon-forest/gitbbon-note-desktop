@@ -27,6 +27,7 @@ export function createEditorTools(messages: ModelMessage[]) {
 			description: 'Get selected text from the active editor. Use for "this code", "selected part", etc.',
 			inputSchema: z.object({}),
 			execute: async () => {
+				console.log('[Tool:get_selection] Executing...');
 				const detail = await ContextService.getSelection();
 				if (detail) {
 					return `
@@ -48,6 +49,7 @@ ${detail.after}
 			description: 'Get the entire content of the active file. Use for "whole file", "structure", etc.',
 			inputSchema: z.object({}),
 			execute: async () => {
+				console.log('[Tool:get_current_file] Executing...');
 				const content = await ContextService.getActiveFileContent();
 				if (content) {
 					return content;
@@ -66,6 +68,7 @@ ${detail.after}
 				filePath: z.string().describe('File path (relative or absolute)'),
 			}),
 			execute: async ({ filePath }) => {
+				console.log(`[Tool:read_file] Executing with filePath=${filePath}`);
 				try {
 					const content = await ContextService.readFile(filePath);
 					return content;
@@ -73,6 +76,37 @@ ${detail.after}
 					return `Error: Failed to read file (${filePath}). ${e}`;
 				}
 			},
+		}),
+
+		edit_note: tool({
+			description: 'Edit a note file directly. Provide specific oldText (exact match) and newText. The changes are applied immediately.',
+			inputSchema: z.object({
+				filePath: z.string().describe('File path to edit'),
+				changes: z.array(z.object({
+					oldText: z.string().describe('The exact existing text to be replaced'),
+					newText: z.string().describe('The new text to replace with')
+				})).describe('List of changes to apply')
+			}),
+			execute: async ({ filePath, changes }) => {
+				console.log(`[Tool:edit_note] Executing with filePath=${filePath}, changes=${changes.length}`);
+				try {
+					await ContextService.applySuggestions(filePath, changes, 'direct');
+					return `Changes applied to ${filePath} successfully.`;
+				} catch (e: unknown) {
+					const errorMessage = e instanceof Error ? e.message : String(e);
+					console.error(`[Tool:edit_note] Failed: ${errorMessage}`);
+
+					// Fetch content for AI to self-correct
+					let content = '';
+					try {
+						content = await ContextService.readFile(filePath);
+					} catch (readErr) {
+						return `Error: Failed to apply suggestions AND failed to read file. Edit Error: ${errorMessage}. Read Error: ${readErr}`;
+					}
+
+					return `Error: Failed to apply suggestions. ${errorMessage}\n\n[Current File Content - Use this to fix 'oldText']\n${content}`;
+				}
+			}
 		}),
 	};
 }

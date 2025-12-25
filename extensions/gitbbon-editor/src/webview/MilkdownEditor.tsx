@@ -7,7 +7,7 @@ import "@milkdown/crepe/theme/common/style.css";
 // import "@milkdown/crepe/theme/frame.css"; // Optional: Frame theme
 
 // gitbbon custom: Inline Suggestion
-import { suggestionPlugin, suggestionInsertMark, suggestionDeleteMark, applyAISuggestions } from './suggestionPlugin';
+import { suggestionPlugin, suggestionInsertMark, suggestionDeleteMark, applyAISuggestions, directApplyAISuggestions } from './suggestionPlugin';
 import './suggestion.css';
 
 interface MilkdownEditorProps {
@@ -22,6 +22,7 @@ export interface MilkdownEditorRef {
 	getSelectionDetail: () => { text: string; before: string; after: string } | null;
 	getCursorContext: () => string | null;
 	applySuggestions: (changes: any[]) => void;
+	directApply: (changes: any[]) => void;
 }
 
 // gitbbon custom: AI 물어보기 버튼 아이콘 (sparkle)
@@ -184,6 +185,18 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 			if (typeof (editor as any).action === 'function') {
 				(editor as any).action((ctx: any) => {
 					applyAISuggestions(ctx, changes);
+				});
+			}
+		},
+		// gitbbon custom: AI 제안 바로 적용하기 (Direct Edit)
+		directApply: (changes: any[]) => {
+			if (loading) return;
+			const editor = getInstance();
+			if (!editor) return;
+
+			if (typeof (editor as any).action === 'function') {
+				(editor as any).action((ctx: any) => {
+					directApplyAISuggestions(ctx, changes);
 				});
 			}
 		}

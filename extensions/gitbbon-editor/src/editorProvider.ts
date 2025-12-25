@@ -19,6 +19,9 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 	private static pendingSelectionResolve: ((value: string | null) => void) | null = null;
 	private static pendingDetailResolve: ((value: any | null) => void) | null = null;
 
+	// Webview 준비 상태 추적 (WeakMap으로 패널별 상태 관리)
+	private static webviewReadyMap = new WeakMap<vscode.WebviewPanel, boolean>();
+
 	constructor(private readonly context: vscode.ExtensionContext) { }
 
 	/**
@@ -102,10 +105,97 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		if (!this.activeWebviewPanel) {
 			return;
 		}
+
+		// Webview가 준비될 때까지 대기 (최대 5초)
+		let retries = 0;
+		while (!this.webviewReadyMap.get(this.activeWebviewPanel) && retries < 25) {
+			await new Promise(resolve => setTimeout(resolve, 200));
+			retries++;
+		}
+
+		if (!this.webviewReadyMap.get(this.activeWebviewPanel)) {
+			console.warn('[GitbbonEditor] Webview not ready for suggestions');
+			vscode.window.showWarningMessage('Editor is not fully loaded yet. Please try again.');
+			return;
+		}
+
 		this.activeWebviewPanel.webview.postMessage({
 			type: 'applySuggestions',
 			changes
 		});
+	}
+
+	/**
+	 * 현재 활성화된 Editor에 변경사항 바로 적용 (제안 없이)
+	 */
+	/**
+	 * 현재 활성화된 Editor에 변경사항 바로 적용 (제안 없이)
+	 * Extension Host에서 직접 텍스트를 수정합니다.
+	 */
+	public static async directApply(changes: any[]): Promise<void> {
+		if (!this.activeDocument) {
+			vscode.window.showErrorMessage("No active document found for direct edit.");
+			throw new Error("No active document found.");
+		}
+
+		console.log('[GitbbonEditor] Direct Apply started', changes);
+
+		const document = this.activeDocument;
+		const fullText = document.getText();
+		const workspaceEdit = new vscode.WorkspaceEdit();
+		let hasChanges = false;
+
+		// We need to apply changes carefully.
+		// To avoid index shifting issues, we should probably sort changes or apply them one by one?
+		// But WorkspaceEdit handles overlapping edits gracefully if ranges are correct based on ORIGINAL document.
+		// However, if we have multiple changes, we need to find their positions in the ORIGINAL text.
+
+		// For simplicity, let's assume changes are independent or we process them.
+		// EditorTools sends { oldText, newText }.
+
+		for (const change of changes) {
+			const { oldText, newText } = change;
+
+			if (!oldText && newText) {
+				// Append case
+				const lastLine = document.lineAt(document.lineCount - 1);
+				const range = new vscode.Range(lastLine.range.end, lastLine.range.end);
+				// Add newline if needed?
+				const textToInsert = (fullText.endsWith('\n') ? '' : '\n') + newText;
+				workspaceEdit.insert(document.uri, range.start, textToInsert);
+				hasChanges = true;
+				continue;
+			}
+
+			if (oldText) {
+				const index = fullText.indexOf(oldText);
+				if (index !== -1) {
+					const startPos = document.positionAt(index);
+					const endPos = document.positionAt(index + oldText.length);
+					const range = new vscode.Range(startPos, endPos);
+					workspaceEdit.replace(document.uri, range, newText || '');
+					hasChanges = true;
+				} else {
+					console.warn(`[GitbbonEditor] Could not find oldText: "${oldText.substring(0, 20)}..."`);
+					// We could throw here to trigger self-correction, but let's try to apply other changes
+					// Actually, throwing is better for the AI to know it failed.
+					// BUT if we applied SOME changes, we shouldn't fail completely?
+					// Let's rely on the AI checking the result or let it fail if CRITICAL text is missing.
+					// Given the loop issue, throwing might just repeat the loop if not handled well.
+					// The updated EditorTools returns content on error.
+					// So throwing is GOOD.
+					throw new Error(`Could not find text to replace: "${oldText.substring(0, 50)}..."`);
+				}
+			}
+		}
+
+		if (hasChanges) {
+			const success = await vscode.workspace.applyEdit(workspaceEdit);
+			if (!success) {
+				throw new Error("Failed to apply WorkspaceEdit.");
+			}
+			console.log('[GitbbonEditor] Direct Apply success');
+		}
 	}
 
 	/**
@@ -148,6 +238,9 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 
 		// Webview HTML 설정
 		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
+
+		// 초기 준비 상태 false
+		GitbbonEditorProvider.webviewReadyMap.set(webviewPanel, false);
 
 		// 활성 패널/문서 추적 (선택 텍스트/콘텐츠 요청을 위해)
 		GitbbonEditorProvider.activeWebviewPanel = webviewPanel;
@@ -255,7 +348,10 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 						resetTimers();
 						break;
 					case 'ready':
-						// Webview 준비 완료 시 초기 데이터 재전송
+						// Webview 준비 완료 시 초기 데이터 재전송 및 상태 업데이트
+						GitbbonEditorProvider.webviewReadyMap.set(webviewPanel, true);
+						console.log('[GitbbonEditor] Webview ready');
+
 						const initialText = document.getText();
 						lastWebviewText = initialText;
 						const { frontmatter: initFm, content: initContent } = FrontmatterParser.parse(initialText);

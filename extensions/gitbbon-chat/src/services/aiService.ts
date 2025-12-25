@@ -80,7 +80,8 @@ ${after}
 
 		console.log(`[GitbbonChat] Gathered Context: isMilkdown=${isMilkdown}, selectionLen=${selectionPreview.length}, cursorContextLen=${cursorContext.length}, activeFile=${activeFile}`);
 
-		const messageCount = messages.length;
+		// History Count excluding the recent 4 + current (5 total)
+		const olderMessageCount = Math.max(0, messages.length - 5);
 		const openTabs = ContextService.getOpenTabs();
 
 		const environmentContext = `
@@ -102,8 +103,8 @@ ${cursorContext}
   (Rule: Only used when Selection is "None".
    This shows ~10 lines around the cursor. Use this for "fix this", "explain this" when nothing is selected.)
 
-- Chat History Count: ${messageCount}
-  (Rule: If 0, DO NOT call 'get_chat_history'.)
+- Older Chat History Count: ${olderMessageCount}
+  (Rule: If 0, DO NOT call 'get_chat_history'. Recent context is already handled by Worker.)
 
 - Open Files (Tabs):
 ${openTabs.map(label => `  - ${label}`).join('\n')}
@@ -126,7 +127,14 @@ ${openTabs.map(label => `  - ${label}`).join('\n')}
 			const managerAgent = new ToolLoopAgent({
 				model: managerModelName,
 				instructions,
-				tools
+				tools,
+				onStepFinish: (event) => {
+					console.log('[GitbbonChat] Manager Step:', JSON.stringify({
+						text: event.text,
+						toolCalls: event.toolCalls,
+						finishReason: event.finishReason
+					}, null, 2));
+				}
 			});
 
 			const result = await managerAgent.generate({
@@ -134,7 +142,7 @@ ${openTabs.map(label => `  - ${label}`).join('\n')}
 			});
 
 			toolResults = result.toolResults;
-			console.log(`[GitbbonChat] Phase 1: Manager finished. Tools called: ${toolResults.length}`);
+			console.log(`[GitbbonChat] Phase 1: Manager finished. Tools called: ${toolResults.length}`, 'toolResults', toolResults);
 
 			// 도구 호출 없이 Manager가 직접 답변한 경우
 			if (toolResults.length === 0 && result.text && result.text.trim().length > 0) {
@@ -158,11 +166,28 @@ ${openTabs.map(label => `  - ${label}`).join('\n')}
 		const historyResult = toolResults.find(t => t.toolName === 'get_chat_history')?.output;
 		const searchResult = toolResults.find(t => t.toolName === 'search_in_workspace')?.output;
 
+		// Default History: Last 2 turns (4 messages) excluding the current user message
+		// messages array includes the current user message at the end.
+		// So we want messages[length-5] to messages[length-2].
+		// But wait, 'messages' passed to streamChat includes the NEW user message at the end?
+		// Yes, standard AI SDK behavior.
+		// So:
+		// [ ... old history ..., User(n-1), AI(n-1), User(n) ]
+		// We want User(n-1) and AI(n-1) as "recent history".
+		// Actually, user said "Last 2 conversations" (turns). So maybe 2 pairs?
+		// User(n-2), AI(n-2), User(n-1), AI(n-1).
+		// Let's take up to 4 previous messages (excluding the current one).
+
+		const previousMessages = messages.slice(0, -1); // Exclude current user message
+		const recentHistoryMessages = previousMessages.slice(-4); // Last 4 messages
+		const recentHistoryContext = recentHistoryMessages.map(m => `[${m.role}]: ${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`).join('\n\n');
+
 		const contextInfo = `
 [Context Info]
 - Selection: ${selectionResult ? JSON.stringify(selectionResult).slice(0, 5000) : 'None'}
 - File Content: ${fileResult ? 'Provided' : 'None'}
-- Chat History: ${historyResult ? 'Provided' : 'None'}
+- Chat History (Tool): ${historyResult ? 'Provided' : 'None'}
+- Recent History (Default): ${recentHistoryContext ? 'Provided' : 'None'}
 - Search Results: ${searchResult ? 'Provided' : 'None'}
 `.trim();
 
@@ -180,7 +205,8 @@ ${contextInfo}
 
 ${selectionResult ? `\n[Selected Text]\n${selectionResult}\n` : ''}
 ${fileResult ? `\n[File Content]\n${fileResult}\n` : ''}
-${historyResult ? `\n[Chat History]\n${historyResult}\n` : ''}
+${historyResult ? `\n[Chat History (Tool)]\n${historyResult}\n` : ''}
+${recentHistoryContext ? `\n[Recent History (Default)]\n${recentHistoryContext}\n` : ''}
 ${searchResult ? `\n[Search Results]\n${searchResult}\n` : ''}
 `.trim();
 

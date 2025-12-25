@@ -166,4 +166,76 @@ export class ContextService {
 		const readData = await vscode.workspace.fs.readFile(fileUri);
 		return Buffer.from(readData).toString('utf-8');
 	}
+
+	/**
+	 * Apply suggestions to a file using Gitbbon Editor's inline suggestion feature.
+	 * If the file is not open, it opens it.
+	 * If it's a markdown file, it tries to use the Gitbbon Editor.
+	 */
+	/**
+	 * Apply suggestions to a file using Gitbbon Editor's inline suggestion feature.
+	 * If the file is not open, it opens it.
+	 * If it's a markdown file, it tries to use the Gitbbon Editor.
+	 * @param mode 'direct' (immediate change) or 'suggestion' (ins/del marks)
+	 */
+	public static async applySuggestions(filePath: string, changes: { oldText: string; newText: string }[], mode: 'direct' | 'suggestion' = 'direct'): Promise<void> {
+		if (!filePath) {
+			throw new Error("File path is required.");
+		}
+
+		// 1. Resolve URI
+		let uri: vscode.Uri;
+		if (filePath.startsWith('/') || filePath.match(/^[a-zA-Z]:\\/)) {
+			uri = vscode.Uri.file(filePath);
+		} else {
+			const workspaceFolders = vscode.workspace.workspaceFolders;
+			if (!workspaceFolders || workspaceFolders.length === 0) {
+				throw new Error("No workspace folders open");
+			}
+			uri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
+		}
+
+		// 2. Open Document (User must see the changes to approve)
+		// Use 'vscode.open' command which respects default editor settings.
+		// If it's a .md file and Gitbbon Editor is default, it will open with it.
+		await vscode.commands.executeCommand('vscode.open', uri);
+
+		// 3. Wait for editor to be active
+		// Check if the current active editor matches the requested file
+		// Retry a few times if needed (async opening)
+		for (let i = 0; i < 5; i++) {
+			const activeEditor = vscode.window.activeTextEditor;
+			const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+
+			const isActive = (activeEditor && activeEditor.document.uri.toString() === uri.toString()) ||
+				(activeTab?.input instanceof vscode.TabInputCustom && activeTab.input.uri.toString() === uri.toString());
+
+			if (isActive) {
+				break;
+			}
+			await new Promise(resolve => setTimeout(resolve, 200));
+		}
+
+		// 4. Apply Suggestions or Direct Edit
+		// If it is the custom editor (Milkdown)
+		if (this.isGitbbonEditor()) {
+			if (mode === 'direct') {
+				await vscode.commands.executeCommand('gitbbon.editor.directApply', changes);
+			} else {
+				await vscode.commands.executeCommand('gitbbon.editor.applySuggestions', changes);
+			}
+		} else {
+			// Fallback: Try to execute command even if standard editor appears active (might be early state)
+			try {
+				if (mode === 'direct') {
+					await vscode.commands.executeCommand('gitbbon.editor.directApply', changes);
+				} else {
+					await vscode.commands.executeCommand('gitbbon.editor.applySuggestions', changes);
+				}
+			} catch (e) {
+				// Rethrow so the caller (tool) knows it failed
+				throw new Error(`Failed to apply changes. Ensure the file is opened in Gitbbon Editor. Error: ${e}`);
+			}
+		}
+	}
 }

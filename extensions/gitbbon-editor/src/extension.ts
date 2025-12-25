@@ -82,6 +82,24 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 	context.subscriptions.push(getCursorContextCommand);
 
+	// Command: Apply suggestions to Gitbbon Editor (for gitbbon-chat)
+	const applySuggestionsCommand = vscode.commands.registerCommand(
+		'gitbbon.editor.applySuggestions',
+		async (changes: any[]) => {
+			await GitbbonEditorProvider.applySuggestions(changes);
+		}
+	);
+	context.subscriptions.push(applySuggestionsCommand);
+
+	// Command: Apply direct edits to Gitbbon Editor (for gitbbon-chat)
+	const directApplyCommand = vscode.commands.registerCommand(
+		'gitbbon.editor.directApply',
+		async (changes: any[]) => {
+			await GitbbonEditorProvider.directApply(changes);
+		}
+	);
+	context.subscriptions.push(directApplyCommand);
+
 	console.log('Gitbbon Editor extension activated!');
 }
 

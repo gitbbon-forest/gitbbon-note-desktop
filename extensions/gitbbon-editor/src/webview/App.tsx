@@ -163,6 +163,12 @@ export const App = () => {
 						editorRef.current?.applySuggestions(message.changes);
 					}
 					break;
+				// [New] AI 제안 바로 적용 (Direct Edit)
+				case 'directApply':
+					if (message.changes && Array.isArray(message.changes)) {
+						editorRef.current?.directApply(message.changes);
+					}
+					break;
 			}
 		};
 

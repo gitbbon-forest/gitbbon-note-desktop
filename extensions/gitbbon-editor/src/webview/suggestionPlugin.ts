@@ -166,3 +166,41 @@ export function applyAISuggestions(ctx: Ctx, changes: any[]) {
 
 	view.dispatch(tr);
 }
+
+// 5. Direct Edit Implementation (No Suggestions)
+export function directApplyAISuggestions(ctx: Ctx, changes: any[]) {
+	const view = ctx.get(editorViewCtx);
+	const { state } = view;
+	let tr = state.tr;
+
+	const findPos = (searchText: string): { from: number; to: number } | null => {
+		let res: { from: number; to: number } | null = null;
+		state.doc.descendants((node, pos) => {
+			if (node.isText && node.text?.includes(searchText)) {
+				if (res) { return false; }
+				const idx = node.text.indexOf(searchText);
+				res = { from: pos + idx, to: pos + idx + searchText.length };
+				return false;
+			}
+			return true;
+		});
+		return res;
+	};
+
+	changes.forEach(change => {
+		if (change.oldText) {
+			const pos = findPos(change.oldText);
+			if (pos) {
+				tr = tr.delete(pos.from, pos.to);
+				if (change.newText) {
+					tr = tr.insert(pos.from, state.schema.text(change.newText));
+				}
+			}
+		} else if (change.newText) {
+			// Append if no oldText (fallback behavior for new content)
+			tr = tr.insert(tr.doc.content.size, state.schema.text(change.newText));
+		}
+	});
+
+	view.dispatch(tr);
+}

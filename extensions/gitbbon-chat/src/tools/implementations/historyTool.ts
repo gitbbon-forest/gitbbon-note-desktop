@@ -13,7 +13,18 @@ export const createHistoryTool = (messages: ModelMessage[]) => tool({
 			return "Error: No history available.";
 		}
 
-		let filteredMessages = messages;
+		// Filter out the current message and the default "Recent History" (last 4 filtered messages)
+		// messages array contains [ ...history..., User(Current) ]
+		// We want to exclude User(Current) AND the preceding 4 messages.
+		// Total exclusion = 5 messages from the end.
+
+		const historyPool = messages.length > 5 ? messages.slice(0, -5) : [];
+
+		if (historyPool.length === 0) {
+			return "Error: No older history available (Recent history is already provided).";
+		}
+
+		let filteredMessages = historyPool;
 
 		// Filter by query if present
 		if (query) {

@@ -40,6 +40,11 @@
         "command": "gitbbon.editor.openEditor",
         "title": "Open with Gitbbon Editor",
         "category": "Gitbbon"
+      },
+      {
+        "command": "gitbbon.editor.applySuggestions",
+        "title": "Apply Suggestions to Gitbbon Editor",
+        "category": "Gitbbon"
       }
     ],
     "menus": {
