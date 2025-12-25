@@ -368,6 +368,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				if (selectedPath !== currentPath) {
 					const uri = URI.file(selectedPath);
 					this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: true });
+					// Reset select to current project (since we opened a new window)
+					if (currentPath) {
+						target.value = currentPath;
+					}
 				}
 			}
 		});

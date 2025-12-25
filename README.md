@@ -94,8 +94,11 @@
 
 - **Root Directory:** 모든 프로젝트는 `~/Documents/Gitbbon_Notes` 하위에서 관리됩니다.
 - **Tracking & Context:** `projects.json` 매니페스트를 통해 프로젝트 목록과 마지막 접근 시간(Timestamp)을 추적합니다.
-- **Auto Restore:** 앱 실행 시, 가장 최근에 작업했던 프로젝트를 자동으로 불러옵니다.
+- **Auto Restore:** 앱 실행 시, 마지막으로 작업했던 프로젝트를 자동으로 불러옵니다.
 - **Silent Init:** 프로젝트 생성 시 `git init`을 백그라운드에서 수행하여 즉시 버전 관리를 시작합니다.
+- **Project Switcher:** 사이드바 상단에 드롭다운 셀렉터가 표시되어 프로젝트 간 빠른 전환이 가능합니다.
+  - 현재 열린 프로젝트가 자동으로 선택됨
+  - 다른 프로젝트 선택 시 새 창으로 열림
 
 **`projects.json` Structure:**
 
