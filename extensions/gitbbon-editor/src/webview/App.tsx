@@ -140,6 +140,14 @@ export const App = () => {
 						text: selectedText,
 					});
 					break;
+				// [New] gitbbon-chat에서 선택 텍스트 + 문맥 요청
+				case 'getSelectionDetail':
+					const detail = editorRef.current?.getSelectionDetail() || null;
+					vscode.postMessage({
+						type: 'selectionDetailResponse',
+						detail: detail,
+					});
+					break;
 				// gitbbon-chat에서 커서 문맥 요청 (선택 없을 시)
 				case 'getCursorContext':
 					const cursorContext = editorRef.current?.getCursorContext() || null;

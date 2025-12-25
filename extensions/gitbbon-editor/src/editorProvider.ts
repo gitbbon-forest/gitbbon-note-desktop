@@ -17,6 +17,8 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 	private static activeWebviewPanel: vscode.WebviewPanel | null = null;
 	private static activeDocument: vscode.TextDocument | null = null;
 	private static pendingSelectionResolve: ((value: string | null) => void) | null = null;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	private static pendingDetailResolve: ((value: any | null) => void) | null = null;
 
 	constructor(private readonly context: vscode.ExtensionContext) { }
 
@@ -35,6 +37,28 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			setTimeout(() => {
 				if (this.pendingSelectionResolve === resolve) {
 					this.pendingSelectionResolve = null;
+					resolve(null);
+				}
+			}, 1000);
+		});
+	}
+
+	/**
+	 * 현재 활성화된 Gitbbon Editor에서 선택된 텍스트와 문맥 가져오기
+	 */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	public static async getSelectionDetail(): Promise<{ text: string; before: string; after: string } | null> {
+		if (!this.activeWebviewPanel) {
+			return null;
+		}
+
+		return new Promise((resolve) => {
+			this.pendingDetailResolve = resolve;
+			this.activeWebviewPanel!.webview.postMessage({ type: 'getSelectionDetail' });
+			// 1초 타임아웃
+			setTimeout(() => {
+				if (this.pendingDetailResolve === resolve) {
+					this.pendingDetailResolve = null;
 					resolve(null);
 				}
 			}, 1000);
@@ -79,6 +103,17 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		if (this.pendingSelectionResolve) {
 			this.pendingSelectionResolve(text);
 			this.pendingSelectionResolve = null;
+		}
+	}
+
+	/**
+	 * Webview에서 상세 선택 응답 처리
+	 */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	private static handleDetailResponse(detail: any | null): void {
+		if (this.pendingDetailResolve) {
+			this.pendingDetailResolve(detail);
+			this.pendingDetailResolve = null;
 		}
 	}
 
@@ -265,6 +300,10 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 					// gitbbon-chat에서 요청하는 선택 텍스트 응답
 					case 'selectionResponse':
 						GitbbonEditorProvider.handleSelectionResponse(message.text || null);
+						break;
+					// [New] gitbbon-chat에서 요청하는 상세 선택 응답
+					case 'selectionDetailResponse':
+						GitbbonEditorProvider.handleDetailResponse(message.detail || null);
 						break;
 				}
 			}

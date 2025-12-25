@@ -15,6 +15,7 @@ interface MilkdownEditorProps {
 export interface MilkdownEditorRef {
 	setContent: (markdown: string) => void;
 	getSelectedText: () => string | null;
+	getSelectionDetail: () => { text: string; before: string; after: string } | null;
 	getCursorContext: () => string | null;
 }
 
@@ -116,7 +117,31 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 				});
 			}
 			return selectedText;
-			return selectedText;
+		},
+		// gitbbon custom [New]: 선택된 텍스트와 전후 문맥 가져오기
+		getSelectionDetail: (): { text: string; before: string; after: string } | null => {
+			if (loading) return null;
+			const editor = getInstance();
+			if (!editor) return null;
+
+			let result: { text: string; before: string; after: string } | null = null;
+			if (typeof (editor as any).action === 'function') {
+				(editor as any).action((ctx: any) => {
+					const view = ctx.get(editorViewCtx);
+					const { state } = view;
+					const { from, to } = state.selection;
+					if (from !== to) {
+						const text = state.doc.textBetween(from, to, ' ');
+						const docSize = state.doc.content.size;
+						const start = Math.max(0, from - 50);
+						const end = Math.min(docSize, to + 50);
+						const before = state.doc.textBetween(start, from, ' ');
+						const after = state.doc.textBetween(to, end, ' ');
+						result = { text, before, after };
+					}
+				});
+			}
+			return result;
 		},
 		// gitbbon custom: 커서 주변 문맥 가져오기
 		getCursorContext: (): string | null => {

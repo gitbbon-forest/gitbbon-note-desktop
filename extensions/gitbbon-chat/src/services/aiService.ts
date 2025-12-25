@@ -1,53 +1,7 @@
 import { streamText, ToolLoopAgent, type ModelMessage } from 'ai';
-import { createEditorTools, isGitbbonEditorActive } from '../tools/editorTools';
-import * as vscode from 'vscode';
-
-// --- CONSTANT: Manager System Prompt (Base) ---
-// This prompt guides the Manager to collect context or answer directly.
-// It is designed to be appended with [Current Environment Context] dynamically.
-const MANAGER_SYSTEM_PROMPT = `You are an intelligent "Editor Context Manager" and a simple Q&A assistant.
-
-[Role]
-1. If editor context is needed for the request: Call the appropriate tools to gather it.
-2. If the request can be answered without context (e.g., greetings, general knowledge): Answer directly via text.
-
-[Tool Descriptions & Selection Criteria]
-1. get_selection()
-   - Use when: The user refers to "selected text", "this code", "this part", "here".
-   - Actions: Refactoring, explaining, translating, or debugging the *specific* selection.
-
-2. get_current_file()
-   - Use when: The user needs context of the *entire* file (structure, patterns, full scope).
-   - triggers: "current file", "whole file", "this document", "structure".
-
-3. get_chat_history(count, query)
-   - Use when: The user refers to previous turns.
-   - triggers: "before", "previously", "last time", "what we discussed", "again".
-
-4. search_in_workspace(query, isRegex?, filePattern?, context?, maxResults?)
-   - Use when: The user asks to find something across the project.
-   - triggers: "where is", "find usage", "search for", "who calls this".
-   - Note: Use sensible 'context' (default 100) and 'maxResults' (default 3) unless user asks for more.
-
-5. read_file(filePath)
-   - Use when: The user asks to read a specific file OTHER than the active one.
-   - triggers: "read that file", "check utils.ts", "look at the second tab".
-   - Note: Pick 'filePath' from the [Open Files] list or valid project paths.
-
-[General Rules]
-- You can call multiple tools if needed.
-- If unsure, prefer answering directly or asking for clarification (but try to be helpful first).
-- BE PRECISE. Do not call tools purely for guessing.
-
-[Dynamic Context Rules - STRICTLY FOLLOW]
-The user will provide [Current Environment Context].
-1. If 'Has Selection' is 'No': DO NOT call get_selection().
-2. If 'Chat History Count' is 0: DO NOT call get_chat_history().
-3. If 'Active File' is 'None': DO NOT call get_current_file() or get_selection().
-4. Consult 'Open Files' list to understand references to "that file" or "the other tab".
-`;
-
-
+import { createEditorTools } from '../tools/editorTools';
+import { ContextService } from './ContextService';
+import { MANAGER_SYSTEM_PROMPT, WORKER_BASE_PROMPT } from '../constants/prompts';
 
 export class AIService {
 	private apiKey: string | undefined;
@@ -92,64 +46,42 @@ export class AIService {
 		const tools = createEditorTools(messages);
 		const managerModelName = 'openai/gpt-5-nano';
 
-
 		// Gather Environment Context
-		const activeEditor = vscode.window.activeTextEditor;
-		const isMilkdown = isGitbbonEditorActive();
+		const isMilkdown = ContextService.isGitbbonEditor();
+		const activeFile = ContextService.getActiveFileName();
 
 		let selectionPreview = 'None';
-		let cursorContext = 'None';
-		let isTruncated = false;
-		let activeFile = 'None';
-
+		const selectionDetail = await ContextService.getSelection();
 		const SELECTION_LIMIT = 1000;
+		let isTruncated = false;
 
-		if (activeEditor) {
-			// 1. Standard Text Editor
-			activeFile = vscode.workspace.asRelativePath(activeEditor.document.uri);
+		if (selectionDetail) {
+			const { text, before, after } = selectionDetail;
+			isTruncated = text.length > SELECTION_LIMIT;
+			const truncatedText = text.slice(0, SELECTION_LIMIT) + (isTruncated ? '... (truncated)' : '');
 
-			if (!activeEditor.selection.isEmpty) {
-				// Case A: Selection exists -> Capture up to 1000 chars
-				const text = activeEditor.document.getText(activeEditor.selection);
-				isTruncated = text.length > SELECTION_LIMIT;
-				selectionPreview = text.slice(0, SELECTION_LIMIT) + (isTruncated ? '... (truncated)' : '');
-			} else {
-				// Case B: No Selection -> Capture Cursor Context (10 lines around)
-				const cursorLine = activeEditor.selection.active.line;
-				const startLine = Math.max(0, cursorLine - 5);
-				const endLine = Math.min(activeEditor.document.lineCount - 1, cursorLine + 5);
-				const range = new vscode.Range(startLine, 0, endLine, Number.MAX_SAFE_INTEGER);
-				cursorContext = activeEditor.document.getText(range);
-			}
-		} else if (isMilkdown) {
-			// 2. Milkdown Custom Editor
-			const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
-			activeFile = activeTab?.label || 'Milkdown Doc';
-			try {
-				// Try getting selection first
-				const selection = await vscode.commands.executeCommand<string | null>('gitbbon.editor.getSelection');
-				if (selection && selection.length > 0) {
-					isTruncated = selection.length > SELECTION_LIMIT;
-					selectionPreview = selection.slice(0, SELECTION_LIMIT) + (isTruncated ? '... (truncated)' : '');
-				} else {
-					// If no selection, try getting cursor context
-					const context = await vscode.commands.executeCommand<string | null>('gitbbon.editor.getCursorContext');
-					if (context && context.length > 0) {
-						cursorContext = context;
-					}
-				}
-			} catch (e) {
-				console.warn('[GitbbonChat] Failed to check milkdown context:', e);
-			}
+			selectionPreview = `
+[Context Before]
+${before}
+
+[Selected Text]
+${truncatedText}
+
+[Context After]
+${after}
+`.trim();
+		}
+
+		let cursorContext = 'None';
+		if (!selectionDetail) {
+			const context = await ContextService.getCursorContext();
+			if (context) cursorContext = context;
 		}
 
 		console.log(`[GitbbonChat] Gathered Context: isMilkdown=${isMilkdown}, selectionLen=${selectionPreview.length}, cursorContextLen=${cursorContext.length}, activeFile=${activeFile}`);
 
 		const messageCount = messages.length;
-
-		const openTabs = vscode.window.tabGroups.all
-			.flatMap(group => group.tabs)
-			.map(tab => tab.label);
+		const openTabs = ContextService.getOpenTabs();
 
 		const environmentContext = `
 [Current Environment Context]
@@ -242,18 +174,6 @@ ${openTabs.map(label => `  - ${label}`).join('\n')}
 		const workerModelName = 'openai/gpt-5';
 
 		console.log(`[GitbbonChat] Phase 2: Worker(${workerModelName}) starting...`);
-
-		const WORKER_BASE_PROMPT = `You are a professional coding assistant and technical writer.
-The Manager has already collected the necessary context for you.
-
-[Your Goal]
-Answer the user's request based STRICTLY on the provided [Context Info].
-
-[Rules]
-- If the Manager provided a file content, use it to answer implementation questions.
-- If the Manager provided selection, focus your answer on that snippet.
-- Be concise, accurate, and helpful.
-`;
 
 		const dynamicContext = `
 ${contextInfo}

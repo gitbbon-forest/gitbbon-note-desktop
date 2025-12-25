@@ -64,6 +64,15 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 	context.subscriptions.push(getContentCommand);
 
+	// Command: Get selection detail from Gitbbon Editor (for gitbbon-chat)
+	const getSelectionDetailCommand = vscode.commands.registerCommand(
+		'gitbbon.editor.getSelectionDetail',
+		async () => {
+			return await GitbbonEditorProvider.getSelectionDetail();
+		}
+	);
+	context.subscriptions.push(getSelectionDetailCommand);
+
 	// Command: Get cursor context from Gitbbon Editor (for gitbbon-chat)
 	const getCursorContextCommand = vscode.commands.registerCommand(
 		'gitbbon.editor.getCursorContext',
