@@ -33,9 +33,25 @@ import { ToggleActivityBarVisibilityActionId } from '../../actions/layoutActions
 import { localize2 } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICompositeTitleLabel } from '../compositePart.js';
+import { append, $, getWindow } from '../../../../base/browser/dom.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+
+interface IProject {
+	name: string;
+	path: string;
+}
+
 export class SidebarPart extends AbstractPaneCompositePart {
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
+
+	private switcherContainer: HTMLElement | undefined;
+	private projectSwitcher: HTMLSelectElement | undefined;
 
 	//#region IView
 
@@ -80,6 +96,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
+		@IFileService private readonly fileService: IFileService,
+		@IPathService private readonly pathService: IPathService,
+		@IHostService private readonly hostService: IHostService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -113,6 +133,11 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}));
 
 		this.registerActions();
+
+		// Ensure visibility is correct when switching viewlets
+		this._register(this.onDidPaneCompositeOpen(composite => {
+			this.updateProjectSwitcherVisibility(composite.getId());
+		}));
 	}
 
 	private onDidChangeActivityBarLocation(): void {
@@ -289,6 +314,159 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				return that.configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_LOCATION, value);
 			}
 		}));
+	}
+
+	protected override createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
+		const titleLabelParams = super.createTitleLabel(parent);
+		const originalUpdateTitle = titleLabelParams.updateTitle;
+
+		const style = getWindow(parent).document.createElement('style');
+		style.textContent = `
+			.hide-explorer-headers .pane-header h3.title { display: none !important; }
+			.project-switcher-container { display: flex; align-items: center; width: 100%; height: 100%; }
+			.project-switcher-icon { margin-left: 4px; color: inherit; }
+		`;
+		getWindow(parent).document.head.appendChild(style);
+
+		this.switcherContainer = append(parent, $('div.project-switcher-container'));
+		this.switcherContainer.style.display = 'none';
+
+		this.projectSwitcher = append(this.switcherContainer, $('select.project-switcher')) as HTMLSelectElement;
+		this.projectSwitcher.style.color = 'inherit';
+		this.projectSwitcher.style.backgroundColor = 'transparent';
+		this.projectSwitcher.style.border = 'none';
+		this.projectSwitcher.style.fontWeight = 'bold';
+		this.projectSwitcher.style.fontSize = '14px';
+		this.projectSwitcher.style.width = 'auto';
+		this.projectSwitcher.style.outline = 'none';
+		this.projectSwitcher.style.cursor = 'pointer';
+
+		const iconSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		iconSvg.setAttribute('fill', 'none');
+		iconSvg.setAttribute('viewBox', '0 0 24 24');
+		iconSvg.setAttribute('stroke-width', '1.5');
+		iconSvg.setAttribute('stroke', 'currentColor');
+		iconSvg.classList.add('project-switcher-icon');
+		iconSvg.style.width = '16px';
+		iconSvg.style.height = '16px';
+		const iconPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+		iconPath.setAttribute('stroke-linecap', 'round');
+		iconPath.setAttribute('stroke-linejoin', 'round');
+		iconPath.setAttribute('d', 'M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9');
+		iconSvg.appendChild(iconPath);
+		this.switcherContainer.appendChild(iconSvg);
+
+		this.loadProjects();
+
+		this.projectSwitcher.addEventListener('change', (e) => {
+			const target = e.target as HTMLSelectElement;
+			const selectedPath = target.value;
+			if (selectedPath) {
+				// Get current workspace path
+				const currentPath = this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
+				// Only open if different from current project
+				if (selectedPath !== currentPath) {
+					const uri = URI.file(selectedPath);
+					this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: true });
+				}
+			}
+		});
+
+		return {
+			updateTitle: (id, title, keybinding) => {
+				this.updateProjectSwitcherVisibility(id, title, keybinding, originalUpdateTitle);
+			},
+			updateStyles: () => {
+				titleLabelParams.updateStyles();
+			}
+		};
+	}
+
+	private updateProjectSwitcherVisibility(id: string, title?: string, keybinding?: string, originalUpdateTitle?: (id: string, title: string, keybinding?: string) => void): void {
+		if (!this.switcherContainer || !this.projectSwitcher) {
+			return;
+		}
+
+		const isExplorer = id === 'workbench.view.explorer' || id.toLowerCase().includes('explorer');
+		const activeComposite = this.getActiveComposite();
+		console.log(`SidebarPart: updateVisibility(id: ${id}, isExplorer: ${isExplorer}, activeComposite: ${activeComposite?.getId()})`);
+
+		// 실제 활성 뷰가 Explorer인지 확인
+		const actuallyExplorer = activeComposite?.getId() === 'workbench.view.explorer';
+
+		if (actuallyExplorer) {
+			if (this.titleLabelElement) {
+				this.titleLabelElement.style.display = 'none';
+			}
+			this.switcherContainer.style.display = 'flex';
+			this.getContainer()?.classList.add('hide-explorer-headers');
+
+			if (this.projectSwitcher.options.length === 0) {
+				this.loadProjects();
+			}
+		} else {
+			if (this.titleLabelElement) {
+				this.titleLabelElement.style.display = '';
+			}
+			this.switcherContainer.style.display = 'none';
+			this.getContainer()?.classList.remove('hide-explorer-headers');
+			if (originalUpdateTitle && title !== undefined) {
+				originalUpdateTitle(id, title, keybinding);
+			}
+		}
+	}
+
+	private async loadProjects(): Promise<void> {
+		if (!this.projectSwitcher) {
+			return;
+		}
+		const select = this.projectSwitcher;
+		try {
+			const userHome = await this.pathService.userHome();
+			const projectsJsonUri = URI.joinPath(userHome, 'Documents', 'Gitbbon_Notes', 'projects.json');
+
+			const exists = await this.fileService.exists(projectsJsonUri);
+
+			if (!exists) {
+				console.warn('SidebarPart: projects.json not found at', projectsJsonUri.toString());
+				return;
+			}
+
+			const content = await this.fileService.readFile(projectsJsonUri);
+			const jsonString = content.value.toString();
+
+			let data;
+			try {
+				data = JSON.parse(jsonString);
+			} catch (e) {
+				console.error('SidebarPart: Failed to parse JSON', e);
+				return;
+			}
+
+			if (data && Array.isArray(data.projects)) {
+				// Clear existing options safely
+				while (select.firstChild) {
+					select.removeChild(select.firstChild);
+				}
+
+				// Get current workspace path to select it
+				const currentPath = this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
+
+				data.projects.forEach((p: IProject) => {
+					const option = document.createElement('option');
+					option.value = p.path;
+					option.textContent = p.name;
+					// Select current project
+					if (currentPath && p.path === currentPath) {
+						option.selected = true;
+					}
+					select.appendChild(option);
+				});
+			}
+
+		} catch (error) {
+			console.error('Failed to load projects.json', error);
+		}
 	}
 
 	toJSON(): object {

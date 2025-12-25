@@ -207,14 +207,7 @@ export class ProjectManager {
 	}
 
 	private getLatestProject(manifest: ProjectManifest): Project | undefined {
-		if (manifest.projects.length === 0) {
-			return undefined;
-		}
-		return manifest.projects.reduce((prev, current) => {
-			// ISO strings are lexicographically sortable, so string comparison works.
-			// Reversing logic: we want the LATEST (Max value)
-			return (prev.lastOpened > current.lastOpened) ? prev : current;
-		});
+		return manifest.projects[0];
 	}
 
 	private async updateLastOpened(projectName: string): Promise<void> {
