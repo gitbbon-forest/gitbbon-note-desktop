@@ -32,6 +32,7 @@ import { Separator } from '../../../../base/common/actions.js';
 import { ToggleActivityBarVisibilityActionId } from '../../actions/layoutActions.js';
 import { localize2 } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
@@ -44,6 +45,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 interface IProject {
 	name: string;
 	path: string;
+	lastModified?: string;
 }
 
 export class SidebarPart extends AbstractPaneCompositePart {
@@ -100,6 +102,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IPathService private readonly pathService: IPathService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -360,13 +363,25 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 		this.projectSwitcher.addEventListener('change', (e) => {
 			const target = e.target as HTMLSelectElement;
-			const selectedPath = target.value;
-			if (selectedPath) {
+			const selectedValue = target.value;
+
+			// "Manage projects..." 옵션 선택 시 대화상자 열기
+			if (selectedValue === '__manage__') {
+				this.showProjectManagementDialog();
+				// 이전 선택값으로 복원
+				const currentPath = this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
+				if (currentPath) {
+					target.value = currentPath;
+				}
+				return;
+			}
+
+			if (selectedValue) {
 				// Get current workspace path
 				const currentPath = this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
 				// Only open if different from current project
-				if (selectedPath !== currentPath) {
-					const uri = URI.file(selectedPath);
+				if (selectedValue !== currentPath) {
+					const uri = URI.file(selectedValue);
 					this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: true });
 					// Reset select to current project (since we opened a new window)
 					if (currentPath) {
@@ -466,11 +481,138 @@ export class SidebarPart extends AbstractPaneCompositePart {
 					}
 					select.appendChild(option);
 				});
+
+				// "Manage projects..." 옵션 추가 (Obsidian 스타일)
+				const separator = document.createElement('option');
+				separator.disabled = true;
+				separator.textContent = '──────────';
+				select.appendChild(separator);
+
+				const manageOption = document.createElement('option');
+				manageOption.value = '__manage__';
+				manageOption.textContent = 'Manage projects...';
+				select.appendChild(manageOption);
 			}
 
 		} catch (error) {
 			console.error('Failed to load projects.json', error);
 		}
+	}
+
+	/**
+	 * 프로젝트 관리 대화상자 표시
+	 * 기능: 목록 표시, 열기, 추가, 삭제, 이름 변경
+	 */
+	private async showProjectManagementDialog(): Promise<void> {
+		// projects.json에서 프로젝트 목록 로드
+		const userHome = await this.pathService.userHome();
+		const projectsJsonUri = URI.joinPath(userHome, 'Documents', 'Gitbbon_Notes', 'projects.json');
+
+		let projects: IProject[] = [];
+		try {
+			const exists = await this.fileService.exists(projectsJsonUri);
+			if (exists) {
+				const content = await this.fileService.readFile(projectsJsonUri);
+				const jsonString = content.value.toString();
+				const data = JSON.parse(jsonString);
+				if (data && Array.isArray(data.projects)) {
+					projects = data.projects;
+				}
+			}
+		} catch (error) {
+			console.error('Failed to load projects for management dialog', error);
+		}
+
+		// 현재 프로젝트 경로
+		const currentPath = this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
+
+		// QuickPick 아이템 구성
+		const items: QuickPickInput<IQuickPickItem>[] = [];
+
+		// 액션 메뉴
+		items.push({ type: 'separator', label: 'Actions' });
+
+		items.push({
+			id: 'action:add',
+			label: '$(add) Add New Project',
+			description: 'Create or add a new project'
+		});
+
+		// 프로젝트 목록
+		items.push({ type: 'separator', label: 'Projects' });
+
+		for (const project of projects) {
+			const isCurrent = project.path === currentPath;
+			const lastModified = project.lastModified
+				? new Date(project.lastModified).toLocaleDateString()
+				: 'Never';
+
+			items.push({
+				id: `project:${project.path}`,
+				label: `${isCurrent ? '$(check) ' : ''}${project.name}`,
+				description: isCurrent ? 'Current' : '',
+				detail: `Last modified: ${lastModified}`,
+				buttons: [
+					{
+						iconClass: 'codicon-edit',
+						tooltip: 'Rename'
+					},
+					{
+						iconClass: 'codicon-trash',
+						tooltip: 'Delete'
+					}
+				]
+			});
+		}
+
+		// QuickPick 표시
+		const quickPick = this.quickInputService.createQuickPick<IQuickPickItem>();
+		quickPick.title = 'Project Manager';
+		quickPick.placeholder = 'Select a project to open or an action';
+		quickPick.items = items as readonly IQuickPickItem[];
+		quickPick.matchOnDescription = true;
+		quickPick.matchOnDetail = true;
+
+		quickPick.onDidAccept(() => {
+			const selected = quickPick.selectedItems[0];
+			if (selected) {
+				const id = (selected as IQuickPickItem).id;
+				if (id === 'action:add') {
+					// TODO: 프로젝트 추가 로직 구현
+					console.log('[SidebarPart] Add project action triggered');
+				} else if (id?.startsWith('project:')) {
+					const projectPath = id.substring('project:'.length);
+					if (projectPath !== currentPath) {
+						const uri = URI.file(projectPath);
+						this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: true });
+					}
+				}
+			}
+			quickPick.hide();
+		});
+
+		quickPick.onDidTriggerItemButton(e => {
+			const id = (e.item as IQuickPickItem).id;
+			if (!id?.startsWith('project:')) {
+				return;
+			}
+			const projectPath = id.substring('project:'.length);
+			const buttonClass = e.button.iconClass;
+
+			if (buttonClass?.includes('edit')) {
+				// TODO: 이름 변경 로직 구현
+				console.log('[SidebarPart] Rename project:', projectPath);
+			} else if (buttonClass?.includes('trash')) {
+				// TODO: 삭제 로직 구현
+				console.log('[SidebarPart] Delete project:', projectPath);
+			}
+		});
+
+		quickPick.onDidHide(() => {
+			quickPick.dispose();
+		});
+
+		quickPick.show();
 	}
 
 	toJSON(): object {
