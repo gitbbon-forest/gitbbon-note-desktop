@@ -157,6 +157,12 @@ export const App = () => {
 						text: cursorContext,
 					});
 					break;
+				// [New] AI 제안 적용
+				case 'applySuggestions':
+					if (message.changes && Array.isArray(message.changes)) {
+						editorRef.current?.applySuggestions(message.changes);
+					}
+					break;
 			}
 		};
 

@@ -17,7 +17,6 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 	private static activeWebviewPanel: vscode.WebviewPanel | null = null;
 	private static activeDocument: vscode.TextDocument | null = null;
 	private static pendingSelectionResolve: ((value: string | null) => void) | null = null;
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private static pendingDetailResolve: ((value: any | null) => void) | null = null;
 
 	constructor(private readonly context: vscode.ExtensionContext) { }
@@ -94,6 +93,19 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			return null;
 		}
 		return this.activeDocument.getText();
+	}
+
+	/**
+	 * 현재 활성화된 Editor에 AI 수정 사항 제안 적용
+	 */
+	public static async applySuggestions(changes: any[]): Promise<void> {
+		if (!this.activeWebviewPanel) {
+			return;
+		}
+		this.activeWebviewPanel.webview.postMessage({
+			type: 'applySuggestions',
+			changes
+		});
 	}
 
 	/**

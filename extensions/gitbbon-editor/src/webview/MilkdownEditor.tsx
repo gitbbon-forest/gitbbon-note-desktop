@@ -6,6 +6,10 @@ import { editorViewCtx, parserCtx } from '@milkdown/core';
 import "@milkdown/crepe/theme/common/style.css";
 // import "@milkdown/crepe/theme/frame.css"; // Optional: Frame theme
 
+// gitbbon custom: Inline Suggestion
+import { suggestionPlugin, suggestionInsertMark, suggestionDeleteMark, applyAISuggestions } from './suggestionPlugin';
+import './suggestion.css';
+
 interface MilkdownEditorProps {
 	initialContent: string;
 	onChange: (markdown: string) => void;
@@ -17,6 +21,7 @@ export interface MilkdownEditorRef {
 	getSelectedText: () => string | null;
 	getSelectionDetail: () => { text: string; before: string; after: string } | null;
 	getCursorContext: () => string | null;
+	applySuggestions: (changes: any[]) => void;
 }
 
 // gitbbon custom: AI 물어보기 버튼 아이콘 (sparkle)
@@ -57,7 +62,7 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 			}
 		});
 
-		// Configure Listener
+		// Configure Listener & Plugins
 		crepe.editor
 			.config((ctx) => {
 				ctx.get(listenerCtx).markdownUpdated((ctx, markdown, prevMarkdown) => {
@@ -66,7 +71,10 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 					}
 				});
 			})
-			.use(listener);
+			.use(listener)
+			.use(suggestionInsertMark)
+			.use(suggestionDeleteMark)
+			.use(suggestionPlugin);
 
 		return crepe;
 	}, [onAskAI]);
@@ -166,6 +174,18 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 				});
 			}
 			return context;
+		},
+		// gitbbon custom: AI 제안 적용하기
+		applySuggestions: (changes: any[]) => {
+			if (loading) return;
+			const editor = getInstance();
+			if (!editor) return;
+
+			if (typeof (editor as any).action === 'function') {
+				(editor as any).action((ctx: any) => {
+					applyAISuggestions(ctx, changes);
+				});
+			}
 		}
 	}));
 
