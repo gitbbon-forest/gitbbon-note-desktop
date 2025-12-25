@@ -93,7 +93,6 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 
 			for await (const textPart of stream) {
 				chunkCount++;
-				console.log(`[GitbbonChat] Sending chunk #${chunkCount}`);
 				this._webviewView.webview.postMessage({
 					type: 'chat-chunk',
 					chunk: textPart

@@ -39,10 +39,14 @@ export function createEditorTools(messages: ModelMessage[]) {
 			description: '현재 활성화된 에디터에서 사용자가 드래그하여 선택한 텍스트를 가져옵니다. "이거", "선택된 부분" 등을 지칭할 때 사용합니다.',
 			inputSchema: z.object({}),
 			execute: async () => {
+				console.log('[editorTools] get_selection: 실행 시작');
+
 				// 1. 일반 TextEditor 확인
 				const editor = vscode.window.activeTextEditor;
 				if (editor && !editor.selection.isEmpty) {
-					return editor.document.getText(editor.selection);
+					const result = editor.document.getText(editor.selection);
+					console.log('[editorTools] get_selection: 완료 (TextEditor)', { length: result.length });
+					return result;
 				}
 
 				// 2. gitbbon-editor (Milkdown) 확인
@@ -50,6 +54,7 @@ export function createEditorTools(messages: ModelMessage[]) {
 					try {
 						const selection = await vscode.commands.executeCommand<string | null>('gitbbon.editor.getSelection');
 						if (selection) {
+							console.log('[editorTools] get_selection: 완료 (gitbbon-editor)', { length: selection.length });
 							return selection;
 						}
 					} catch (e) {
@@ -57,6 +62,7 @@ export function createEditorTools(messages: ModelMessage[]) {
 					}
 				}
 
+				console.log('[editorTools] get_selection: 완료 (선택 없음)');
 				return "Error: 선택된 텍스트가 없습니다.";
 			},
 		}),
@@ -65,10 +71,14 @@ export function createEditorTools(messages: ModelMessage[]) {
 			description: '현재 활성화된 파일의 전체 내용을 가져옵니다. "파일 전체", "문맥", "코드 전체" 등을 파악해야 할 때 사용합니다.',
 			inputSchema: z.object({}),
 			execute: async () => {
+				console.log('[editorTools] get_current_file: 실행 시작');
+
 				// 1. 일반 TextEditor 확인
 				const editor = vscode.window.activeTextEditor;
 				if (editor) {
-					return editor.document.getText();
+					const result = editor.document.getText();
+					console.log('[editorTools] get_current_file: 완료 (TextEditor)', { length: result.length });
+					return result;
 				}
 
 				// 2. gitbbon-editor (Milkdown) 확인
@@ -76,6 +86,7 @@ export function createEditorTools(messages: ModelMessage[]) {
 					try {
 						const content = await vscode.commands.executeCommand<string | null>('gitbbon.editor.getContent');
 						if (content) {
+							console.log('[editorTools] get_current_file: 완료 (gitbbon-editor)', { length: content.length });
 							return content;
 						}
 					} catch (e) {
@@ -83,6 +94,7 @@ export function createEditorTools(messages: ModelMessage[]) {
 					}
 				}
 
+				console.log('[editorTools] get_current_file: 완료 (에디터 없음)');
 				return "Error: 활성화된 에디터가 없습니다.";
 			},
 		}),
@@ -94,7 +106,10 @@ export function createEditorTools(messages: ModelMessage[]) {
 				query: z.string().optional().describe('검색 키워드 (선택). 특정 주제의 대화를 찾을 때 사용'),
 			}),
 			execute: async ({ count, query }) => {
+				console.log('[editorTools] get_chat_history: 실행 시작', { count, query });
+
 				if (messages.length === 0) {
+					console.log('[editorTools] get_chat_history: 완료 (대화 없음)');
 					return "Error: 이전 대화가 없습니다.";
 				}
 
@@ -144,6 +159,7 @@ export function createEditorTools(messages: ModelMessage[]) {
 					return `[${m.role}]: ${truncated}`;
 				}).join('\n\n');
 
+				console.log('[editorTools] get_chat_history: 완료', { count: selectedMessages.length, length: formatted.length });
 				return formatted;
 			},
 		}),
@@ -158,8 +174,11 @@ export function createEditorTools(messages: ModelMessage[]) {
 				maxResults: z.number().min(1).max(30).optional().describe('최대 검색 결과 수 (기본: 3)'),
 			}),
 			execute: async ({ query, isRegex, filePattern, context, maxResults }) => {
+				console.log('[editorTools] search_in_workspace: 실행 시작', { query, isRegex, filePattern, context, maxResults });
+
 				const workspaceFolders = vscode.workspace.workspaceFolders;
 				if (!workspaceFolders || workspaceFolders.length === 0) {
+					console.log('[editorTools] search_in_workspace: 완료 (워크스페이스 없음)');
 					return "Error: 열린 워크스페이스가 없습니다.";
 				}
 
@@ -242,10 +261,13 @@ export function createEditorTools(messages: ModelMessage[]) {
 				}
 
 				if (matches.length === 0) {
+					console.log('[editorTools] search_in_workspace: 완료 (결과 없음)');
 					return `"${query}"에 대한 검색 결과가 없습니다.`;
 				}
 
-				return `Found ${matches.length} files with matches:\n\n` + matches.join('\n\n');
+				const result = `Found ${matches.length} files with matches:\n\n` + matches.join('\n\n');
+				console.log('[editorTools] search_in_workspace: 완료', { matchCount: matches.length, length: result.length });
+				return result;
 			},
 		}),
 	};

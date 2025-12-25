@@ -1,4 +1,4 @@
-import { generateText, streamText, type ModelMessage } from 'ai';
+import { generateText, streamText, ToolLoopAgent, type ModelMessage } from 'ai';
 import { createEditorTools } from '../tools/editorTools';
 
 // --- 상수: Manager 시스템 프롬프트 (API 레벨 캐싱 효율을 위해 분리) ---
@@ -93,24 +93,24 @@ export class AIService {
 		let managerDirectAnswer: string | undefined;
 
 		try {
-			const { toolResults: results, text: managerText } = await generateText({
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			// ToolLoopAgent: AI SDK 6의 production-ready tool loop 구현체
+			const managerAgent = new ToolLoopAgent({
 				model: managerModelName,
-				// messages 형식으로 시스템 프롬프트 전달 (OpenAI 자동 캐싱: prefix 1024토큰 이상 시 적용)
-				messages: [
-					{ role: 'system', content: MANAGER_SYSTEM_PROMPT },
-					{ role: 'user', content: userInput }
-				],
-				tools: tools,
+				instructions: MANAGER_SYSTEM_PROMPT,
+				tools
 			});
-			toolResults = results;
+
+			const result = await managerAgent.generate({
+				prompt: userInput,
+			});
+
+			toolResults = result.toolResults;
+			console.log(`[GitbbonChat] Phase 1: Manager finished. Tools called: ${toolResults.length}`);
 
 			// 도구 호출 없이 Manager가 직접 답변한 경우
-			if (toolResults.length === 0 && managerText && managerText.trim().length > 0) {
-				managerDirectAnswer = managerText;
+			if (toolResults.length === 0 && result.text && result.text.trim().length > 0) {
+				managerDirectAnswer = result.text;
 				console.log(`[GitbbonChat] Phase 1: Manager answered directly(no tools needed)`);
-			} else {
-				console.log(`[GitbbonChat] Phase 1: Manager finished.Tools called: ${toolResults} `);
 			}
 		} catch (e) {
 			console.warn(`[GitbbonChat] Manager phase failed(possibly model missing).`, e);
