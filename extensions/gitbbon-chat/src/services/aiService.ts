@@ -1,43 +1,50 @@
-import { generateText, streamText, ToolLoopAgent, type ModelMessage } from 'ai';
-import { createEditorTools } from '../tools/editorTools';
+import { streamText, ToolLoopAgent, type ModelMessage } from 'ai';
+import { createEditorTools, isGitbbonEditorActive } from '../tools/editorTools';
+import * as vscode from 'vscode';
 
-// --- 상수: Manager 시스템 프롬프트 (API 레벨 캐싱 효율을 위해 분리) ---
-const MANAGER_SYSTEM_PROMPT = `당신은 에디터 문맥 수집가이자 간단한 질문 응답자입니다.
+// --- CONSTANT: Manager System Prompt (Base) ---
+// This prompt guides the Manager to collect context or answer directly.
+// It is designed to be appended with [Current Environment Context] dynamically.
+const MANAGER_SYSTEM_PROMPT = `You are an intelligent "Editor Context Manager" and a simple Q&A assistant.
 
-[역할]
-1. 에디터 컨텍스트가 필요한 요청 → 도구 호출
-2. 컨텍스트 없이 답변 가능한 요청 → 직접 텍스트로 답변
+[Role]
+1. If editor context is needed for the request: Call the appropriate tools to gather it.
+2. If the request can be answered without context (e.g., greetings, general knowledge): Answer directly via text.
 
-[도구 선택 기준]
-1. get_selection() - 현재 선택된 텍스트가 필요할 때
-   - 대상: 선택 영역, 이 코드, 이거, 여기, 해당 부분 등 지시어 사용 시
-   - 작업: 수정, 리팩터링, 설명, 리뷰, 번역, 디버깅, 최적화 요청 시
+[Tool Descriptions & Selection Criteria]
+1. get_selection()
+   - Use when: The user refers to "selected text", "this code", "this part", "here".
+   - Actions: Refactoring, explaining, translating, or debugging the *specific* selection.
 
-2. get_current_file() - 파일 전체 맥락이 필요할 때
-   - 대상: 전체, 파일, 문서, 구조, 흐름 언급 시
-   - 작업: 전체 분석, 구조 파악, 아키텍처 질문 시
+2. get_current_file()
+   - Use when: The user needs context of the *entire* file (structure, patterns, full scope).
+   - triggers: "current file", "whole file", "this document", "structure".
 
-3. get_chat_history(count, query) - 이전 대화 참조가 필요할 때
-   - 대상: 아까, 이전에, 방금, 다시, 그거 등 과거 참조 시
+3. get_chat_history(count, query)
+   - Use when: The user refers to previous turns.
+   - triggers: "before", "previously", "last time", "what we discussed", "again".
 
-4. search_in_workspace(query, isRegex?, filePattern?, context?, maxResults?) - 프로젝트 전체 검색이 필요할 때
-   - 대상: "어디에", "찾아줘", "검색", "사용하는 곳", "호출하는 부분" 등
-   - 작업: 변수/함수 사용처 찾기, TODO/FIXME 수집, 특정 패턴 검색
-   - 파라미터:
-     - context: 검색어 앞뒤로 포함할 문자 수 (0-500, 기본: 100). 더 넓은 문맥이 필요하면 늘려라.
-     - maxResults: 최대 검색 결과 파일 수 (1-30, 기본: 3). 많은 결과가 필요하면 늘려라.
-   - 정규식 예: "(fetch|axios\\.)" → API 호출 패턴 검색
-   - 파일 패턴 예: "**/*.ts" → TypeScript 파일만 검색
+4. search_in_workspace(query, isRegex?, filePattern?, context?, maxResults?)
+   - Use when: The user asks to find something across the project.
+   - triggers: "where is", "find usage", "search for", "who calls this".
+   - Note: Use sensible 'context' (default 100) and 'maxResults' (default 3) unless user asks for more.
 
-[직접 답변 가능한 경우 - 도구 호출 없이 텍스트로 응답]
-- 인사: 안녕, 고마워, 잘가 등
-- 일반 질문: 개념 설명, 문법 질문, 일반 지식
-- 간단한 대화: 잡담, 확인, 칭찬
+5. read_file(filePath)
+   - Use when: The user asks to read a specific file OTHER than the active one.
+   - triggers: "read that file", "check utils.ts", "look at the second tab".
+   - Note: Pick 'filePath' from the [Open Files] list or valid project paths.
 
-[규칙]
-- 복합 요청 시 여러 도구 호출 가능
-- 불확실하면 도구 호출하지 않고 직접 답변
-- 직접 답변 시 친절하고 자연스럽게 응답
+[General Rules]
+- You can call multiple tools if needed.
+- If unsure, prefer answering directly or asking for clarification (but try to be helpful first).
+- BE PRECISE. Do not call tools purely for guessing.
+
+[Dynamic Context Rules - STRICTLY FOLLOW]
+The user will provide [Current Environment Context].
+1. If 'Has Selection' is 'No': DO NOT call get_selection().
+2. If 'Chat History Count' is 0: DO NOT call get_chat_history().
+3. If 'Active File' is 'None': DO NOT call get_current_file() or get_selection().
+4. Consult 'Open Files' list to understand references to "that file" or "the other tab".
 `;
 
 
@@ -85,18 +92,108 @@ export class AIService {
 		const tools = createEditorTools(messages);
 		const managerModelName = 'openai/gpt-5-nano';
 
+
+		// Gather Environment Context
+		const activeEditor = vscode.window.activeTextEditor;
+		const isMilkdown = isGitbbonEditorActive();
+
+		let selectionPreview = 'None';
+		let cursorContext = 'None';
+		let isTruncated = false;
+		let activeFile = 'None';
+
+		const SELECTION_LIMIT = 1000;
+
+		if (activeEditor) {
+			// 1. Standard Text Editor
+			activeFile = vscode.workspace.asRelativePath(activeEditor.document.uri);
+
+			if (!activeEditor.selection.isEmpty) {
+				// Case A: Selection exists -> Capture up to 1000 chars
+				const text = activeEditor.document.getText(activeEditor.selection);
+				isTruncated = text.length > SELECTION_LIMIT;
+				selectionPreview = text.slice(0, SELECTION_LIMIT) + (isTruncated ? '... (truncated)' : '');
+			} else {
+				// Case B: No Selection -> Capture Cursor Context (10 lines around)
+				const cursorLine = activeEditor.selection.active.line;
+				const startLine = Math.max(0, cursorLine - 5);
+				const endLine = Math.min(activeEditor.document.lineCount - 1, cursorLine + 5);
+				const range = new vscode.Range(startLine, 0, endLine, Number.MAX_SAFE_INTEGER);
+				cursorContext = activeEditor.document.getText(range);
+			}
+		} else if (isMilkdown) {
+			// 2. Milkdown Custom Editor
+			const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+			activeFile = activeTab?.label || 'Milkdown Doc';
+			try {
+				// Try getting selection first
+				const selection = await vscode.commands.executeCommand<string | null>('gitbbon.editor.getSelection');
+				if (selection && selection.length > 0) {
+					isTruncated = selection.length > SELECTION_LIMIT;
+					selectionPreview = selection.slice(0, SELECTION_LIMIT) + (isTruncated ? '... (truncated)' : '');
+				} else {
+					// If no selection, try getting cursor context
+					const context = await vscode.commands.executeCommand<string | null>('gitbbon.editor.getCursorContext');
+					if (context && context.length > 0) {
+						cursorContext = context;
+					}
+				}
+			} catch (e) {
+				console.warn('[GitbbonChat] Failed to check milkdown context:', e);
+			}
+		}
+
+		console.log(`[GitbbonChat] Gathered Context: isMilkdown=${isMilkdown}, selectionLen=${selectionPreview.length}, cursorContextLen=${cursorContext.length}, activeFile=${activeFile}`);
+
+		const messageCount = messages.length;
+
+		const openTabs = vscode.window.tabGroups.all
+			.flatMap(group => group.tabs)
+			.map(tab => tab.label);
+
+		const environmentContext = `
+[Current Environment Context]
+- Active File: ${activeFile}
+
+- Selection Preview (Priority High):
+"""
+${selectionPreview}
+"""
+  (Rule: If this is NOT "None", assume user is talking about this code.
+   If text ends with "... (truncated)", call 'get_selection' to get full content.
+   Otherwise, use this text DIRECTLY.)
+
+- Cursor Context (Priority Medium):
+"""
+${cursorContext}
+"""
+  (Rule: Only used when Selection is "None".
+   This shows ~10 lines around the cursor. Use this for "fix this", "explain this" when nothing is selected.)
+
+- Chat History Count: ${messageCount}
+  (Rule: If 0, DO NOT call 'get_chat_history'.)
+
+- Open Files (Tabs):
+${openTabs.map(label => `  - ${label}`).join('\n')}
+  (Rule: Check this list if user says "that file" or "previous file".)
+`.trim();
+
 		console.log(`[GitbbonChat] Phase 1: Manager(${managerModelName}) starting...`);
+		console.log(`[GitbbonChat] Env Context: selectionPreview=${selectionPreview}, activeFile=${activeFile}, tabs=${openTabs.length}`);
 
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		let toolResults: any[] = [];
 		// Manager가 직접 답변 가능 여부 판단
 		let managerDirectAnswer: string | undefined;
 
+		const instructions = MANAGER_SYSTEM_PROMPT + '\n\n' + environmentContext;
+		console.log(`[GitbbonChat] Instructions: ${instructions}`);
+
 		try {
 			// ToolLoopAgent: AI SDK 6의 production-ready tool loop 구현체
 			const managerAgent = new ToolLoopAgent({
 				model: managerModelName,
-				instructions: MANAGER_SYSTEM_PROMPT,
+				instructions,
 				tools
 			});
 
@@ -146,7 +243,17 @@ export class AIService {
 
 		console.log(`[GitbbonChat] Phase 2: Worker(${workerModelName}) starting...`);
 
-		const WORKER_BASE_PROMPT = '당신은 글쓰기 도우미 AI입니다. Manager가 수집한 컨텍스트를 바탕으로 요청을 처리하세요.';
+		const WORKER_BASE_PROMPT = `You are a professional coding assistant and technical writer.
+The Manager has already collected the necessary context for you.
+
+[Your Goal]
+Answer the user's request based STRICTLY on the provided [Context Info].
+
+[Rules]
+- If the Manager provided a file content, use it to answer implementation questions.
+- If the Manager provided selection, focus your answer on that snippet.
+- Be concise, accurate, and helpful.
+`;
 
 		const dynamicContext = `
 ${contextInfo}

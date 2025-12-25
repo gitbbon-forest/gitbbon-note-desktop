@@ -42,6 +42,27 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 	}
 
 	/**
+	 * 현재 활성화된 Gitbbon Editor에서 커서 주변 문맥 가져오기
+	 */
+	public static async getCursorContext(): Promise<string | null> {
+		if (!this.activeWebviewPanel) {
+			return null;
+		}
+
+		return new Promise((resolve) => {
+			this.pendingSelectionResolve = resolve;
+			this.activeWebviewPanel!.webview.postMessage({ type: 'getCursorContext' });
+			// 1초 타임아웃
+			setTimeout(() => {
+				if (this.pendingSelectionResolve === resolve) {
+					this.pendingSelectionResolve = null;
+					resolve(null);
+				}
+			}, 1000);
+		});
+	}
+
+	/**
 	 * 현재 활성화된 Gitbbon Editor의 전체 콘텐츠 가져오기
 	 */
 	public static getContent(): string | null {

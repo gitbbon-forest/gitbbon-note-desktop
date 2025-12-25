@@ -21,7 +21,7 @@ import type { ModelMessage } from 'ai';
 /**
  * 현재 활성화된 에디터가 gitbbon-editor (Milkdown)인지 확인
  */
-function isGitbbonEditorActive(): boolean {
+export function isGitbbonEditorActive(): boolean {
 	const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
 	if (activeTab?.input instanceof vscode.TabInputCustom) {
 		return activeTab.input.viewType === 'gitbbon.editor';
@@ -268,6 +268,38 @@ export function createEditorTools(messages: ModelMessage[]) {
 				const result = `Found ${matches.length} files with matches:\n\n` + matches.join('\n\n');
 				console.log('[editorTools] search_in_workspace: 완료', { matchCount: matches.length, length: result.length });
 				return result;
+			},
+		}),
+
+		read_file: tool({
+			description: '특정 파일의 내용을 읽어옵니다. "Open Files" 목록에 있는 파일이나 검색 결과로 나온 파일을 자세히 볼 때 사용합니다.',
+			inputSchema: z.object({
+				filePath: z.string().describe('읽을 파일의 경로 (상대 경로 또는 절대 경로)'),
+			}),
+			execute: async ({ filePath }) => {
+				console.log('[editorTools] read_file: 실행 시작', { filePath });
+
+				try {
+					let fileUri: vscode.Uri;
+					if (filePath.startsWith('/') || filePath.match(/^[a-zA-Z]:\\/)) {
+						fileUri = vscode.Uri.file(filePath);
+					} else {
+						const workspaceFolders = vscode.workspace.workspaceFolders;
+						if (!workspaceFolders || workspaceFolders.length === 0) {
+							return "Error: 워크스페이스가 열려있지 않아 상대 경로를 찾을 수 없습니다.";
+						}
+						fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
+					}
+
+					const readData = await vscode.workspace.fs.readFile(fileUri);
+					const content = Buffer.from(readData).toString('utf-8');
+
+					console.log('[editorTools] read_file: 완료', { filePath, length: content.length });
+					return content;
+				} catch (e) {
+					console.error('[editorTools] read_file failed:', e);
+					return `Error: 파일을 읽을 수 없습니다. 경로가 올바른지 확인하세요 (${filePath}). ${e}`;
+				}
 			},
 		}),
 	};

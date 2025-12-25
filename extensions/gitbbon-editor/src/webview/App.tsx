@@ -140,6 +140,15 @@ export const App = () => {
 						text: selectedText,
 					});
 					break;
+				// gitbbon-chat에서 커서 문맥 요청 (선택 없을 시)
+				case 'getCursorContext':
+					const cursorContext = editorRef.current?.getCursorContext() || null;
+					vscode.postMessage({
+						type: 'selectionResponse', // selectionResponse와 같은 채널(타입)을 사용하거나 cursorContextResponse 등으로 분리 가능하지만, Promise 관리가 되어있는 editorProvider쪽 로직 재사용을 위해선 타입을 맞추거나 변경해야 함.
+						// EditorProvider.ts의 handleSelectionResponse가 범용적으로 텍스트를 받으므로, 여기서 같은 타입을 재사용하는 것이 가장 효율적임.
+						text: cursorContext,
+					});
+					break;
 			}
 		};
 

@@ -15,6 +15,7 @@ interface MilkdownEditorProps {
 export interface MilkdownEditorRef {
 	setContent: (markdown: string) => void;
 	getSelectedText: () => string | null;
+	getCursorContext: () => string | null;
 }
 
 // gitbbon custom: AI 물어보기 버튼 아이콘 (sparkle)
@@ -115,6 +116,31 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 				});
 			}
 			return selectedText;
+			return selectedText;
+		},
+		// gitbbon custom: 커서 주변 문맥 가져오기
+		getCursorContext: (): string | null => {
+			if (loading) return null;
+			const editor = getInstance();
+			if (!editor) return null;
+
+			let context: string | null = null;
+			if (typeof (editor as any).action === 'function') {
+				(editor as any).action((ctx: any) => {
+					const view = ctx.get(editorViewCtx);
+					const { state } = view;
+					const { from, to } = state.selection;
+
+					// 선택 영역이 비어있을 때만 커서 컨텍스트 수집 (선택 영역이 있으면 null 반환하여 selectionPreview 우선)
+					if (from === to) {
+						const docSize = state.doc.content.size;
+						const start = Math.max(0, from - 500); // 이전 500자 (약 5-10줄)
+						const end = Math.min(docSize, to + 500);   // 이후 500자
+						context = state.doc.textBetween(start, end, '\n');
+					}
+				});
+			}
+			return context;
 		}
 	}));
 
