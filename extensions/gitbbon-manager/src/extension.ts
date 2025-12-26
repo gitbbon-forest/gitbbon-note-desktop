@@ -85,6 +85,50 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	);
 	context.subscriptions.push(reallyFinalCommand);
 
+	// Register deleteProject command (called from SidebarPart project switcher)
+	const deleteProjectCommand = vscode.commands.registerCommand(
+		'gitbbon.manager.deleteProject',
+		async (args: { projectPath: string; deleteRemote?: boolean }) => {
+			console.log('[Extension] Delete project command triggered:', args);
+
+			if (!args.projectPath) {
+				console.error('[Extension] No project path provided');
+				return { success: false, message: 'No project path provided' };
+			}
+
+			try {
+				// 원격 삭제가 요청된 경우
+				if (args.deleteRemote) {
+					const remoteUrl = await projectManager.getRemoteUrl(args.projectPath);
+					if (remoteUrl) {
+						// URL에서 저장소 이름 추출 (예: https://github.com/user/gitbbon-note-xxx.git)
+						const repoName = remoteUrl.split('/').pop()?.replace('.git', '');
+						if (repoName) {
+							const success = await githubSyncManager.deleteGitHubRepo(repoName);
+							if (!success) {
+								console.warn('[Extension] Failed to delete remote repo, continuing with local delete');
+								return { success: false, message: 'Failed to delete remote repository' };
+							}
+						}
+					}
+				}
+
+				// 로컬 프로젝트 삭제
+				const success = await projectManager.deleteProject(args.projectPath, true);
+				if (success) {
+					console.log('[Extension] Project deleted successfully');
+					return { success: true, message: 'Project deleted' };
+				} else {
+					return { success: false, message: 'Failed to delete project' };
+				}
+			} catch (error) {
+				console.error('[Extension] Delete project failed:', error);
+				return { success: false, message: String(error) };
+			}
+		}
+	);
+	context.subscriptions.push(deleteProjectCommand);
+
 	// 30-minute Periodic Sync (Silent mode)
 	const syncInterval = setInterval(() => {
 		console.log('[Extension] Triggering periodic sync (30m, Silent)...');

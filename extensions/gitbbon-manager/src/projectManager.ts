@@ -333,6 +333,54 @@ export class ProjectManager {
 		}
 	}
 
+	/**
+	 * 프로젝트 삭제 (로컬)
+	 * @param projectPath 삭제할 프로젝트 경로
+	 * @param deleteFolder true이면 로컬 폴더도 삭제
+	 * @returns 삭제 성공 여부
+	 */
+	public async deleteProject(projectPath: string, deleteFolder: boolean = true): Promise<boolean> {
+		console.log(`[ProjectManager] Deleting project: ${projectPath}, deleteFolder: ${deleteFolder}`);
+
+		try {
+			// 1. 로컬 폴더 삭제 (선택적)
+			if (deleteFolder && fs.existsSync(projectPath)) {
+				await fs.promises.rm(projectPath, { recursive: true, force: true });
+				console.log(`[ProjectManager] Deleted project folder: ${projectPath}`);
+			}
+
+			// 2. 매니페스트에서 제거
+			const manifest = await this.loadManifest();
+			if (manifest) {
+				const originalLength = manifest.projects.length;
+				manifest.projects = manifest.projects.filter(p => path.normalize(p.path) !== path.normalize(projectPath));
+				if (manifest.projects.length < originalLength) {
+					await this.saveManifest(manifest);
+					console.log(`[ProjectManager] Removed project from manifest`);
+				}
+			}
+
+			return true;
+		} catch (error) {
+			console.error('[ProjectManager] Failed to delete project:', error);
+			return false;
+		}
+	}
+
+	/**
+	 * 프로젝트의 원격 저장소 URL 가져오기
+	 * @param projectPath 프로젝트 경로
+	 * @returns 원격 URL 또는 null
+	 */
+	public async getRemoteUrl(projectPath: string): Promise<string | null> {
+		try {
+			const url = await this.execGit(['remote', 'get-url', 'origin'], projectPath, { silent: true });
+			return url || null;
+		} catch {
+			return null;
+		}
+	}
+
 	// =====================================================
 	// Git Helper Methods for 3-Layer Save System
 	// =====================================================

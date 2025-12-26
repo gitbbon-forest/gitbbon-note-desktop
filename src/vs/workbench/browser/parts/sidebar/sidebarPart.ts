@@ -711,8 +711,86 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 				inputBox.show();
 			} else if (buttonClass?.includes('trash')) {
-				// TODO: 삭제 로직 구현
-				console.log('[SidebarPart] Delete project:', projectPath);
+				// 삭제 로직 구현
+				quickPick.hide();
+
+				const project = projects.find(p => p.path === projectPath);
+				if (!project) {
+					return;
+				}
+
+				// 현재 열린 프로젝트는 삭제 불가
+				if (projectPath === currentPath) {
+					const { window: vsWindow } = await import('vscode');
+					vsWindow.showWarningMessage('현재 열려있는 프로젝트는 삭제할 수 없습니다. 다른 프로젝트를 연 후 시도해 주세요.');
+					return;
+				}
+
+				// 원격 저장소 존재 여부 확인 (간단히 .git/config에서 remote origin 확인)
+				let hasRemote = false;
+				try {
+					const gitConfigUri = URI.joinPath(URI.file(projectPath), '.git', 'config');
+					const configExists = await this.fileService.exists(gitConfigUri);
+					if (configExists) {
+						const content = await this.fileService.readFile(gitConfigUri);
+						hasRemote = content.value.toString().includes('[remote "origin"]');
+					}
+				} catch {
+					// 무시
+				}
+
+				// 삭제 범위 선택 (원격 저장소가 있는 경우에만)
+				let deleteRemote = false;
+				if (hasRemote) {
+					const { window: vsWindow } = await import('vscode');
+					const remoteChoice = await vsWindow.showQuickPick([
+						{ label: '$(folder) 로컬만 삭제', description: '원격 저장소는 유지됩니다', value: false },
+						{ label: '$(cloud) 로컬 + 원격 삭제', description: '⚠️ GitHub 저장소도 삭제됩니다', value: true }
+					], {
+						placeHolder: '원격 저장소도 함께 삭제할까요?',
+						title: '삭제 범위 선택'
+					});
+
+					if (remoteChoice === undefined) {
+						return; // 취소됨
+					}
+					deleteRemote = remoteChoice.value;
+				}
+
+				// 최종 확인
+				const { window: vsWindow } = await import('vscode');
+				const confirmMessage = deleteRemote
+					? `'${project.name}' 프로젝트와 GitHub 저장소를 삭제합니다. 이 작업은 되돌릴 수 없습니다!`
+					: `'${project.name}' 프로젝트를 삭제합니다. 이 작업은 되돌릴 수 없습니다!`;
+
+				const confirm = await vsWindow.showWarningMessage(
+					confirmMessage,
+					{ modal: true },
+					'삭제'
+				);
+
+				if (confirm !== '삭제') {
+					return;
+				}
+
+				// 삭제 실행 (gitbbon-manager 익스텐션 명령어 호출)
+				try {
+					const { commands } = await import('vscode');
+					const result = await commands.executeCommand('gitbbon.manager.deleteProject', {
+						projectPath: projectPath,
+						deleteRemote: deleteRemote
+					}) as { success: boolean; message: string } | undefined;
+
+					if (result?.success) {
+						vsWindow.showInformationMessage(`'${project.name}' 프로젝트가 삭제되었습니다.`);
+						// 프로젝트 스위처 새로고침
+						await this.loadProjects();
+					} else {
+						vsWindow.showErrorMessage(`프로젝트 삭제 실패: ${result?.message || '알 수 없는 오류'}`);
+					}
+				} catch (error) {
+					vsWindow.showErrorMessage(`프로젝트 삭제 실패: ${error}`);
+				}
 			}
 		});
 

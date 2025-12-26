@@ -376,6 +376,46 @@ export class GitHubSyncManager {
 		}
 	}
 
+	/**
+	 * GitHub 저장소 삭제
+	 * @param repoName 저장소 이름 (gitbbon-note-xxx 형식)
+	 * @returns 성공 여부
+	 * @note delete_repo 스코프가 필요합니다
+	 */
+	public async deleteGitHubRepo(repoName: string): Promise<boolean> {
+		if (!this.session) {
+			console.warn('[GitHubSyncManager] Not authenticated, cannot delete repo');
+			return false;
+		}
+
+		try {
+			console.log(`[GitHubSyncManager] Attempting to delete GitHub repo: ${repoName}`);
+
+			// GitHub API: DELETE /repos/{owner}/{repo}
+			const response = await this.fetch(
+				`https://api.github.com/repos/${this.session.account.label}/${repoName}`,
+				{ method: 'DELETE' }
+			);
+
+			if (response.status === 204) {
+				console.log(`[GitHubSyncManager] ✅ Deleted GitHub repo: ${repoName}`);
+				return true;
+			} else if (response.status === 403) {
+				console.error('[GitHubSyncManager] ❌ No permission to delete repo (delete_repo scope required)');
+				return false;
+			} else if (response.status === 404) {
+				console.warn(`[GitHubSyncManager] ⚠️ Repo not found on GitHub: ${repoName}`);
+				return true; // Consider it success if already deleted
+			} else {
+				console.error(`[GitHubSyncManager] ❌ Failed to delete repo: ${response.status}`);
+				return false;
+			}
+		} catch (e) {
+			console.error('[GitHubSyncManager] Error deleting repo:', e);
+			return false;
+		}
+	}
+
 	private async fetch(url: string, options: any = {}): Promise<Response> {
 		if (!this.session) throw new Error('Not authenticated');
 
