@@ -48,56 +48,96 @@ export class ProjectManager {
 				await fs.promises.mkdir(this.rootPath, { recursive: true });
 			}
 
-			// Ensure manifest exists
-			console.log('[ProjectManager] Loading project manifest...');
-			let manifest = await this.loadManifest();
-			if (!manifest) {
-				console.log('[ProjectManager] No manifest found, creating default...');
-				manifest = await this.createDefaultManifest();
-			}
-			console.log(`[ProjectManager] Manifest loaded with ${manifest.projects.length} projects`);
-
-			// Check if we are already in a Gitbbon project
+			// Check if we are already in a Gitbbon project (inside Gitbbon_Notes)
 			const currentFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-			if (currentFolder) {
-				console.log(`[ProjectManager] Current workspace folder: ${currentFolder}`);
-				const matchedProject = manifest.projects.find(p => p.path === currentFolder || path.normalize(p.path) === path.normalize(currentFolder));
-				if (matchedProject) {
-					console.log(`[ProjectManager] Matched current folder to project: ${matchedProject.name}`);
-					// Update timestamp
-					await this.updateLastOpened(matchedProject.name);
-					console.log(`[ProjectManager] Updated lastOpened for project: ${matchedProject.name}`);
-					console.log('[ProjectManager] Startup completed - already in Gitbbon project');
-					return;
+			if (currentFolder && currentFolder.startsWith(this.rootPath)) {
+				console.log(`[ProjectManager] Already in Gitbbon project: ${currentFolder}`);
+
+				// Ensure .gitbbon.json exists (for older projects or manually added folders)
+				const gitbbonConfigPath = path.join(currentFolder, '.gitbbon.json');
+				if (!fs.existsSync(gitbbonConfigPath)) {
+					const folderName = path.basename(currentFolder);
+					console.log(`[ProjectManager] Creating .gitbbon.json for existing project: ${folderName}`);
+					const config = {
+						name: folderName,
+						createdAt: new Date().toISOString()
+					};
+					await fs.promises.writeFile(gitbbonConfigPath, JSON.stringify(config, null, 2), 'utf-8');
 				}
-				console.log('[ProjectManager] Current folder is not a Gitbbon project');
-			} else {
-				console.log('[ProjectManager] No workspace folder open');
+
+				console.log('[ProjectManager] Startup completed - already in Gitbbon project');
+				return;
 			}
 
-			// If no project open, or random folder open, switch to latest project
-			const latestProject = this.getLatestProject(manifest);
-			if (latestProject) {
-				console.log(`[ProjectManager] Opening latest project: ${latestProject.name} (${latestProject.path})`);
+			// Scan for existing projects
+			const projects = await this.scanProjects();
+			console.log(`[ProjectManager] Found ${projects.length} projects`);
 
-				// Ensure the directory actually exists (in case user deleted it)
-				if (!fs.existsSync(latestProject.path)) {
-					console.warn(`[ProjectManager] Project path not found: ${latestProject.path}. Re-initializing...`);
-					await this.initializeProject(latestProject.path, latestProject.name);
-					console.log('[ProjectManager] Project re-initialized');
-				}
+			if (projects.length > 0) {
+				// Open first project
+				const firstProject = projects[0];
+				console.log(`[ProjectManager] Opening project: ${firstProject.name} (${firstProject.path})`);
 
-				console.log('[ProjectManager] Switching to latest project...');
-				const uri = vscode.Uri.file(latestProject.path);
-				// Force open in same window
+				const uri = vscode.Uri.file(firstProject.path);
 				await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: false });
 			} else {
-				console.warn('[ProjectManager] No projects found in manifest');
+				// No projects exist, create default
+				console.log('[ProjectManager] No projects found, creating default...');
+				const defaultName = 'default';
+				const defaultPath = path.join(this.rootPath, defaultName);
+				await this.initializeProject(defaultPath, defaultName);
+
+				const uri = vscode.Uri.file(defaultPath);
+				await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: false });
 			}
 		} catch (error) {
 			console.error('[ProjectManager] Startup failed:', error);
 			vscode.window.showErrorMessage(`Gitbbon Project Manager Error: ${error}`);
 		}
+	}
+
+	/**
+	 * Scan Gitbbon_Notes directory for Git repositories
+	 */
+	private async scanProjects(): Promise<{ name: string; path: string }[]> {
+		const projects: { name: string; path: string }[] = [];
+
+		if (!fs.existsSync(this.rootPath)) {
+			return projects;
+		}
+
+		const entries = await fs.promises.readdir(this.rootPath, { withFileTypes: true });
+
+		for (const entry of entries) {
+			if (!entry.isDirectory()) {
+				continue;
+			}
+
+			const projectPath = path.join(this.rootPath, entry.name);
+			const gitPath = path.join(projectPath, '.git');
+
+			if (fs.existsSync(gitPath)) {
+				// Read project name from .gitbbon.json if exists
+				const gitbbonConfigPath = path.join(projectPath, '.gitbbon.json');
+				let projectName = entry.name;
+
+				if (fs.existsSync(gitbbonConfigPath)) {
+					try {
+						const configContent = await fs.promises.readFile(gitbbonConfigPath, 'utf-8');
+						const config = JSON.parse(configContent);
+						if (config.name) {
+							projectName = config.name;
+						}
+					} catch (e) {
+						console.warn(`[ProjectManager] Failed to read .gitbbon.json for ${entry.name}:`, e);
+					}
+				}
+
+				projects.push({ name: projectName, path: projectPath });
+			}
+		}
+
+		return projects;
 	}
 
 	private async loadManifest(): Promise<ProjectManifest | null> {
@@ -125,7 +165,7 @@ export class ProjectManager {
 
 	private async createDefaultManifest(): Promise<ProjectManifest> {
 		console.log('[ProjectManager] Creating default manifest...');
-		const defaultName = 'gitbbon-note-default';
+		const defaultName = 'default';
 		const defaultPath = path.join(this.rootPath, defaultName);
 		console.log(`[ProjectManager] Default project path: ${defaultPath}`);
 
@@ -181,7 +221,40 @@ export class ProjectManager {
 			console.log(`[ProjectManager] Git repository already exists`);
 		}
 
-		// 3. Create README (Non-destructive)
+		// 3. Create .gitbbon.json (프로젝트 설정 파일)
+		const gitbbonConfigPath = path.join(projectPath, '.gitbbon.json');
+		if (!fs.existsSync(gitbbonConfigPath)) {
+			console.log(`[ProjectManager] Creating .gitbbon.json...`);
+			const config = {
+				name: projectName,
+				createdAt: new Date().toISOString()
+			};
+			await fs.promises.writeFile(gitbbonConfigPath, JSON.stringify(config, null, 2), 'utf-8');
+			console.log(`[ProjectManager] .gitbbon.json created`);
+		} else {
+			console.log(`[ProjectManager] .gitbbon.json already exists`);
+		}
+
+		// 3.5. Create .vscode/settings.json to hide .gitbbon.json from Explorer
+		const vscodePath = path.join(projectPath, '.vscode');
+		const settingsPath = path.join(vscodePath, 'settings.json');
+		if (!fs.existsSync(settingsPath)) {
+			console.log(`[ProjectManager] Creating .vscode/settings.json...`);
+			if (!fs.existsSync(vscodePath)) {
+				await fs.promises.mkdir(vscodePath, { recursive: true });
+			}
+			const settings = {
+				"files.exclude": {
+					"**/.gitbbon.json": true
+				}
+			};
+			await fs.promises.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+			console.log(`[ProjectManager] .vscode/settings.json created`);
+		} else {
+			console.log(`[ProjectManager] .vscode/settings.json already exists`);
+		}
+
+		// 4. Create README (Non-destructive)
 		const readmePath = path.join(projectPath, 'README.md');
 		if (!fs.existsSync(readmePath)) {
 			console.log(`[ProjectManager] Creating README.md...`);
@@ -189,10 +262,10 @@ export class ProjectManager {
 			await fs.promises.writeFile(readmePath, content, 'utf-8');
 			console.log(`[ProjectManager] README.md created`);
 
-			// 4. Create initial commit
+			// 5. Create initial commit (including .gitbbon.json)
 			try {
 				console.log('[ProjectManager] Creating initial commit...');
-				await this.execGit(['add', 'README.md'], projectPath);
+				await this.execGit(['add', '.'], projectPath);
 				await this.execGit(['commit', '-m', 'Initial commit'], projectPath);
 				console.log('[ProjectManager] ✅ Initial commit created');
 			} catch (e) {

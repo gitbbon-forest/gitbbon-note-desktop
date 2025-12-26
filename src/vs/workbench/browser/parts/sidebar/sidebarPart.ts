@@ -38,6 +38,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ICompositeTitleLabel } from '../compositePart.js';
 import { append, $, getWindow } from '../../../../base/browser/dom.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -326,14 +327,33 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		const style = getWindow(parent).document.createElement('style');
 		style.textContent = `
 			.hide-explorer-headers .pane-header h3.title { display: none !important; }
-			.project-switcher-container { display: flex; align-items: center; width: 100%; height: 100%; }
-			.project-switcher-icon { margin-left: 4px; color: inherit; }
+			.project-switcher-container { display: flex; align-items: center; width: 100%; height: 100%; margin-left: -8px; }
+			.project-switcher-icon { margin-right: 4px; flex-shrink: 0; color: inherit; }
+			.project-switcher { margin-left: 0; }
 		`;
 		getWindow(parent).document.head.appendChild(style);
 
 		this.switcherContainer = append(parent, $('div.project-switcher-container'));
 		this.switcherContainer.style.display = 'none';
 
+		// SVG 아이콘 (왼쪽에 배치)
+		const iconSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		iconSvg.setAttribute('fill', 'none');
+		iconSvg.setAttribute('viewBox', '0 0 24 24');
+		iconSvg.setAttribute('stroke-width', '1.5');
+		iconSvg.setAttribute('stroke', 'currentColor');
+		iconSvg.classList.add('project-switcher-icon');
+		iconSvg.style.width = '16px';
+		iconSvg.style.height = '16px';
+		iconSvg.style.flexShrink = '0';
+		const iconPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+		iconPath.setAttribute('stroke-linecap', 'round');
+		iconPath.setAttribute('stroke-linejoin', 'round');
+		iconPath.setAttribute('d', 'M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9');
+		iconSvg.appendChild(iconPath);
+		this.switcherContainer.appendChild(iconSvg);
+
+		// 셀렉트박스 (아이콘 오른쪽에 배치)
 		this.projectSwitcher = append(this.switcherContainer, $('select.project-switcher')) as HTMLSelectElement;
 		this.projectSwitcher.style.color = 'inherit';
 		this.projectSwitcher.style.backgroundColor = 'transparent';
@@ -343,21 +363,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		this.projectSwitcher.style.width = 'auto';
 		this.projectSwitcher.style.outline = 'none';
 		this.projectSwitcher.style.cursor = 'pointer';
-
-		const iconSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-		iconSvg.setAttribute('fill', 'none');
-		iconSvg.setAttribute('viewBox', '0 0 24 24');
-		iconSvg.setAttribute('stroke-width', '1.5');
-		iconSvg.setAttribute('stroke', 'currentColor');
-		iconSvg.classList.add('project-switcher-icon');
-		iconSvg.style.width = '16px';
-		iconSvg.style.height = '16px';
-		const iconPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-		iconPath.setAttribute('stroke-linecap', 'round');
-		iconPath.setAttribute('stroke-linejoin', 'round');
-		iconPath.setAttribute('d', 'M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9');
-		iconSvg.appendChild(iconPath);
-		this.switcherContainer.appendChild(iconSvg);
+		this.projectSwitcher.style.marginLeft = '4px';
 
 		this.loadProjects();
 
@@ -440,62 +446,125 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			return;
 		}
 		const select = this.projectSwitcher;
+
 		try {
 			const userHome = await this.pathService.userHome();
-			const projectsJsonUri = URI.joinPath(userHome, 'Documents', 'Gitbbon_Notes', 'projects.json');
+			const gitbbonNotesUri = URI.joinPath(userHome, 'Documents', 'Gitbbon_Notes');
 
-			const exists = await this.fileService.exists(projectsJsonUri);
-
-			if (!exists) {
-				console.warn('SidebarPart: projects.json not found at', projectsJsonUri.toString());
+			// Gitbbon_Notes 디렉토리 존재 확인
+			const dirExists = await this.fileService.exists(gitbbonNotesUri);
+			if (!dirExists) {
+				console.warn('[SidebarPart] Gitbbon_Notes directory not found');
 				return;
 			}
 
-			const content = await this.fileService.readFile(projectsJsonUri);
-			const jsonString = content.value.toString();
-
-			let data;
-			try {
-				data = JSON.parse(jsonString);
-			} catch (e) {
-				console.error('SidebarPart: Failed to parse JSON', e);
+			// 디렉토리 스캔
+			const stat = await this.fileService.resolve(gitbbonNotesUri);
+			if (!stat.children) {
+				console.log('[SidebarPart] No subdirectories in Gitbbon_Notes');
 				return;
 			}
 
-			if (data && Array.isArray(data.projects)) {
-				// Clear existing options safely
-				while (select.firstChild) {
-					select.removeChild(select.firstChild);
+			// .git 폴더가 있는 디렉토리만 프로젝트로 인식
+			const projects: IProject[] = [];
+			for (const child of stat.children) {
+				if (!child.isDirectory) {
+					continue;
 				}
 
-				// Get current workspace path to select it
-				const currentPath = this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
+				const gitUri = URI.joinPath(child.resource, '.git');
+				const isGitRepo = await this.fileService.exists(gitUri);
 
-				data.projects.forEach((p: IProject) => {
-					const option = document.createElement('option');
-					option.value = p.path;
-					option.textContent = p.name;
-					// Select current project
-					if (currentPath && p.path === currentPath) {
-						option.selected = true;
-					}
-					select.appendChild(option);
-				});
+				if (isGitRepo) {
+					// .gitbbon.json에서 설정 읽기
+					const config = await this.readProjectConfig(child.resource);
+					const folderName = child.name;
 
-				// "Manage projects..." 옵션 추가 (Obsidian 스타일)
-				const separator = document.createElement('option');
-				separator.disabled = true;
-				separator.textContent = '──────────';
-				select.appendChild(separator);
-
-				const manageOption = document.createElement('option');
-				manageOption.value = '__manage__';
-				manageOption.textContent = 'Manage projects...';
-				select.appendChild(manageOption);
+					projects.push({
+						name: config?.name || folderName,
+						path: child.resource.fsPath
+					});
+				}
 			}
 
+			console.log(`[SidebarPart] Found ${projects.length} projects`);
+
+			// 셀렉트박스 업데이트
+			while (select.firstChild) {
+				select.removeChild(select.firstChild);
+			}
+
+			const currentPath = this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
+
+			for (const p of projects) {
+				const option = document.createElement('option');
+				option.value = p.path;
+				option.textContent = p.name;
+				if (currentPath && p.path === currentPath) {
+					option.selected = true;
+				}
+				select.appendChild(option);
+			}
+
+			// "Manage projects..." 옵션 추가
+			const separator = document.createElement('option');
+			separator.disabled = true;
+			separator.textContent = '──────────';
+			select.appendChild(separator);
+
+			const manageOption = document.createElement('option');
+			manageOption.value = '__manage__';
+			manageOption.textContent = 'Manage projects...';
+			select.appendChild(manageOption);
+
 		} catch (error) {
-			console.error('Failed to load projects.json', error);
+			console.error('[SidebarPart] Failed to scan projects:', error);
+		}
+	}
+
+	/**
+	 * 프로젝트 설정 파일(.gitbbon.json) 읽기
+	 */
+	private async readProjectConfig(projectUri: URI): Promise<{ name?: string; description?: string } | null> {
+		try {
+			const configUri = URI.joinPath(projectUri, '.gitbbon.json');
+			const exists = await this.fileService.exists(configUri);
+
+			if (!exists) {
+				return null;
+			}
+
+			const content = await this.fileService.readFile(configUri);
+			const config = JSON.parse(content.value.toString());
+			return config;
+		} catch (error) {
+			console.warn('[SidebarPart] Failed to read .gitbbon.json:', error);
+			return null;
+		}
+	}
+
+	/**
+	 * 프로젝트 설정 파일(.gitbbon.json) 쓰기
+	 */
+	private async writeProjectConfig(projectPath: string, config: { name?: string; description?: string }): Promise<void> {
+		try {
+			const configUri = URI.joinPath(URI.file(projectPath), '.gitbbon.json');
+
+			// 기존 설정 읽어서 병합
+			let existingConfig: Record<string, unknown> = {};
+			const exists = await this.fileService.exists(configUri);
+			if (exists) {
+				const content = await this.fileService.readFile(configUri);
+				existingConfig = JSON.parse(content.value.toString());
+			}
+
+			const newConfig = { ...existingConfig, ...config };
+			const jsonContent = JSON.stringify(newConfig, null, 2);
+
+			await this.fileService.writeFile(configUri, VSBuffer.fromString(jsonContent));
+			console.log(`[SidebarPart] Saved .gitbbon.json for ${projectPath}`);
+		} catch (error) {
+			console.error('[SidebarPart] Failed to write .gitbbon.json:', error);
 		}
 	}
 
@@ -504,23 +573,36 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	 * 기능: 목록 표시, 열기, 추가, 삭제, 이름 변경
 	 */
 	private async showProjectManagementDialog(): Promise<void> {
-		// projects.json에서 프로젝트 목록 로드
+		// 파일시스템 스캔으로 프로젝트 목록 로드
 		const userHome = await this.pathService.userHome();
-		const projectsJsonUri = URI.joinPath(userHome, 'Documents', 'Gitbbon_Notes', 'projects.json');
+		const gitbbonNotesUri = URI.joinPath(userHome, 'Documents', 'Gitbbon_Notes');
 
-		let projects: IProject[] = [];
+		const projects: IProject[] = [];
 		try {
-			const exists = await this.fileService.exists(projectsJsonUri);
-			if (exists) {
-				const content = await this.fileService.readFile(projectsJsonUri);
-				const jsonString = content.value.toString();
-				const data = JSON.parse(jsonString);
-				if (data && Array.isArray(data.projects)) {
-					projects = data.projects;
+			const dirExists = await this.fileService.exists(gitbbonNotesUri);
+			if (dirExists) {
+				const stat = await this.fileService.resolve(gitbbonNotesUri);
+				if (stat.children) {
+					for (const child of stat.children) {
+						if (!child.isDirectory) {
+							continue;
+						}
+
+						const gitUri = URI.joinPath(child.resource, '.git');
+						const isGitRepo = await this.fileService.exists(gitUri);
+
+						if (isGitRepo) {
+							const config = await this.readProjectConfig(child.resource);
+							projects.push({
+								name: config?.name || child.name,
+								path: child.resource.fsPath
+							});
+						}
+					}
 				}
 			}
 		} catch (error) {
-			console.error('Failed to load projects for management dialog', error);
+			console.error('[SidebarPart] Failed to load projects for management dialog', error);
 		}
 
 		// 현재 프로젝트 경로
@@ -543,15 +625,12 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 		for (const project of projects) {
 			const isCurrent = project.path === currentPath;
-			const lastModified = project.lastModified
-				? new Date(project.lastModified).toLocaleDateString()
-				: 'Never';
 
 			items.push({
 				id: `project:${project.path}`,
 				label: `${isCurrent ? '$(check) ' : ''}${project.name}`,
 				description: isCurrent ? 'Current' : '',
-				detail: `Last modified: ${lastModified}`,
+				detail: project.path,
 				buttons: [
 					{
 						iconClass: 'codicon-edit',
@@ -591,7 +670,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			quickPick.hide();
 		});
 
-		quickPick.onDidTriggerItemButton(e => {
+		quickPick.onDidTriggerItemButton(async e => {
 			const id = (e.item as IQuickPickItem).id;
 			if (!id?.startsWith('project:')) {
 				return;
@@ -600,8 +679,37 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			const buttonClass = e.button.iconClass;
 
 			if (buttonClass?.includes('edit')) {
-				// TODO: 이름 변경 로직 구현
-				console.log('[SidebarPart] Rename project:', projectPath);
+				// 이름 변경 로직
+				quickPick.hide();
+
+				// 현재 프로젝트 이름 찾기
+				const project = projects.find(p => p.path === projectPath);
+				if (!project) {
+					return;
+				}
+
+				// InputBox로 새 이름 입력
+				const inputBox = this.quickInputService.createInputBox();
+				inputBox.title = 'Rename Project';
+				inputBox.placeholder = 'Enter new project name';
+				inputBox.value = project.name;
+
+				inputBox.onDidAccept(async () => {
+					const newName = inputBox.value.trim();
+					if (newName && newName !== project.name) {
+						// projects.json 업데이트
+						await this.renameProject(projectPath, newName);
+						// 프로젝트 스위처 새로고침
+						await this.loadProjects();
+					}
+					inputBox.hide();
+				});
+
+				inputBox.onDidHide(() => {
+					inputBox.dispose();
+				});
+
+				inputBox.show();
 			} else if (buttonClass?.includes('trash')) {
 				// TODO: 삭제 로직 구현
 				console.log('[SidebarPart] Delete project:', projectPath);
@@ -613,6 +721,14 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		});
 
 		quickPick.show();
+	}
+
+	/**
+	 * 프로젝트 이름 변경 (.gitbbon.json 파일 업데이트)
+	 */
+	private async renameProject(projectPath: string, newName: string): Promise<void> {
+		await this.writeProjectConfig(projectPath, { name: newName });
+		console.log(`[SidebarPart] Project renamed: ${projectPath} -> ${newName}`);
 	}
 
 	toJSON(): object {
