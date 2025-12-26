@@ -105,7 +105,8 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 			if (screenReaderConfiguration === 'auto') {
 				if (!this.promptedScreenReader) {
 					this.promptedScreenReader = true;
-					setTimeout(() => this.showScreenReaderNotification(), 100);
+					// gitbbon custom: Disable automatic screen reader notification
+					// setTimeout(() => this.showScreenReaderNotification(), 100);
 				}
 			}
 		}
