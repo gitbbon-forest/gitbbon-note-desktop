@@ -93,28 +93,36 @@
 사용자가 파일 시스템을 직접 관리하는 부담을 줄이기 위해 다음과 같은 정책을 수행합니다.
 
 - **Root Directory:** 모든 프로젝트는 `~/Documents/Gitbbon_Notes` 하위에서 관리됩니다.
-- **Tracking & Context:** `projects.json` 매니페스트를 통해 프로젝트 목록과 마지막 접근 시간(Timestamp)을 추적합니다.
+- **Tracking & Context:** `.gitbbon-local.json`을 통해 동기화 기록(`syncedAt`)을 추적합니다.
 - **Auto Restore:** 앱 실행 시, 마지막으로 작업했던 프로젝트를 자동으로 불러옵니다.
 - **Silent Init:** 프로젝트 생성 시 `git init`을 백그라운드에서 수행하여 즉시 버전 관리를 시작합니다.
 - **Project Switcher:** 사이드바 상단에 드롭다운 셀렉터가 표시되어 프로젝트 간 빠른 전환이 가능합니다.
-  - 현재 열린 프로젝트가 자동으로 선택됨
-  - 다른 프로젝트 선택 시 새 창으로 열림
 
-**`projects.json` Structure:**
+### 설정 파일 구조 (Configuration Files)
 
+**`.gitbbon.json` (각 프로젝트 내부, 동기화됨):**
 ```json
 {
-  "version": 1,
-  "projects": [
-    {
-      "name": "default",
-      "path": "/Users/username/Documents/Gitbbon_Notes/default",
-      "lastOpened": "2024-01-01T00:00:00.000Z",
-      "lastModified": "2024-01-01T00:00:00.000Z"
-    }
-  ]
+  "name": "default",
+  "createdAt": "2024-01-01T00:00:00.000Z"
 }
 ```
+
+**`.gitbbon-local.json` (Gitbbon_Notes 루트, 로컬 전용):**
+```json
+{
+  "projects": {
+    "gitbbon-note-default": { "syncedAt": "2024-12-27T00:00:00.000Z" }
+  }
+}
+```
+
+### 동기화 정책 (Sync Policy)
+
+- **원격 404 감지 시:**
+  - `syncedAt` 있음 → 원격에서 삭제된 것 → 로컬을 휴지통으로 이동 (복구 가능)
+  - `syncedAt` 없음 → 한 번도 동기화 안 됨 → 새 원격 저장소 생성
+- **다이얼로그 없음:** 사용자 선택 없이 자동으로 처리
 
 ---
 

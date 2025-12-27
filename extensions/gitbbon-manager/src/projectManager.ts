@@ -26,12 +26,10 @@ interface ProjectManifest {
 
 export class ProjectManager {
 	private readonly rootPath: string;
-	private readonly manifestPath: string;
 	private readonly commitMessageGenerator: CommitMessageGenerator;
 
 	constructor() {
 		this.rootPath = path.join(os.homedir(), 'Documents', 'Gitbbon_Notes');
-		this.manifestPath = path.join(this.rootPath, 'projects.json');
 		this.commitMessageGenerator = new CommitMessageGenerator();
 	}
 
@@ -70,7 +68,7 @@ export class ProjectManager {
 			}
 
 			// Scan for existing projects
-			const projects = await this.scanProjects();
+			const projects = await this.getProjects();
 			console.log(`[ProjectManager] Found ${projects.length} projects`);
 
 			if (projects.length > 0) {
@@ -83,9 +81,10 @@ export class ProjectManager {
 			} else {
 				// No projects exist, create default
 				console.log('[ProjectManager] No projects found, creating default...');
-				const defaultName = 'default';
-				const defaultPath = path.join(this.rootPath, defaultName);
-				await this.initializeProject(defaultPath, defaultName);
+				const defaultDirName = 'gitbbon-note-default';
+				const defaultProjectName = 'default';
+				const defaultPath = path.join(this.rootPath, defaultDirName);
+				await this.initializeProject(defaultPath, defaultProjectName);
 
 				const uri = vscode.Uri.file(defaultPath);
 				await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: false });
@@ -99,7 +98,7 @@ export class ProjectManager {
 	/**
 	 * Scan Gitbbon_Notes directory for Git repositories
 	 */
-	private async scanProjects(): Promise<{ name: string; path: string }[]> {
+	public async getProjects(): Promise<{ name: string; path: string }[]> {
 		const projects: { name: string; path: string }[] = [];
 
 		if (!fs.existsSync(this.rootPath)) {
@@ -140,52 +139,91 @@ export class ProjectManager {
 		return projects;
 	}
 
-	private async loadManifest(): Promise<ProjectManifest | null> {
-		console.log(`[ProjectManager] Loading manifest from: ${this.manifestPath}`);
-		if (fs.existsSync(this.manifestPath)) {
-			try {
-				const content = await fs.promises.readFile(this.manifestPath, 'utf-8');
-				const manifest = JSON.parse(content) as ProjectManifest;
-				console.log(`[ProjectManager] Manifest loaded successfully`);
-				return manifest;
-			} catch (e) {
-				console.error('[ProjectManager] Failed to parse projects.json:', e);
-				return null;
-			}
+	/**
+	 * Read .gitbbon.json config from a project directory
+	 */
+	public async readProjectConfig(projectPath: string): Promise<{ name: string; createdAt?: string; lastModified?: string } | null> {
+		const configPath = path.join(projectPath, '.gitbbon.json');
+		if (!fs.existsSync(configPath)) {
+			return null;
 		}
-		console.log('[ProjectManager] Manifest file does not exist');
-		return null;
+		try {
+			const content = await fs.promises.readFile(configPath, 'utf-8');
+			return JSON.parse(content);
+		} catch (e) {
+			console.warn(`[ProjectManager] Failed to read .gitbbon.json at ${projectPath}:`, e);
+			return null;
+		}
 	}
 
-	private async saveManifest(manifest: ProjectManifest): Promise<void> {
-		console.log(`[ProjectManager] Saving manifest with ${manifest.projects.length} projects`);
-		await fs.promises.writeFile(this.manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
-		console.log('[ProjectManager] Manifest saved successfully');
+	/**
+	 * Write .gitbbon.json config to a project directory
+	 */
+	public async writeProjectConfig(projectPath: string, config: { name: string; createdAt?: string; lastModified?: string }): Promise<void> {
+		const configPath = path.join(projectPath, '.gitbbon.json');
+		await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+		console.log(`[ProjectManager] Updated .gitbbon.json at ${projectPath}`);
 	}
 
-	private async createDefaultManifest(): Promise<ProjectManifest> {
-		console.log('[ProjectManager] Creating default manifest...');
-		const defaultName = 'default';
-		const defaultPath = path.join(this.rootPath, defaultName);
-		console.log(`[ProjectManager] Default project path: ${defaultPath}`);
+	/**
+	 * Get the path to .gitbbon-local.json (local-only metadata)
+	 */
+	private getLocalConfigPath(): string {
+		return path.join(this.rootPath, '.gitbbon-local.json');
+	}
 
-		// Ensure default project structure exists
-		await this.initializeProject(defaultPath, defaultName);
+	/**
+	 * Read .gitbbon-local.json (local-only sync metadata)
+	 */
+	public async readLocalConfig(): Promise<{ projects: Record<string, { syncedAt: string | null }> }> {
+		const configPath = this.getLocalConfigPath();
+		if (!fs.existsSync(configPath)) {
+			return { projects: {} };
+		}
+		try {
+			const content = await fs.promises.readFile(configPath, 'utf-8');
+			return JSON.parse(content);
+		} catch (e) {
+			console.warn('[ProjectManager] Failed to read .gitbbon-local.json:', e);
+			return { projects: {} };
+		}
+	}
 
-		const manifest: ProjectManifest = {
-			version: 1,
-			projects: [
-				{
-					name: defaultName,
-					path: defaultPath,
-					lastOpened: new Date().toISOString()
-				}
-			]
-		};
+	/**
+	 * Write .gitbbon-local.json (local-only sync metadata)
+	 */
+	public async writeLocalConfig(config: { projects: Record<string, { syncedAt: string | null }> }): Promise<void> {
+		const configPath = this.getLocalConfigPath();
+		await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+		console.log('[ProjectManager] Updated .gitbbon-local.json');
+	}
 
-		await this.saveManifest(manifest);
-		console.log('[ProjectManager] Default manifest created');
-		return manifest;
+	/**
+	 * Update syncedAt for a specific project
+	 */
+	public async updateSyncedAt(repoName: string): Promise<void> {
+		const config = await this.readLocalConfig();
+		config.projects[repoName] = { syncedAt: new Date().toISOString() };
+		await this.writeLocalConfig(config);
+		console.log(`[ProjectManager] Updated syncedAt for ${repoName}`);
+	}
+
+	/**
+	 * Get syncedAt for a specific project
+	 */
+	public async getSyncedAt(repoName: string): Promise<string | null> {
+		const config = await this.readLocalConfig();
+		return config.projects[repoName]?.syncedAt ?? null;
+	}
+
+	/**
+	 * Remove project from local config
+	 */
+	public async removeFromLocalConfig(repoName: string): Promise<void> {
+		const config = await this.readLocalConfig();
+		delete config.projects[repoName];
+		await this.writeLocalConfig(config);
+		console.log(`[ProjectManager] Removed ${repoName} from .gitbbon-local.json`);
 	}
 
 	private async initializeProject(projectPath: string, projectName: string): Promise<void> {
@@ -245,7 +283,8 @@ export class ProjectManager {
 			}
 			const settings = {
 				"files.exclude": {
-					"**/.gitbbon.json": true
+					"**/.gitbbon.json": true,
+					".vscode": true
 				}
 			};
 			await fs.promises.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
@@ -283,81 +322,74 @@ export class ProjectManager {
 		return manifest.projects[0];
 	}
 
-	private async updateLastOpened(projectName: string): Promise<void> {
-		console.log(`[ProjectManager] Updating lastOpened for project: ${projectName}`);
-		const manifest = await this.loadManifest();
-		if (manifest) {
-			const project = manifest.projects.find(p => p.name === projectName);
-			if (project) {
-				const oldTimestamp = project.lastOpened;
-				project.lastOpened = new Date().toISOString();
-				await this.saveManifest(manifest);
-				console.log(`[ProjectManager] Updated timestamp for ${projectName}: ${oldTimestamp} -> ${project.lastOpened}`);
-			} else {
-				console.warn(`[ProjectManager] Project not found for timestamp update: ${projectName}`);
-			}
-		} else {
-			console.error('[ProjectManager] Failed to load manifest for timestamp update');
-		}
-	}
-
+	/**
+	 * Update lastModified in .gitbbon.json for the given project path
+	 */
 	public async updateLastModified(cwd: string): Promise<void> {
-		const manifest = await this.loadManifest();
-		if (!manifest) return;
-
-		const project = manifest.projects.find(p => path.normalize(p.path) === path.normalize(cwd));
-		if (project) {
-			project.lastModified = new Date().toISOString();
-			await this.saveManifest(manifest);
-			console.log(`[ProjectManager] Updated lastModified for ${project.name}`);
+		const config = await this.readProjectConfig(cwd);
+		if (config) {
+			config.lastModified = new Date().toISOString();
+			await this.writeProjectConfig(cwd, config);
+			console.log(`[ProjectManager] Updated lastModified for ${config.name}`);
+		} else {
+			// Create .gitbbon.json if it doesn't exist
+			const projectName = path.basename(cwd);
+			const newConfig = {
+				name: projectName,
+				createdAt: new Date().toISOString(),
+				lastModified: new Date().toISOString()
+			};
+			await this.writeProjectConfig(cwd, newConfig);
+			console.log(`[ProjectManager] Created .gitbbon.json with lastModified for ${projectName}`);
 		}
 	}
 
+	/**
+	 * @deprecated Use readProjectConfig instead
+	 */
 	public async getManifest(): Promise<ProjectManifest | null> {
-		return this.loadManifest();
+		// Return a virtual manifest built from scanned projects for backward compatibility
+		const projects = await this.getProjects();
+		return {
+			version: 1,
+			projects: projects.map((p: { name: string; path: string }) => ({
+				name: p.name,
+				path: p.path,
+				lastOpened: new Date().toISOString()
+			}))
+		};
 	}
 
+	/**
+	 * Initialize a new project with .gitbbon.json
+	 */
 	public async addProject(name: string, projectPath: string): Promise<void> {
-		const manifest = await this.loadManifest();
-		if (!manifest) return;
-
-		if (!manifest.projects.find(p => p.name === name)) {
-			manifest.projects.push({
+		// Just ensure .gitbbon.json exists
+		const existingConfig = await this.readProjectConfig(projectPath);
+		if (!existingConfig) {
+			const config = {
 				name,
-				path: projectPath,
-				lastOpened: new Date().toISOString()
-				// lastModified is undefined initially
-			});
-			await this.saveManifest(manifest);
+				createdAt: new Date().toISOString()
+			};
+			await this.writeProjectConfig(projectPath, config);
 			console.log(`[ProjectManager] Added new project: ${name}`);
 		}
 	}
 
 	/**
-	 * 프로젝트 삭제 (로컬)
-	 * @param projectPath 삭제할 프로젝트 경로
-	 * @param deleteFolder true이면 로컬 폴더도 삭제
-	 * @returns 삭제 성공 여부
+	 * Delete project (local folder only since we no longer have a manifest)
+	 * @param projectPath Project path to delete
+	 * @param deleteFolder If true, deletes local folder
+	 * @returns Success status
 	 */
 	public async deleteProject(projectPath: string, deleteFolder: boolean = true): Promise<boolean> {
 		console.log(`[ProjectManager] Deleting project: ${projectPath}, deleteFolder: ${deleteFolder}`);
 
 		try {
-			// 1. 로컬 폴더 삭제 (선택적)
+			// Delete local folder
 			if (deleteFolder && fs.existsSync(projectPath)) {
 				await fs.promises.rm(projectPath, { recursive: true, force: true });
 				console.log(`[ProjectManager] Deleted project folder: ${projectPath}`);
-			}
-
-			// 2. 매니페스트에서 제거
-			const manifest = await this.loadManifest();
-			if (manifest) {
-				const originalLength = manifest.projects.length;
-				manifest.projects = manifest.projects.filter(p => path.normalize(p.path) !== path.normalize(projectPath));
-				if (manifest.projects.length < originalLength) {
-					await this.saveManifest(manifest);
-					console.log(`[ProjectManager] Removed project from manifest`);
-				}
 			}
 
 			return true;
@@ -378,6 +410,33 @@ export class ProjectManager {
 			return url || null;
 		} catch {
 			return null;
+		}
+	}
+
+	/**
+	 * Immediately commit .gitbbon.json changes
+	 */
+	public async commitProjectConfig(cwd: string): Promise<void> {
+		console.log(`[ProjectManager] Committing .gitbbon.json at ${cwd}`);
+		try {
+			const configPath = path.join(cwd, '.gitbbon.json');
+			if (!fs.existsSync(configPath)) {
+				console.log('[ProjectManager] .gitbbon.json not found, skipping config commit');
+				return;
+			}
+
+			// Check if there are changes to .gitbbon.json
+			const status = await this.execGit(['status', '--porcelain', '.gitbbon.json'], cwd);
+			if (status.trim().length === 0) {
+				console.log('[ProjectManager] No changes in .gitbbon.json to commit');
+				return;
+			}
+
+			await this.execGit(['add', '.gitbbon.json'], cwd);
+			await this.execGit(['commit', '-m', 'Update project configuration'], cwd);
+			console.log('[ProjectManager] Committed .gitbbon.json');
+		} catch (error) {
+			console.error('[ProjectManager] Failed to commit .gitbbon.json:', error);
 		}
 	}
 
@@ -737,6 +796,48 @@ export class ProjectManager {
 			return remotes.trim().length > 0;
 		} catch {
 			return false;
+		}
+	}
+
+	/**
+	 * 지정된 커밋 버전으로 복원 (새로운 커밋 생성)
+	 */
+	public async restoreToVersion(cwd: string, targetCommitHash: string): Promise<{ success: boolean; message: string }> {
+		console.log(`[ProjectManager] Restoring to version: ${targetCommitHash}`);
+
+		try {
+			// 1. Safety Check: Uncommitted Changes
+			const changed = await this.hasChanges(cwd);
+			if (changed) {
+				console.log('[ProjectManager] Uncommitted changes detected, creating backup...');
+				const backupResult = await this.reallyFinalCommit();
+				if (!backupResult.success) {
+					throw new Error(`Backup failed: ${backupResult.message}`);
+				}
+			}
+
+			// 2. Get Target Commit Title
+			const targetTitle = await this.execGit(['log', '-1', '--pretty=%s', targetCommitHash], cwd);
+
+			// 3. Read Tree (Restore Content)
+			// -u: updates the index and checking out files
+			// --reset: performs a merge rather than a hard overwrite if possible, but here we want to match target
+			console.log('[ProjectManager] Reading tree...');
+			await this.execGit(['read-tree', '-u', '--reset', targetCommitHash], cwd);
+
+			// 4. Create Restore Commit
+			console.log('[ProjectManager] Creating restore commit...');
+			const restoreMessage = `복원 : ${targetTitle} (${targetCommitHash.substring(0, 7)})`;
+			await this.execGit(['commit', '-m', restoreMessage], cwd);
+
+			// 5. Update lastModified
+			await this.updateLastModified(cwd);
+
+			return { success: true, message: restoreMessage };
+
+		} catch (error) {
+			console.error('[ProjectManager] Restore failed:', error);
+			throw error;
 		}
 	}
 }

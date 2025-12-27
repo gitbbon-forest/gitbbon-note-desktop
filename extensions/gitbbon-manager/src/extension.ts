@@ -22,6 +22,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		vscode.window.registerWebviewViewProvider(GitGraphViewProvider.viewType, gitGraphProvider)
 	);
 
+	// Watch .gitbbon.json and commit immediately
+	const configWatcher = vscode.workspace.createFileSystemWatcher('**/.gitbbon.json');
+	const handleConfigChange = async (uri: vscode.Uri) => {
+		console.log('[Extension] .gitbbon.json changed/created:', uri.fsPath);
+		const folder = vscode.workspace.getWorkspaceFolder(uri);
+		if (folder) {
+			await projectManager.commitProjectConfig(folder.uri.fsPath);
+			await gitGraphProvider.refresh();
+		}
+	};
+
+	configWatcher.onDidChange(handleConfigChange);
+	configWatcher.onDidCreate(handleConfigChange);
+	context.subscriptions.push(configWatcher);
+
 	// Register initialize command (manual trigger)
 	const initializeCommand = vscode.commands.registerCommand(
 		'gitbbon.manager.initialize',
@@ -35,17 +50,35 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const syncCommand = vscode.commands.registerCommand(
 		'gitbbon.manager.sync',
 		async () => {
-			await githubSyncManager.sync(false); // Interactive mode
-			await gitGraphProvider.refresh();
+			// Update status bar to show syncing
+			syncStatusBarItem.text = '$(sync~spin) Syncing...';
+			syncStatusBarItem.tooltip = 'Synchronizing with GitHub...';
+
+			try {
+				await githubSyncManager.sync(false); // Interactive mode
+				await gitGraphProvider.refresh();
+				// Show success briefly
+				syncStatusBarItem.text = '$(check) Synced';
+				setTimeout(() => {
+					syncStatusBarItem.text = '$(sync) Sync';
+					syncStatusBarItem.tooltip = 'Sync with GitHub';
+				}, 3000);
+			} catch (e) {
+				syncStatusBarItem.text = '$(error) Sync Failed';
+				setTimeout(() => {
+					syncStatusBarItem.text = '$(sync) Sync';
+					syncStatusBarItem.tooltip = 'Sync with GitHub';
+				}, 5000);
+			}
 		}
 	);
 	context.subscriptions.push(syncCommand);
 
 	// Status Bar Item for Sync
 	const syncStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-	syncStatusBarItem.text = `$(sync) Sync`;
+	syncStatusBarItem.text = '$(sync) Sync';
 	syncStatusBarItem.command = 'gitbbon.manager.sync';
-	syncStatusBarItem.tooltip = 'GitHub와 동기화';
+	syncStatusBarItem.tooltip = 'Sync with GitHub';
 	syncStatusBarItem.show();
 	context.subscriptions.push(syncStatusBarItem);
 
@@ -567,79 +600,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					title: "버전 복원 중...",
 					cancellable: false
 				}, async (progress) => {
+					progress.report({ message: "복원 진행 중..." });
 
-					// Step 1: Safety Check & Backup (Really Final)
-					progress.report({ message: "현재 작업 내용 백업 중..." });
-					// Check for uncommitted changes
-					const hasChanges = await new Promise<boolean>((resolve) => {
-						const cp = require('child_process');
-						cp.exec('git status --porcelain', { cwd }, (err: Error | null, stdout: string) => {
-							resolve(!!(stdout && stdout.trim().length > 0));
-						});
-					});
+					const result = await projectManager.restoreToVersion(cwd, targetCommitHash);
 
-					if (hasChanges) {
-						console.log('[Restore] Changes detected, triggering Really Final...');
-						const backupResult = await projectManager.reallyFinalCommit();
-						if (!backupResult.success) {
-							throw new Error(`Backup failed: ${backupResult.message}`);
-						}
-					} else {
-						console.log('[Restore] Clean state, skipping backup.');
+					if (result.success) {
+						// Sync
+						progress.report({ message: "원격 저장소 동기화 중..." });
+						await githubSyncManager.sync(false);
+
+						// Refresh Git Graph
+						await gitGraphProvider.refresh();
+
+						vscode.window.showInformationMessage(`성공적으로 복원되었습니다: ${result.message}`);
 					}
-
-					// Step 2: Get Target Commit Title
-					progress.report({ message: "타겟 커밋 정보 조회 중..." });
-					const targetTitle = await new Promise<string>((resolve, reject) => {
-						const cp = require('child_process');
-						cp.exec(`git log -1 --pretty=%s ${targetCommitHash}`, { cwd }, (err: Error | null, stdout: string) => {
-							if (err) {
-								reject(err);
-							} else {
-								resolve(stdout.trim());
-							}
-						});
-					});
-
-					// Step 3: Read Tree (Restore Content)
-					progress.report({ message: "과거 상태 불러오는 중..." });
-					await new Promise<void>((resolve, reject) => {
-						const cp = require('child_process');
-						// -u: updates the index and checking out files
-						// --reset: performs a merge rather than a hard overwrite if possible, but here we want to match target
-						// Actually 'git read-tree -u --reset <tree-ish>' matches the index and worktree to the tree-ish.
-						cp.exec(`git read-tree -u --reset ${targetCommitHash}`, { cwd }, (err: Error | null, stderr: string) => {
-							if (err) {
-								console.error('git read-tree failed:', stderr);
-								reject(err);
-							} else {
-								resolve();
-							}
-						});
-					});
-
-					// Step 4: Create Restore Commit
-					progress.report({ message: "복원 커밋 생성 중..." });
-					const restoreMessage = `복원 : ${targetTitle} (${targetCommitHash.substring(0, 7)})`;
-					await new Promise<void>((resolve, reject) => {
-						const cp = require('child_process');
-						cp.exec(`git commit -m "${restoreMessage}"`, { cwd }, (err: Error | null, stderr: string) => {
-							if (err) {
-								reject(err);
-							} else {
-								resolve();
-							}
-						});
-					});
-
-					// Step 5: Sync
-					progress.report({ message: "원격 저장소 동기화 중..." });
-					await githubSyncManager.sync(false);
-
-					// Refresh Git Graph
-					await gitGraphProvider.refresh();
-
-					vscode.window.showInformationMessage(`성공적으로 복원되었습니다: ${restoreMessage}`);
 				});
 			} catch (e) {
 				console.error('[Restore] Failed:', e);
