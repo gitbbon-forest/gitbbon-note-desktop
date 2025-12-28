@@ -15,6 +15,13 @@ interface GitHubRepository {
 	default_branch: string;
 }
 
+interface GitHubApiResponse {
+	name: string;
+	clone_url: string;
+	default_branch: string;
+	[key: string]: unknown;
+}
+
 export class GitHubSyncManager {
 	private readonly projectManager: ProjectManager;
 	private session: vscode.AuthenticationSession | undefined;
@@ -102,9 +109,11 @@ export class GitHubSyncManager {
 		}
 
 		const cwd = workspaceFolder.uri.fsPath;
+		// repoName: 실제 디렉토리 이름 (식별자로 사용)
+		const repoName = path.basename(cwd);
 
-		// Read .gitbbon.json for project name
-		let projectName = path.basename(cwd);
+		// projectName: 표시 이름 (.gitbbon.json에서 읽음)
+		let projectName = repoName;
 		try {
 			const gitbbonConfigPath = path.join(cwd, '.gitbbon.json');
 			if (fs.existsSync(gitbbonConfigPath)) {
@@ -118,18 +127,18 @@ export class GitHubSyncManager {
 			console.warn('[GitHubSyncManager] Failed to read .gitbbon.json:', e);
 		}
 
-		console.log(`[GitHubSyncManager] Syncing current workspace: ${projectName} (${cwd})`);
+		console.log(`[GitHubSyncManager] Syncing current workspace: ${projectName} (Repo: ${repoName}, Path: ${cwd})`);
 
 		try {
 			const hasRemote = await this.projectManager.hasRemote(cwd);
 
 			if (hasRemote) {
 				// Case 1: Remote exists -> Simple Pull & Push
-				await this.handleExistingRemote(cwd, projectName);
+				await this.handleExistingRemote(cwd, projectName, repoName);
 			} else {
 				// Case 2: No Remote -> Initialize Remote (Check Conflict, Create, Link)
 				const project = { name: projectName, path: cwd };
-				await this.handleNoRemote(cwd, project);
+				await this.handleNoRemote(cwd, project, repoName);
 			}
 		} catch (e) {
 			console.error(`[GitHubSyncManager] Failed to sync project ${projectName}:`, e);
@@ -141,8 +150,8 @@ export class GitHubSyncManager {
 	 * Handle existing remote: Pull and Push
 	 * Provides choice if remote is deleted.
 	 */
-	private async handleExistingRemote(cwd: string, projectName: string): Promise<void> {
-		console.log(`[GitHubSyncManager] Syncing existing remote for ${projectName}`);
+	private async handleExistingRemote(cwd: string, projectName: string, repoName: string): Promise<void> {
+		console.log(`[GitHubSyncManager] Syncing existing remote for ${projectName} (Repo: ${repoName})`);
 
 		// 0. Verify remote existence first
 		const remoteUrl = await this.projectManager.getRemoteUrl(cwd);
@@ -158,10 +167,11 @@ export class GitHubSyncManager {
 						await this.handleRemoteDeleted(cwd, projectName, repoName);
 						return;
 					}
-				} catch (e: any) {
+				} catch (e: unknown) {
 					// Treat any error during existence check as a reason to abort (safety first)
 					// This includes network errors, API 500s, rate limits, etc.
-					console.warn(`[GitHubSyncManager] Aborting sync due to error checking repo existence: ${e.message}`);
+					const message = e instanceof Error ? e.message : String(e);
+					console.warn(`[GitHubSyncManager] Aborting sync due to error checking repo existence: ${message}`);
 					vscode.window.showWarningMessage('Sync stopped due to unstable network connection or API error. Local data is safe.');
 					return; // Stop sync, do not delete
 				}
@@ -173,8 +183,9 @@ export class GitHubSyncManager {
 			// Using git pull (fetching and merging)
 			// If conflict occurs, it will throw an error and we notify the user.
 			await this.execGit(['pull', 'origin', 'main'], cwd); // Assuming main branch
-		} catch (e: any) {
-			if (e.message && e.message.includes('CONFLICT')) {
+		} catch (e: unknown) {
+			const message = e instanceof Error ? e.message : String(e);
+			if (message.includes('CONFLICT')) {
 				vscode.window.showWarningMessage(`Merge conflict occurred in "${projectName}". Please resolve it manually.`);
 				return; // Stop push if pull failed
 			}
@@ -186,14 +197,9 @@ export class GitHubSyncManager {
 		try {
 			await this.execGit(['push', 'origin', 'main'], cwd);
 			// Update syncedAt after successful push
-			const remoteUrl = await this.projectManager.getRemoteUrl(cwd);
-			if (remoteUrl) {
-				const repoName = remoteUrl.split('/').pop()?.replace('.git', '');
-				if (repoName) {
-					await this.projectManager.updateSyncedAt(repoName);
-				}
-			}
-			console.log(`[GitHubSyncManager] Pushed ${projectName}`);
+			// Use the actual repoName (folder name) as the key
+			await this.projectManager.updateSyncedAt(repoName);
+			console.log(`[GitHubSyncManager] Pushed ${projectName} (Repo: ${repoName})`);
 		} catch (e) {
 			console.error(`[GitHubSyncManager] Push failed for ${projectName}:`, e);
 			// Usually rejected if remote has changes we didn't pull.
@@ -274,7 +280,7 @@ export class GitHubSyncManager {
 			} catch { /* ignore */ }
 
 			const project = { name: projectName, path: cwd };
-			await this.handleNoRemote(cwd, project);
+			await this.handleNoRemote(cwd, project, path.basename(cwd));
 			vscode.window.showInformationMessage(`Created new cloud storage for "${projectName}".`);
 		}
 	}
@@ -282,16 +288,17 @@ export class GitHubSyncManager {
 	/**
 	 * Handle no remote: Create and Link
 	 */
-	private async handleNoRemote(cwd: string, project: any): Promise<void> {
-		console.log(`[GitHubSyncManager] Initializing remote for ${project.name}`);
+	private async handleNoRemote(cwd: string, project: { name: string; path: string }, repoName: string): Promise<void> {
+		console.log(`[GitHubSyncManager] Initializing remote for ${project.name} (Suggested Repo: ${repoName})`);
 
-		let safeProjectName = project.name;
-		// Prevent invalid names like "-" resulting in "gitbbon-note--"
-		if (!safeProjectName || safeProjectName === '-') {
-			safeProjectName = 'default';
+		// targetRepoName: 저장소 이름은 폴더명(repoName)을 우선적으로 사용
+		let targetRepoName = repoName;
+
+		// 만약 repoName이 gitbbon-note- 형식이 아니라면 붙여줌 (보통 gitbbon-note-* 형식이 보장되지만 방어 코드)
+		if (!targetRepoName.startsWith('gitbbon-note-')) {
+			targetRepoName = `gitbbon-note-${targetRepoName}`;
 		}
 
-		const targetRepoName = safeProjectName.startsWith('gitbbon-note-') ? safeProjectName : `gitbbon-note-${safeProjectName}`;
 		let finalRepoName = targetRepoName;
 
 		// 1. Check if repo exists on GitHub
@@ -438,29 +445,27 @@ export class GitHubSyncManager {
 			return null;
 		}
 		try {
-			// Search API: GET /search/repositories?q=user:{user}+name
-			const response = await this.fetch(`https://api.github.com/user/repos?per_page=100&type=owner`); // Listing owned repos
+			// Direct Repository API: GET /repos/{owner}/{repo}
+			const response = await this.fetch(`https://api.github.com/repos/${this.session.account.label}/${name}`);
+
+			if (response.status === 404) {
+				return null; // Repo truly missing
+			}
 
 			if (!response.ok) {
 				throw new Error(`GitHub API Error: ${response.status} ${response.statusText}`);
 			}
 
-			const repos = await response.json() as any[];
-			const match = repos.find((r: any) => r.name === name);
-			if (match) {
-				return {
-					name: match.name,
-					clone_url: match.clone_url,
-					default_branch: match.default_branch
-				};
-			}
+			const repo = await response.json() as GitHubApiResponse;
+			return {
+				name: repo.name,
+				clone_url: repo.clone_url,
+				default_branch: repo.default_branch
+			};
 
-			// Valid response (200) but repo not found in list -> It is truly missing
-			return null;
-
-		} catch (e: any) {
+		} catch (e: unknown) {
 			console.error('[GitHubSyncManager] API Error:', e);
-			throw e; // Always re-throw to Safety Block in handleExistingRemote
+			throw e; // Safety block in handleExistingRemote will handle this
 		}
 	}
 
@@ -471,12 +476,12 @@ export class GitHubSyncManager {
 		try {
 			const response = await this.fetch(`https://api.github.com/user/repos?per_page=100&type=owner`);
 			if (response.ok) {
-				const repos = await response.json() as any[];
+				const repos = await response.json() as GitHubApiResponse[];
 				// Filter: gitbbon-note-* with something after the last hyphen
 				// e.g. gitbbon-note-default ✓, gitbbon-note ✗
 				return repos
-					.filter((r: any) => /^gitbbon-note-.+$/.test(r.name))
-					.map((r: any) => ({
+					.filter((r: GitHubApiResponse) => /^gitbbon-note-.+$/.test(r.name))
+					.map((r: GitHubApiResponse) => ({
 						name: r.name,
 						clone_url: r.clone_url,
 						default_branch: r.default_branch
@@ -513,7 +518,7 @@ export class GitHubSyncManager {
 			});
 
 			if (response.ok || response.status === 201) {
-				const repo = await response.json() as any;
+				const repo = await response.json() as GitHubApiResponse;
 				return {
 					name: repo.name,
 					clone_url: repo.clone_url,

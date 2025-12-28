@@ -42,6 +42,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ICompositeTitleLabel } from '../compositePart.js';
 import { append, $, getWindow } from '../../../../base/browser/dom.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 interface IProject {
 	name: string;
@@ -86,7 +87,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	//#endregion
 
 	constructor(
-		@INotificationService notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -104,6 +105,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -656,8 +658,43 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			if (selected) {
 				const id = (selected as IQuickPickItem).id;
 				if (id === 'action:add') {
-					// TODO: 프로젝트 추가 로직 구현
-					console.log('[SidebarPart] Add project action triggered');
+					// "Add New Project" 액션 처리
+					quickPick.hide();
+
+					// InputBox로 프로젝트 이름 입력 받기
+					const inputBox = this.quickInputService.createInputBox();
+					inputBox.title = 'Add New Project';
+					inputBox.placeholder = 'Enter project name';
+
+					inputBox.onDidAccept(async () => {
+						const name = inputBox.value.trim();
+						if (name) {
+							try {
+								// gitbbon-manager 익스텐션 명령어 호출 (Core CommandService 사용)
+								const result = await this.commandService.executeCommand('gitbbon.manager.addProject', {
+									name: name
+								}) as { success: boolean; projectPath: string; message: string } | undefined;
+
+								if (result?.success) {
+									// 새 프로젝트를 새 창에서 열기
+									const uri = URI.file(result.projectPath);
+									this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: true });
+								} else {
+									this.notificationService.error(`프로젝트 생성 실패: ${result?.message || '알 수 없는 오류'}`);
+								}
+							} catch (error) {
+								console.error('[SidebarPart] Failed to add project:', error);
+								this.notificationService.error(`프로젝트 생성 중 오류 발생: ${error}`);
+							}
+						}
+						inputBox.hide();
+					});
+
+					inputBox.onDidHide(() => {
+						inputBox.dispose();
+					});
+
+					inputBox.show();
 				} else if (id?.startsWith('project:')) {
 					const projectPath = id.substring('project:'.length);
 					if (projectPath !== currentPath) {
@@ -720,8 +757,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 				// 현재 열린 프로젝트는 삭제 불가
 				if (projectPath === currentPath) {
-					const { window: vsWindow } = await import('vscode');
-					vsWindow.showWarningMessage('현재 열려있는 프로젝트는 삭제할 수 없습니다. 다른 프로젝트를 연 후 시도해 주세요.');
+					this.notificationService.warn('현재 열려있는 프로젝트는 삭제할 수 없습니다. 다른 프로젝트를 연 후 시도해 주세요.');
 					return;
 				}
 
@@ -739,15 +775,27 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				}
 
 				// 삭제 범위 선택 (원격 저장소가 있는 경우에만)
+				// Core 코드에서는 VS Code Extension API인 window.showQuickPick을 직접 사용할 수 없으므로
+				// quickInputService를 대신 사용해야 함
 				let deleteRemote = false;
 				if (hasRemote) {
-					const { window: vsWindow } = await import('vscode');
-					const remoteChoice = await vsWindow.showQuickPick([
-						{ label: '$(folder) 로컬만 삭제', description: '원격 저장소는 유지됩니다', value: false },
-						{ label: '$(cloud) 로컬 + 원격 삭제', description: '⚠️ GitHub 저장소도 삭제됩니다', value: true }
-					], {
-						placeHolder: '원격 저장소도 함께 삭제할까요?',
-						title: '삭제 범위 선택'
+					const remoteChoice = await new Promise<{ value: boolean } | undefined>((resolve) => {
+						const qp = this.quickInputService.createQuickPick<{ label: string; description: string; value: boolean }>();
+						qp.title = '삭제 범위 선택';
+						qp.placeholder = '원격 저장소도 함께 삭제할까요?';
+						qp.items = [
+							{ label: '$(folder) 로컬만 삭제', description: '원격 저장소는 유지됩니다', value: false },
+							{ label: '$(cloud) 로컬 + 원격 삭제', description: '⚠️ GitHub 저장소도 삭제됩니다', value: true }
+						];
+						qp.onDidAccept(() => {
+							resolve(qp.selectedItems[0]);
+							qp.hide();
+						});
+						qp.onDidHide(() => {
+							resolve(undefined);
+							qp.dispose();
+						});
+						qp.show();
 					});
 
 					if (remoteChoice === undefined) {
@@ -756,39 +804,48 @@ export class SidebarPart extends AbstractPaneCompositePart {
 					deleteRemote = remoteChoice.value;
 				}
 
-				// 최종 확인
-				const { window: vsWindow } = await import('vscode');
-				const confirmMessage = deleteRemote
-					? `'${project.name}' 프로젝트와 GitHub 저장소를 삭제합니다. 이 작업은 되돌릴 수 없습니다!`
-					: `'${project.name}' 프로젝트를 삭제합니다. 이 작업은 되돌릴 수 없습니다!`;
+				// 최종 확인 (Core에서는 DialogService 등을 쓰는 것이 정석이지만,
+				// 간단히 notificationService 혹은 별도 UI를 쓸 수 있음. 여기서는 prompt 대체)
+				const confirm = await new Promise<boolean>((resolve) => {
+					const qp = this.quickInputService.createQuickPick();
+					qp.title = deleteRemote
+						? `'${project.name}' 프로젝트와 GitHub 저장소를 삭제합니다. 이 작업은 되돌릴 수 없습니다!`
+						: `'${project.name}' 프로젝트를 삭제합니다. 이 작업은 되돌릴 수 없습니다!`;
+					qp.items = [
+						{ label: '삭제', description: '영구히 삭제합니다' },
+						{ label: '취소', description: '작업을 중단합니다' }
+					];
+					qp.onDidAccept(() => {
+						resolve(qp.selectedItems[0]?.label === '삭제');
+						qp.hide();
+					});
+					qp.onDidHide(() => {
+						resolve(false);
+						qp.dispose();
+					});
+					qp.show();
+				});
 
-				const confirm = await vsWindow.showWarningMessage(
-					confirmMessage,
-					{ modal: true },
-					'삭제'
-				);
-
-				if (confirm !== '삭제') {
+				if (!confirm) {
 					return;
 				}
 
 				// 삭제 실행 (gitbbon-manager 익스텐션 명령어 호출)
 				try {
-					const { commands } = await import('vscode');
-					const result = await commands.executeCommand('gitbbon.manager.deleteProject', {
+					const result = await this.commandService.executeCommand('gitbbon.manager.deleteProject', {
 						projectPath: projectPath,
 						deleteRemote: deleteRemote
 					}) as { success: boolean; message: string } | undefined;
 
 					if (result?.success) {
-						vsWindow.showInformationMessage(`'${project.name}' 프로젝트가 삭제되었습니다.`);
+						this.notificationService.info(`'${project.name}' 프로젝트가 삭제되었습니다.`);
 						// 프로젝트 스위처 새로고침
 						await this.loadProjects();
 					} else {
-						vsWindow.showErrorMessage(`프로젝트 삭제 실패: ${result?.message || '알 수 없는 오류'}`);
+						this.notificationService.error(`프로젝트 삭제 실패: ${result?.message || '알 수 없는 오류'}`);
 					}
 				} catch (error) {
-					vsWindow.showErrorMessage(`프로젝트 삭제 실패: ${error}`);
+					this.notificationService.error(`프로젝트 삭제 실패: ${error}`);
 				}
 			}
 		});

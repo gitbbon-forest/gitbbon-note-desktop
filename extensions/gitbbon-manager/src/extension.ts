@@ -165,6 +165,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	);
 	context.subscriptions.push(deleteProjectCommand);
 
+	// Register addProject command (called from SidebarPart project switcher)
+	const addProjectCommand = vscode.commands.registerCommand(
+		'gitbbon.manager.addProject',
+		async (args: { name: string }) => {
+			console.log('[Extension] Add project command triggered:', args);
+
+			if (!args.name) {
+				console.error('[Extension] No project name provided');
+				return { success: false, message: 'No project name provided' };
+			}
+
+			try {
+				const result = await projectManager.addNewProject(args.name);
+				return result;
+			} catch (error) {
+				console.error('[Extension] Add project failed:', error);
+				return { success: false, message: String(error) };
+			}
+		}
+	);
+	context.subscriptions.push(addProjectCommand);
+
 	// 30-minute Periodic Sync (Silent mode)
 	const syncInterval = setInterval(() => {
 		console.log('[Extension] Triggering periodic sync (30m, Silent)...');

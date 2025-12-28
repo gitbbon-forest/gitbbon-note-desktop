@@ -406,6 +406,72 @@ export class ProjectManager {
 	}
 
 	/**
+	 * 사용자가 입력한 이름을 기반으로 안전한 저장소 디렉토리 이름을 생성합니다.
+	 */
+	private generateSafeRepoName(inputName: string): string {
+		const isEnglish = /^[A-Za-z0-9\s-_]+$/.test(inputName);
+		let baseName: string;
+
+		if (isEnglish) {
+			// 영문인 경우: 공백을 -로 바꾸고 특수문자 제거
+			const safeInput = inputName.trim().replace(/\s+/g, '-').replace(/[^A-Za-z0-9-_]/g, '');
+			baseName = `gitbbon-note-${safeInput}`;
+		} else {
+			// 영문이 아닌 경우: 숫자(auto-increment) 사용
+			try {
+				const dirs = fs.readdirSync(this.rootPath);
+				const numbers = dirs
+					.map(d => d.match(/^gitbbon-note-(\d+)$/))
+					.filter((m): m is RegExpMatchArray => !!m)
+					.map(m => parseInt(m[1]))
+					.filter(n => !isNaN(n));
+				const nextNum = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
+				baseName = `gitbbon-note-${nextNum}`;
+			} catch (e) {
+				console.warn('[ProjectManager] Failed to read directory for auto-increment, using timestamp', e);
+				baseName = `gitbbon-note-${Date.now()}`;
+				return baseName;
+			}
+		}
+
+		// 이름 충돌 확인: 이미 존재하면 타임스탬프 사용
+		if (fs.existsSync(path.join(this.rootPath, baseName))) {
+			console.log(`[ProjectManager] Name conflict detected for ${baseName}, using timestamp`);
+			// YYYYMMDDHHMMSS 형식 또는 그냥 Date.now()
+			const now = new Date();
+			const timestamp = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`;
+			baseName = `gitbbon-note-${timestamp}`;
+		}
+
+		return baseName;
+	}
+
+	/**
+	 * 새 프로젝트를 생성합니다.
+	 */
+	public async addNewProject(inputName: string): Promise<{ success: boolean; projectPath?: string; message?: string }> {
+		console.log(`[ProjectManager] Adding new project with name: ${inputName}`);
+		try {
+			const safeDirName = this.generateSafeRepoName(inputName);
+			const projectPath = path.join(this.rootPath, safeDirName);
+
+			// 프로젝트 초기화 (기존 initializeProject 재사용)
+			await this.initializeProject(projectPath, inputName);
+
+			return {
+				success: true,
+				projectPath: projectPath
+			};
+		} catch (error) {
+			console.error('[ProjectManager] Failed to add new project:', error);
+			return {
+				success: false,
+				message: String(error)
+			};
+		}
+	}
+
+	/**
 	 * 프로젝트의 원격 저장소 URL 가져오기
 	 * @param projectPath 프로젝트 경로
 	 * @returns 원격 URL 또는 null
