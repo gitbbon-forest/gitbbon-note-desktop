@@ -414,7 +414,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 		const isExplorer = id === 'workbench.view.explorer' || id.toLowerCase().includes('explorer');
 		const activeComposite = this.getActiveComposite();
-		console.log(`SidebarPart: updateVisibility(id: ${id}, isExplorer: ${isExplorer}, activeComposite: ${activeComposite?.getId()})`);
 
 		// 실제 활성 뷰가 Explorer인지 확인
 		const actuallyExplorer = activeComposite?.getId() === 'workbench.view.explorer';

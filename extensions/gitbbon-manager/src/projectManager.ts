@@ -57,7 +57,10 @@ export class ProjectManager {
 				// Ensure .gitbbon.json exists (for older projects or manually added folders)
 				const gitbbonConfigPath = path.join(currentFolder, '.gitbbon.json');
 				if (!fs.existsSync(gitbbonConfigPath)) {
-					const folderName = path.basename(currentFolder);
+					let folderName = path.basename(currentFolder);
+					if (!folderName || folderName === '-') {
+						folderName = 'default';
+					}
 					console.log(`[ProjectManager] Creating .gitbbon.json for existing project: ${folderName}`);
 					const config = {
 						name: folderName,
@@ -74,24 +77,24 @@ export class ProjectManager {
 			const projects = await this.getProjects();
 			console.log(`[ProjectManager] Found ${projects.length} projects`);
 
+			let targetPath: string;
+
 			if (projects.length > 0) {
 				// Open first project
 				const firstProject = projects[0];
 				console.log(`[ProjectManager] Opening project: ${firstProject.name} (${firstProject.path})`);
-
-				const uri = vscode.Uri.file(firstProject.path);
-				await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: false });
+				targetPath = firstProject.path;
 			} else {
 				// No projects exist, create default
 				console.log('[ProjectManager] No projects found, creating default...');
 				const defaultDirName = 'gitbbon-note-default';
 				const defaultProjectName = 'default';
-				const defaultPath = path.join(this.rootPath, defaultDirName);
-				await this.initializeProject(defaultPath, defaultProjectName);
-
-				const uri = vscode.Uri.file(defaultPath);
-				await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: false });
+				targetPath = path.join(this.rootPath, defaultDirName);
+				await this.initializeProject(targetPath, defaultProjectName);
 			}
+
+			const uri = vscode.Uri.file(targetPath);
+			await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: false });
 		} catch (error) {
 			console.error('[ProjectManager] Startup failed:', error);
 			vscode.window.showErrorMessage(`Gitbbon Project Manager Error: ${error}`);

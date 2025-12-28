@@ -29,6 +29,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		const folder = vscode.workspace.getWorkspaceFolder(uri);
 		if (folder) {
 			await projectManager.commitProjectConfig(folder.uri.fsPath);
+			// Push changes if possible (Silent sync)
+			console.log('[Extension] Triggering sync after .gitbbon.json update...');
+			await githubSyncManager.sync(true);
 			await gitGraphProvider.refresh();
 		}
 	};

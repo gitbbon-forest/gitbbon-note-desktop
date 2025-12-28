@@ -73,7 +73,7 @@ export class GitHubSyncManager {
 		try {
 			// Using 'repo' scope to create private repositories
 			// createIfNone: !silent -> explicit prompt only if not silent
-			this.session = await vscode.authentication.getSession('github', ['repo', 'user:email'], { createIfNone: !silent });
+			this.session = await vscode.authentication.getSession('github', ['repo', 'user:email', 'delete_repo'], { createIfNone: !silent });
 
 			if (this.session) {
 				console.log(`[GitHubSyncManager] ✅ Authentication successful: ${this.session.account.label}`);
@@ -150,12 +150,20 @@ export class GitHubSyncManager {
 			// Extract repository name from URL (e.g., https://github.com/user/gitbbon-note-xxx.git)
 			const repoName = remoteUrl.split('/').pop()?.replace('.git', '');
 			if (repoName) {
-				const exists = await this.getGitHubRepo(repoName);
-				if (!exists) {
-					// Remote repository has been deleted - user choice needed
-					console.log(`[GitHubSyncManager] Remote repo ${repoName} not found (404)`);
-					await this.handleRemoteDeleted(cwd, projectName, repoName);
-					return;
+				try {
+					const exists = await this.getGitHubRepo(repoName);
+					if (!exists) {
+						// Remote repository has been deleted - user choice needed
+						console.log(`[GitHubSyncManager] Remote repo ${repoName} not found (404)`);
+						await this.handleRemoteDeleted(cwd, projectName, repoName);
+						return;
+					}
+				} catch (e: any) {
+					// Treat any error during existence check as a reason to abort (safety first)
+					// This includes network errors, API 500s, rate limits, etc.
+					console.warn(`[GitHubSyncManager] Aborting sync due to error checking repo existence: ${e.message}`);
+					vscode.window.showWarningMessage('Sync stopped due to unstable network connection or API error. Local data is safe.');
+					return; // Stop sync, do not delete
 				}
 			}
 		}
@@ -277,7 +285,13 @@ export class GitHubSyncManager {
 	private async handleNoRemote(cwd: string, project: any): Promise<void> {
 		console.log(`[GitHubSyncManager] Initializing remote for ${project.name}`);
 
-		const targetRepoName = project.name.startsWith('gitbbon-note-') ? project.name : `gitbbon-note-${project.name}`;
+		let safeProjectName = project.name;
+		// Prevent invalid names like "-" resulting in "gitbbon-note--"
+		if (!safeProjectName || safeProjectName === '-') {
+			safeProjectName = 'default';
+		}
+
+		const targetRepoName = safeProjectName.startsWith('gitbbon-note-') ? safeProjectName : `gitbbon-note-${safeProjectName}`;
 		let finalRepoName = targetRepoName;
 
 		// 1. Check if repo exists on GitHub
@@ -419,47 +433,34 @@ export class GitHubSyncManager {
 		}
 	}
 
-
-	// =====================================================
-	// GitHub API Helpers
-	// =====================================================
-
 	private async getGitHubRepo(name: string): Promise<GitHubRepository | null> {
 		if (!this.session) {
 			return null;
 		}
 		try {
-			// GET /user/repos?type=all&per_page=100 causes heavy load if user has many repos.
-			// Better: GET /repos/{owner}/{repo}
-			const owner = this.session.account.label; // Username usually
-			// The label might not be username, need to verify.
-			// Actually session.account.label is usually the display name or username.
-			// Safer to fetch fetch user info first if needed, but let's try direct search
-			// Or just List all and filter.
-
 			// Search API: GET /search/repositories?q=user:{user}+name
 			const response = await this.fetch(`https://api.github.com/user/repos?per_page=100&type=owner`); // Listing owned repos
-			if (response.ok) {
-				const repos = await response.json() as any[];
-				const match = repos.find((r: any) => r.name === name);
-				if (match) {
-					return {
-						name: match.name,
-						clone_url: match.clone_url,
-						default_branch: match.default_branch
-					};
-				}
+
+			if (!response.ok) {
+				throw new Error(`GitHub API Error: ${response.status} ${response.statusText}`);
 			}
 
-			// Handle rate limit and auth errors
-			if (response.status === 429 || response.status === 403) {
-				console.warn('[GitHubSyncManager] Rate limited or permission denied');
+			const repos = await response.json() as any[];
+			const match = repos.find((r: any) => r.name === name);
+			if (match) {
+				return {
+					name: match.name,
+					clone_url: match.clone_url,
+					default_branch: match.default_branch
+				};
 			}
 
+			// Valid response (200) but repo not found in list -> It is truly missing
 			return null;
-		} catch (e) {
+
+		} catch (e: any) {
 			console.error('[GitHubSyncManager] API Error:', e);
-			return null;
+			throw e; // Always re-throw to Safety Block in handleExistingRemote
 		}
 	}
 
