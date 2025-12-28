@@ -37,14 +37,17 @@ export class ProjectManager {
 	 * Initialize the Project Manager and ensure a project is open
 	 */
 	public async startup(): Promise<void> {
-		console.log('[ProjectManager] Starting up...');
+		console.log('[ProjectManager] Startup initiated');
+
 		try {
 			// Ensure root directory exists
-			console.log(`[ProjectManager] Checking root directory: ${this.rootPath}`);
+			console.log(`[ProjectManager] Checking root path: ${this.rootPath}, Exists: ${fs.existsSync(this.rootPath)}`);
 			if (!fs.existsSync(this.rootPath)) {
-				console.log(`[ProjectManager] Creating root directory: ${this.rootPath}`);
+				console.log('[ProjectManager] Creating root directory...');
 				await fs.promises.mkdir(this.rootPath, { recursive: true });
 			}
+
+
 
 			// Check if we are already in a Gitbbon project (inside Gitbbon_Notes)
 			const currentFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
