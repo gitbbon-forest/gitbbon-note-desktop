@@ -34,6 +34,10 @@ class MockRemoteService implements IRemoteRepositoryService {
 		this.repos.set(name, repo);
 		return repo;
 	}
+
+	async listRepositories(): Promise<RepoInfo[]> {
+		return Array.from(this.repos.values());
+	}
 }
 
 class MockLocalService implements ILocalProjectService {

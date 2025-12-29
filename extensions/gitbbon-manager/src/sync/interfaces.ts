@@ -20,11 +20,12 @@ export interface ProjectConfig {
 export interface IRemoteRepositoryService {
 	getRepository(name: string): Promise<RepoInfo | null>;
 	createRepository(name: string): Promise<RepoInfo>;
+	listRepositories(): Promise<RepoInfo[]>;
 }
 
 export interface ILocalProjectService {
 	moveToTrash(path: string): Promise<void>;
-	pushProject(path: string): Promise<void>;
+	pushProject(path: string, remoteUrl?: string): Promise<void>;
 	renameProject(oldPath: string, newName: string): Promise<string>; // Returns new path
 	cloneProject(cloneUrl: string, targetPath: string): Promise<void>;
 }

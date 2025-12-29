@@ -23,8 +23,8 @@ export class SyncEngine {
 		// Case 3: Local has no syncedAt (never synced) and Remote is missing
 		// -> Create remote repository and push
 		if (!config.syncedAt && !remoteRepo) {
-			await this.remoteService.createRepository(config.name);
-			await this.localService.pushProject(config.path);
+			const repoInfo = await this.remoteService.createRepository(config.name);
+			await this.localService.pushProject(config.path, repoInfo.clone_url);
 			return;
 		}
 
@@ -35,8 +35,8 @@ export class SyncEngine {
 			const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 			const newName = `${config.name}-${timestamp}`;
 			const newPath = await this.localService.renameProject(config.path, newName);
-			await this.remoteService.createRepository(newName);
-			await this.localService.pushProject(newPath);
+			const repoInfo = await this.remoteService.createRepository(newName);
+			await this.localService.pushProject(newPath, repoInfo.clone_url);
 			return;
 		}
 
