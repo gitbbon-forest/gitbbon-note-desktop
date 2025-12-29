@@ -27,5 +27,17 @@ export class SyncEngine {
 			await this.localService.pushProject(config.path);
 			return;
 		}
+
+		// Case 4: Local has no syncedAt (never synced) but Remote exists with same name
+		// AND Local has modifiedAt (has local changes)
+		// -> Rename local project with timestamp, then create new remote and push
+		if (!config.syncedAt && remoteRepo && config.modifiedAt) {
+			const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+			const newName = `${config.name}-${timestamp}`;
+			const newPath = await this.localService.renameProject(config.path, newName);
+			await this.remoteService.createRepository(newName);
+			await this.localService.pushProject(newPath);
+			return;
+		}
 	}
 }

@@ -39,6 +39,7 @@ class MockRemoteService implements IRemoteRepositoryService {
 class MockLocalService implements ILocalProjectService {
 	public trashedPaths: string[] = [];
 	public pushedPaths: string[] = [];
+	public renamedProjects: { oldPath: string; newName: string; newPath: string }[] = [];
 
 	async moveToTrash(path: string): Promise<void> {
 		this.trashedPaths.push(path);
@@ -46,6 +47,13 @@ class MockLocalService implements ILocalProjectService {
 
 	async pushProject(path: string): Promise<void> {
 		this.pushedPaths.push(path);
+	}
+
+	async renameProject(oldPath: string, newName: string): Promise<string> {
+		const parentDir = oldPath.substring(0, oldPath.lastIndexOf('/'));
+		const newPath = `${parentDir}/${newName}`;
+		this.renamedProjects.push({ oldPath, newName, newPath });
+		return newPath;
 	}
 }
 
@@ -121,4 +129,33 @@ describe('SyncEngine Policy Tests', () => {
 		assert.strictEqual(localService.pushedPaths[0], project.path, 'Should have pushed the correct project');
 		assert.strictEqual(localService.trashedPaths.length, 0, 'Should NOT have moved anything to trash');
 	});
+
+	it('Scenario 4: Local(no syncedAt, has modifiedAt) + Remote(Exists with same name) -> Should rename local and create new remote', async () => {
+		// Given - Local project with local modifications but never synced
+		const project: ProjectConfig = {
+			name: 'gitbbon-note-conflict',
+			path: '/local/path/to/gitbbon-note-conflict',
+			modifiedAt: '2023-12-01T00:00:00Z' // Has local modifications
+			// No syncedAt - never synced
+		};
+
+		// Remote already has a repository with the same name (conflict!)
+		remoteService.setRepo(project.name, {
+			name: project.name,
+			html_url: `https://github.com/mock/${project.name}`,
+			clone_url: `https://github.com/mock/${project.name}.git`,
+			updated_at: '2023-01-01T00:00:00Z'
+		});
+
+		// When
+		await syncEngine.syncProject(project);
+
+		// Then - Should rename local project and create new remote for it
+		assert.strictEqual(localService.renamedProjects.length, 1, 'Should have renamed one project');
+		assert.ok(/^gitbbon-note-conflict-\d{4}-\d{2}-\d{2}T/.test(localService.renamedProjects[0].newName), 'New name should include original name + timestamp');
+		assert.strictEqual(remoteService.getCreatedRepoCount(), 1, 'Should have created one new repository');
+		assert.strictEqual(localService.pushedPaths.length, 1, 'Should have pushed the renamed project');
+		assert.strictEqual(localService.trashedPaths.length, 0, 'Should NOT have moved anything to trash');
+	});
 });
+
