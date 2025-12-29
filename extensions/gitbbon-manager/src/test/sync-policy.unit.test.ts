@@ -9,9 +9,14 @@ import { ILocalProjectService, IRemoteRepositoryService, ProjectConfig, RepoInfo
 
 class MockRemoteService implements IRemoteRepositoryService {
 	private repos: Map<string, RepoInfo> = new Map();
+	private createdRepoCount = 0;
 
 	setRepo(name: string, info: RepoInfo) {
 		this.repos.set(name, info);
+	}
+
+	getCreatedRepoCount(): number {
+		return this.createdRepoCount;
 	}
 
 	async getRepository(name: string): Promise<RepoInfo | null> {
@@ -19,9 +24,11 @@ class MockRemoteService implements IRemoteRepositoryService {
 	}
 
 	async createRepository(name: string): Promise<RepoInfo> {
+		this.createdRepoCount++;
 		const repo: RepoInfo = {
 			name,
 			html_url: `https://github.com/mock/${name}`,
+			clone_url: `https://github.com/mock/${name}.git`,
 			updated_at: new Date().toISOString()
 		};
 		this.repos.set(name, repo);
@@ -64,5 +71,29 @@ describe('SyncEngine Policy Tests', () => {
 		// Then
 		assert.strictEqual(localService.trashedPaths.length, 1, 'Should have moved one path to trash');
 		assert.strictEqual(localService.trashedPaths[0], project.path, 'Should have moved the correct project path to trash');
+	});
+
+	it('Scenario 2: Local(syncedAt) + Remote(Exists) -> Should do nothing', async () => {
+		// Given
+		const project: ProjectConfig = {
+			name: 'gitbbon-note-project2',
+			path: '/local/path/to/project2',
+			syncedAt: '2023-01-01T00:00:00Z' // Previously synced
+		};
+
+		// Remote HAS the repository
+		remoteService.setRepo(project.name, {
+			name: project.name,
+			html_url: `https://github.com/mock/${project.name}`,
+			clone_url: `https://github.com/mock/${project.name}.git`,
+			updated_at: '2023-01-02T00:00:00Z'
+		});
+
+		// When
+		await syncEngine.syncProject(project);
+
+		// Then - No side effects should have occurred
+		assert.strictEqual(localService.trashedPaths.length, 0, 'Should NOT have moved anything to trash');
+		assert.strictEqual(remoteService.getCreatedRepoCount(), 0, 'Should NOT have created any repository');
 	});
 });

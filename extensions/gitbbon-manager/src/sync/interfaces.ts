@@ -6,6 +6,7 @@
 export interface RepoInfo {
 	name: string;
 	html_url: string;
+	clone_url: string;
 	updated_at: string; // ISO string
 }
 
