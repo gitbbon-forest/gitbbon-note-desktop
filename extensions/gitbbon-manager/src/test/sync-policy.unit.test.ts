@@ -38,9 +38,14 @@ class MockRemoteService implements IRemoteRepositoryService {
 
 class MockLocalService implements ILocalProjectService {
 	public trashedPaths: string[] = [];
+	public pushedPaths: string[] = [];
 
 	async moveToTrash(path: string): Promise<void> {
 		this.trashedPaths.push(path);
+	}
+
+	async pushProject(path: string): Promise<void> {
+		this.pushedPaths.push(path);
 	}
 }
 
@@ -95,5 +100,25 @@ describe('SyncEngine Policy Tests', () => {
 		// Then - No side effects should have occurred
 		assert.strictEqual(localService.trashedPaths.length, 0, 'Should NOT have moved anything to trash');
 		assert.strictEqual(remoteService.getCreatedRepoCount(), 0, 'Should NOT have created any repository');
+	});
+
+	it('Scenario 3: Local(no syncedAt) + Remote(Missing) -> Should create remote and push', async () => {
+		// Given - Local project exists but has never been synced (no syncedAt)
+		const project: ProjectConfig = {
+			name: 'gitbbon-note-new-project',
+			path: '/local/path/to/new-project'
+			// No syncedAt means this is a local-only project
+		};
+
+		// Remote has NO repository for this project
+
+		// When
+		await syncEngine.syncProject(project);
+
+		// Then - Should have created remote repository and pushed
+		assert.strictEqual(remoteService.getCreatedRepoCount(), 1, 'Should have created one repository');
+		assert.strictEqual(localService.pushedPaths.length, 1, 'Should have pushed one project');
+		assert.strictEqual(localService.pushedPaths[0], project.path, 'Should have pushed the correct project');
+		assert.strictEqual(localService.trashedPaths.length, 0, 'Should NOT have moved anything to trash');
 	});
 });

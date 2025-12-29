@@ -24,4 +24,5 @@ export interface IRemoteRepositoryService {
 
 export interface ILocalProjectService {
 	moveToTrash(path: string): Promise<void>;
+	pushProject(path: string): Promise<void>;
 }

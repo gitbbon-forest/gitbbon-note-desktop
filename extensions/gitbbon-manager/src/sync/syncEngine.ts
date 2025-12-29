@@ -19,5 +19,13 @@ export class SyncEngine {
 			await this.localService.moveToTrash(config.path);
 			return;
 		}
+
+		// Case 3: Local has no syncedAt (never synced) and Remote is missing
+		// -> Create remote repository and push
+		if (!config.syncedAt && !remoteRepo) {
+			await this.remoteService.createRepository(config.name);
+			await this.localService.pushProject(config.path);
+			return;
+		}
 	}
 }
