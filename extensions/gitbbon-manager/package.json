@@ -57,7 +57,8 @@
     "compile": "tsc -p ./",
     "package": "npm run compile",
     "watch": "tsc -watch -p ./",
-    "unit-test": "npm run compile && mocha out/test/*.unit.test.js"
+    "unit-test": "npm run compile && mocha out/test/*.unit.test.js",
+    "unit-test:debug": "npm run compile && mocha --inspect-brk out/test/*.unit.test.js"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
