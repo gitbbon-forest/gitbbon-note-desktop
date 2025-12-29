@@ -62,9 +62,9 @@ export class ProjectManager {
 						folderName = 'default';
 					}
 					console.log(`[ProjectManager] Creating .gitbbon.json for existing project: ${folderName}`);
+					// .gitbbon.json: 공유 설정 (이름 등)
 					const config = {
-						name: folderName,
-						createdAt: new Date().toISOString()
+						name: folderName
 					};
 					await fs.promises.writeFile(gitbbonConfigPath, JSON.stringify(config, null, 2), 'utf-8');
 				}
@@ -147,8 +147,9 @@ export class ProjectManager {
 
 	/**
 	 * Read .gitbbon.json config from a project directory
+	 * .gitbbon.json: 공유 설정 (여러 저장소/호스트 간에 공통으로 유지되어야 하는 정보)
 	 */
-	public async readProjectConfig(projectPath: string): Promise<{ name: string; createdAt?: string; lastModified?: string } | null> {
+	public async readProjectConfig(projectPath: string): Promise<{ name: string } | null> {
 		const configPath = path.join(projectPath, '.gitbbon.json');
 		if (!fs.existsSync(configPath)) {
 			return null;
@@ -165,7 +166,7 @@ export class ProjectManager {
 	/**
 	 * Write .gitbbon.json config to a project directory
 	 */
-	public async writeProjectConfig(projectPath: string, config: { name: string; createdAt?: string; lastModified?: string }): Promise<void> {
+	public async writeProjectConfig(projectPath: string, config: { name: string }): Promise<void> {
 		const configPath = path.join(projectPath, '.gitbbon.json');
 		await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
 		console.log(`[ProjectManager] Updated .gitbbon.json at ${projectPath}`);
@@ -180,8 +181,9 @@ export class ProjectManager {
 
 	/**
 	 * Read .gitbbon-local.json (local-only sync metadata)
+	 * .gitbbon-local.json: 로컬 설정 (현재 호스트에서만 유효하며 GitHub에 공유되지 않는 정보)
 	 */
-	public async readLocalConfig(): Promise<{ projects: Record<string, { syncedAt: string | null }> }> {
+	public async readLocalConfig(): Promise<{ projects: Record<string, { syncedAt?: string | null; lastModified?: string }> }> {
 		const configPath = this.getLocalConfigPath();
 		if (!fs.existsSync(configPath)) {
 			return { projects: {} };
@@ -198,7 +200,7 @@ export class ProjectManager {
 	/**
 	 * Write .gitbbon-local.json (local-only sync metadata)
 	 */
-	public async writeLocalConfig(config: { projects: Record<string, { syncedAt: string | null }> }): Promise<void> {
+	public async writeLocalConfig(config: { projects: Record<string, { syncedAt?: string | null; lastModified?: string }> }): Promise<void> {
 		const configPath = this.getLocalConfigPath();
 		await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
 		console.log('[ProjectManager] Updated .gitbbon-local.json');
@@ -209,7 +211,10 @@ export class ProjectManager {
 	 */
 	public async updateSyncedAt(repoName: string): Promise<void> {
 		const config = await this.readLocalConfig();
-		config.projects[repoName] = { syncedAt: new Date().toISOString() };
+		if (!config.projects[repoName]) {
+			config.projects[repoName] = {};
+		}
+		config.projects[repoName].syncedAt = new Date().toISOString();
 		await this.writeLocalConfig(config);
 		console.log(`[ProjectManager] Updated syncedAt for ${repoName}`);
 	}
@@ -265,13 +270,12 @@ export class ProjectManager {
 			console.log(`[ProjectManager] Git repository already exists`);
 		}
 
-		// 3. Create .gitbbon.json (프로젝트 설정 파일)
+		// 3. Create .gitbbon.json (공유용 프로젝트 설정 파일)
 		const gitbbonConfigPath = path.join(projectPath, '.gitbbon.json');
 		if (!fs.existsSync(gitbbonConfigPath)) {
 			console.log(`[ProjectManager] Creating .gitbbon.json...`);
 			const config = {
-				name: projectName,
-				createdAt: new Date().toISOString()
+				name: projectName
 			};
 			await fs.promises.writeFile(gitbbonConfigPath, JSON.stringify(config, null, 2), 'utf-8');
 			console.log(`[ProjectManager] .gitbbon.json created`);
@@ -329,25 +333,19 @@ export class ProjectManager {
 	}
 
 	/**
-	 * Update lastModified in .gitbbon.json for the given project path
+	 * Update lastModified in .gitbbon-local.json for the given project path
+	 * .gitbbon.json에는 더 이상 lastModified를 기록하지 않고 로컬 설정에만 저장함
 	 */
 	public async updateLastModified(cwd: string): Promise<void> {
-		const config = await this.readProjectConfig(cwd);
-		if (config) {
-			config.lastModified = new Date().toISOString();
-			await this.writeProjectConfig(cwd, config);
-			console.log(`[ProjectManager] Updated lastModified for ${config.name}`);
-		} else {
-			// Create .gitbbon.json if it doesn't exist
-			const projectName = path.basename(cwd);
-			const newConfig = {
-				name: projectName,
-				createdAt: new Date().toISOString(),
-				lastModified: new Date().toISOString()
-			};
-			await this.writeProjectConfig(cwd, newConfig);
-			console.log(`[ProjectManager] Created .gitbbon.json with lastModified for ${projectName}`);
+		const repoName = path.basename(cwd);
+		const config = await this.readLocalConfig();
+
+		if (!config.projects[repoName]) {
+			config.projects[repoName] = {};
 		}
+		config.projects[repoName].lastModified = new Date().toISOString();
+		await this.writeLocalConfig(config);
+		console.log(`[ProjectManager] Updated lastModified in local config for ${repoName}`);
 	}
 
 	/**
@@ -374,8 +372,7 @@ export class ProjectManager {
 		const existingConfig = await this.readProjectConfig(projectPath);
 		if (!existingConfig) {
 			const config = {
-				name,
-				createdAt: new Date().toISOString()
+				name
 			};
 			await this.writeProjectConfig(projectPath, config);
 			console.log(`[ProjectManager] Added new project: ${name}`);

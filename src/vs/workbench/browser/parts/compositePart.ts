@@ -83,7 +83,7 @@ export abstract class CompositePart<T extends Composite, MementoType extends obj
 	private readonly trailingSeparator: boolean;
 
 	constructor(
-		private readonly notificationService: INotificationService,
+		protected readonly notificationService: INotificationService,
 		protected readonly storageService: IStorageService,
 		protected readonly contextMenuService: IContextMenuService,
 		layoutService: IWorkbenchLayoutService,

@@ -47,7 +47,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 interface IProject {
 	name: string;
 	path: string;
-	lastModified?: string;
 }
 
 export class SidebarPart extends AbstractPaneCompositePart {
@@ -87,7 +86,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	//#endregion
 
 	constructor(
-		@INotificationService private readonly notificationService: INotificationService,
+		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -526,7 +525,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	/**
 	 * 프로젝트 설정 파일(.gitbbon.json) 읽기
 	 */
-	private async readProjectConfig(projectUri: URI): Promise<{ name?: string; description?: string } | null> {
+	private async readProjectConfig(projectUri: URI): Promise<{ name?: string } | null> {
 		try {
 			const configUri = URI.joinPath(projectUri, '.gitbbon.json');
 			const exists = await this.fileService.exists(configUri);
@@ -547,7 +546,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	/**
 	 * 프로젝트 설정 파일(.gitbbon.json) 쓰기
 	 */
-	private async writeProjectConfig(projectPath: string, config: { name?: string; description?: string }): Promise<void> {
+	private async writeProjectConfig(projectPath: string, config: { name?: string }): Promise<void> {
 		try {
 			const configUri = URI.joinPath(URI.file(projectPath), '.gitbbon.json');
 
