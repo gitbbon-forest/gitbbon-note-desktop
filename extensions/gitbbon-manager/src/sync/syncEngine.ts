@@ -39,5 +39,23 @@ export class SyncEngine {
 			await this.localService.pushProject(newPath);
 			return;
 		}
+
+		// Case 5: Local has no syncedAt (never synced) but Remote exists with same name
+		// AND Local has NO modifiedAt (no local changes - valueless)
+		// -> Delete local and clone remote
+		if (!config.syncedAt && remoteRepo && !config.modifiedAt) {
+			await this.localService.moveToTrash(config.path);
+			await this.localService.cloneProject(remoteRepo.clone_url, config.path);
+			return;
+		}
+	}
+
+	// Case 6: Remote exists but Local does not exist
+	// -> Clone remote repository to local
+	async syncRemoteRepo(repoName: string, targetPath: string): Promise<void> {
+		const remoteRepo = await this.remoteService.getRepository(repoName);
+		if (remoteRepo) {
+			await this.localService.cloneProject(remoteRepo.clone_url, targetPath);
+		}
 	}
 }

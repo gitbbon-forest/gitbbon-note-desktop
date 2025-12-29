@@ -40,6 +40,7 @@ class MockLocalService implements ILocalProjectService {
 	public trashedPaths: string[] = [];
 	public pushedPaths: string[] = [];
 	public renamedProjects: { oldPath: string; newName: string; newPath: string }[] = [];
+	public clonedProjects: { cloneUrl: string; targetPath: string }[] = [];
 
 	async moveToTrash(path: string): Promise<void> {
 		this.trashedPaths.push(path);
@@ -54,6 +55,10 @@ class MockLocalService implements ILocalProjectService {
 		const newPath = `${parentDir}/${newName}`;
 		this.renamedProjects.push({ oldPath, newName, newPath });
 		return newPath;
+	}
+
+	async cloneProject(cloneUrl: string, targetPath: string): Promise<void> {
+		this.clonedProjects.push({ cloneUrl, targetPath });
 	}
 }
 
@@ -157,5 +162,58 @@ describe('SyncEngine Policy Tests', () => {
 		assert.strictEqual(localService.pushedPaths.length, 1, 'Should have pushed the renamed project');
 		assert.strictEqual(localService.trashedPaths.length, 0, 'Should NOT have moved anything to trash');
 	});
+
+	it('Scenario 5: Local(no syncedAt, no modifiedAt) + Remote(Exists with same name) -> Should delete local and clone remote', async () => {
+		// Given - Local project with NO local modifications and never synced
+		const project: ProjectConfig = {
+			name: 'gitbbon-note-empty',
+			path: '/local/path/to/gitbbon-note-empty'
+			// No syncedAt - never synced
+			// No modifiedAt - no local changes (valueless local)
+		};
+
+		// Remote already has a repository with the same name
+		remoteService.setRepo(project.name, {
+			name: project.name,
+			html_url: `https://github.com/mock/${project.name}`,
+			clone_url: `https://github.com/mock/${project.name}.git`,
+			updated_at: '2023-01-01T00:00:00Z'
+		});
+
+		// When
+		await syncEngine.syncProject(project);
+
+		// Then - Should delete local (valueless) and clone remote
+		assert.strictEqual(localService.trashedPaths.length, 1, 'Should have moved local to trash');
+		assert.strictEqual(localService.trashedPaths[0], project.path, 'Should have trashed the correct path');
+		assert.strictEqual(localService.clonedProjects.length, 1, 'Should have cloned one project');
+		assert.strictEqual(localService.clonedProjects[0].cloneUrl, `https://github.com/mock/${project.name}.git`, 'Should clone from correct URL');
+		assert.strictEqual(localService.clonedProjects[0].targetPath, project.path, 'Should clone to original path');
+		assert.strictEqual(remoteService.getCreatedRepoCount(), 0, 'Should NOT have created any repository');
+	});
+
+	it('Scenario 6: Remote(Exists) + Local(Missing) -> Should clone remote', async () => {
+		// Given - Remote repository exists, but local project does not exist yet
+		const repoName = 'gitbbon-note-remote-only';
+		const expectedPath = '/local/path/to/gitbbon-note-remote-only';
+
+		remoteService.setRepo(repoName, {
+			name: repoName,
+			html_url: `https://github.com/mock/${repoName}`,
+			clone_url: `https://github.com/mock/${repoName}.git`,
+			updated_at: '2023-01-01T00:00:00Z'
+		});
+
+		// When - Sync is called for a remote-only repository
+		await syncEngine.syncRemoteRepo(repoName, expectedPath);
+
+		// Then - Should clone the remote repository
+		assert.strictEqual(localService.clonedProjects.length, 1, 'Should have cloned one project');
+		assert.strictEqual(localService.clonedProjects[0].cloneUrl, `https://github.com/mock/${repoName}.git`, 'Should clone from correct URL');
+		assert.strictEqual(localService.clonedProjects[0].targetPath, expectedPath, 'Should clone to expected path');
+		assert.strictEqual(localService.trashedPaths.length, 0, 'Should NOT have moved anything to trash');
+		assert.strictEqual(remoteService.getCreatedRepoCount(), 0, 'Should NOT have created any repository');
+	});
 });
+
 
