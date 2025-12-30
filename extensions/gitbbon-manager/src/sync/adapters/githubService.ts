@@ -134,12 +134,17 @@ export class GitHubService implements IRemoteRepositoryService {
 
 			if (response.status === 401) {
 				this.session = undefined;
+				throw new Error('Authentication failed (401) during listRepositories');
 			}
 
-			return [];
+			if (!response.ok) {
+				throw new Error(`Failed to list repositories: ${response.status} ${response.statusText}`);
+			}
+
+			return []; // Should be unreachable given response.ok check above, but for safety if logic changes
 		} catch (e) {
 			console.error('[GitHubService] listRepositories error:', e);
-			return [];
+			throw e;
 		}
 	}
 
