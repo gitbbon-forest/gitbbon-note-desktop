@@ -59,6 +59,11 @@ class MockLocalService implements ILocalProjectService {
 	public pullAndPushPaths: string[] = [];
 	public renamedProjects: { oldPath: string; newName: string; newPath: string }[] = [];
 	public clonedProjects: { cloneUrl: string; targetPath: string }[] = [];
+	public confirmDeletionResponse: boolean = true;
+
+	async confirmDeletion(projectName: string): Promise<boolean> {
+		return this.confirmDeletionResponse;
+	}
 
 	async moveToTrash(path: string): Promise<void> {
 		this.trashedPaths.push(path);
@@ -111,6 +116,9 @@ describe('SyncEngine Policy Tests', () => {
 		// Remote has NO repository for this project (simulating remote deletion)
 
 
+		// Mock Confirmation: YES
+		localService.confirmDeletionResponse = true;
+
 		// When
 		const remoteRepo = await remoteService.getRepository(project.name);
 		await syncEngine.syncProject(project, remoteRepo);
@@ -118,6 +126,32 @@ describe('SyncEngine Policy Tests', () => {
 		// Then
 		assert.strictEqual(localService.trashedPaths.length, 1, 'Should have moved one path to trash');
 		assert.strictEqual(localService.trashedPaths[0], project.path, 'Should have moved the correct project path to trash');
+	});
+
+	it('Scenario 1b: Local(syncedAt) + Remote(Missing) + Confirm(No) -> Should restore remote (Create & Push)', async () => {
+		// Given
+		const project: ProjectConfig = {
+			title: 'gitbbon-note-project1b',
+			name: 'gitbbon-note-project1b',
+			path: '/local/path/to/project1b',
+			syncedAt: '2023-01-01T00:00:00Z'
+		};
+
+		// Remote has NO repository
+
+		// Mock Confirmation: NO (Keep)
+		localService.confirmDeletionResponse = false;
+
+		// When
+		const remoteRepo = await remoteService.getRepository(project.name);
+		await syncEngine.syncProject(project, remoteRepo);
+
+		// Then
+		assert.strictEqual(localService.trashedPaths.length, 0, 'Should NOT move to trash if not confirmed');
+		// Should have restored remote
+		assert.strictEqual(remoteService.getCreatedRepoCount(), 1, 'Should have (re)created the repository');
+		assert.strictEqual(localService.pushedPaths.length, 1, 'Should have pushed the project to restore it');
+		assert.strictEqual(localService.pushedPaths[0], project.path, 'Should have pushed the correct project');
 	});
 
 	it('Scenario 2: Local(syncedAt) + Remote(Exists) -> Should do nothing', async () => {

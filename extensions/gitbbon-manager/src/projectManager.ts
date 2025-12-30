@@ -51,6 +51,15 @@ export class ProjectManager {
 
 			// Check if we are already in a Gitbbon project (inside Gitbbon_Notes)
 			const currentFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+			// Safe Startup: Check if the current workspace folder actually exists
+			if (currentFolder && !fs.existsSync(currentFolder)) {
+				console.warn(`[ProjectManager] Current workspace folder does not exist: ${currentFolder}. Closing folder...`);
+				// The folder was likely deleted. Close it to prevent recreation.
+				await vscode.commands.executeCommand('workbench.action.closeFolder');
+				return;
+			}
+
 			if (currentFolder && currentFolder.startsWith(this.rootPath)) {
 				console.log(`[ProjectManager] Already in Gitbbon project: ${currentFolder}`);
 

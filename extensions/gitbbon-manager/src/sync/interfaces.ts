@@ -33,4 +33,5 @@ export interface ILocalProjectService {
 	pullAndPush(path: string): Promise<void>;
 	renameProject(oldPath: string, newName: string): Promise<string>; // Returns new path
 	cloneProject(cloneUrl: string, targetPath: string): Promise<void>;
+	confirmDeletion(projectName: string): Promise<boolean>;
 }

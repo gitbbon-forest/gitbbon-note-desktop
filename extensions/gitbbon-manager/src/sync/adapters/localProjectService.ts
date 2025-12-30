@@ -24,6 +24,27 @@ export class LocalProjectService implements ILocalProjectService {
 
 			const repoName = path.basename(projectPath);
 			await this.projectManager.removeFromLocalConfig(repoName);
+
+			// Check if the deleted project is the currently open workspace
+			const currentWorkspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+			console.log(`[LocalProjectService] Checking workspace closure: Current='${currentWorkspacePath}', Deleted='${projectPath}'`);
+
+			if (currentWorkspacePath) {
+				// Normalize both paths for comparison (handle case insensitivity on macOS/Windows)
+				const normalizedCurrent = path.resolve(currentWorkspacePath).toLowerCase();
+				const normalizedProject = path.resolve(projectPath).toLowerCase();
+
+				if (normalizedCurrent === normalizedProject) {
+					console.log('[LocalProjectService] Deleted project matches active workspace. Closing folder...');
+					// Use a small timeout to ensure logging is flushed and deletion is finalized in UI
+					setTimeout(() => {
+						vscode.commands.executeCommand('workbench.action.closeFolder');
+					}, 500);
+				} else {
+					console.log(`[LocalProjectService] Paths do not match: '${normalizedCurrent}' vs '${normalizedProject}'`);
+				}
+			}
 		} catch (e) {
 			console.error(`[LocalProjectService] moveToTrash failed for ${projectPath}:`, e);
 			throw e;
@@ -155,5 +176,11 @@ export class LocalProjectService implements ILocalProjectService {
 			throw new Error(result.stderr || `Git command exited with code ${result.exitCode}`);
 		}
 		return result.stdout.trim();
+	}
+
+	async confirmDeletion(projectName: string): Promise<boolean> {
+		const message = `The remote repository for '${projectName}' is missing. Do you want to delete the local project?`;
+		const answer = await vscode.window.showWarningMessage(message, { modal: true }, 'Delete', 'Keep');
+		return answer === 'Delete';
 	}
 }

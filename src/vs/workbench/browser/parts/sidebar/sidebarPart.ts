@@ -757,11 +757,11 @@ export class SidebarPart extends AbstractPaneCompositePart {
 					return;
 				}
 
-				// 현재 열린 프로젝트는 삭제 불가
-				if (projectPath === currentPath) {
-					this.notificationService.warn('현재 열려있는 프로젝트는 삭제할 수 없습니다. 다른 프로젝트를 연 후 시도해 주세요.');
-					return;
-				}
+				// 현재 열린 프로젝트 삭제 허용 (LocalProjectService에서 처리)
+				// if (projectPath === currentPath) {
+				// 	this.notificationService.warn('현재 열려있는 프로젝트는 삭제할 수 없습니다. 다른 프로젝트를 연 후 시도해 주세요.');
+				// 	return;
+				// }
 
 				// 원격 저장소 존재 여부 확인 (간단히 .git/config에서 remote origin 확인)
 				let hasRemote = false;
@@ -777,33 +777,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				}
 
 				// 삭제 범위 선택 (원격 저장소가 있는 경우에만)
-				// Core 코드에서는 VS Code Extension API인 window.showQuickPick을 직접 사용할 수 없으므로
-				// quickInputService를 대신 사용해야 함
+				// User Request: 묻지 말고 그냥 양쪽 다 삭제 (기본값: 원격도 삭제)
 				let deleteRemote = false;
 				if (hasRemote) {
-					const remoteChoice = await new Promise<{ value: boolean } | undefined>((resolve) => {
-						const qp = this.quickInputService.createQuickPick<{ label: string; description: string; value: boolean }>();
-						qp.title = '삭제 범위 선택';
-						qp.placeholder = '원격 저장소도 함께 삭제할까요?';
-						qp.items = [
-							{ label: '$(folder) 로컬만 삭제', description: '원격 저장소는 유지됩니다', value: false },
-							{ label: '$(cloud) 로컬 + 원격 삭제', description: '⚠️ GitHub 저장소도 삭제됩니다', value: true }
-						];
-						qp.onDidAccept(() => {
-							resolve(qp.selectedItems[0]);
-							qp.hide();
-						});
-						qp.onDidHide(() => {
-							resolve(undefined);
-							qp.dispose();
-						});
-						qp.show();
-					});
-
-					if (remoteChoice === undefined) {
-						return; // 취소됨
-					}
-					deleteRemote = remoteChoice.value;
+					deleteRemote = true;
 				}
 
 				// 최종 확인 (Core에서는 DialogService 등을 쓰는 것이 정석이지만,

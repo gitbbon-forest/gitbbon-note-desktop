@@ -15,7 +15,14 @@ export class SyncEngine {
 
 		// Case 1: Local has syncedAt (was synced before) but Remote is missing
 		if (config.syncedAt && !remoteRepo) {
-			await this.localService.moveToTrash(config.path);
+			const confirmed = await this.localService.confirmDeletion(config.name);
+			if (confirmed) {
+				await this.localService.moveToTrash(config.path);
+			} else {
+				// Keep selected -> Restore remote
+				const repoInfo = await this.remoteService.createRepository(config.name);
+				await this.localService.pushProject(config.path, repoInfo.clone_url);
+			}
 			return;
 		}
 
