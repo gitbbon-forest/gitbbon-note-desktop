@@ -43,6 +43,7 @@ import { ICompositeTitleLabel } from '../compositePart.js';
 import { append, $, getWindow } from '../../../../base/browser/dom.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 interface IProject {
 	name: string; // Identifier (folder name)
@@ -106,6 +107,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -763,69 +765,130 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				// 	return;
 				// }
 
-				// 원격 저장소 존재 여부 확인 (간단히 .git/config에서 remote origin 확인)
+				// 원격 저장소 존재 여부 확인 (syncedAt 기준)
 				let hasRemote = false;
 				try {
-					const gitConfigUri = URI.joinPath(URI.file(projectPath), '.git', 'config');
-					const configExists = await this.fileService.exists(gitConfigUri);
-					if (configExists) {
-						const content = await this.fileService.readFile(gitConfigUri);
-						hasRemote = content.value.toString().includes('[remote "origin"]');
-					}
-				} catch {
-					// 무시
-				}
+					const userHome = await this.pathService.userHome();
+					const localConfigUri = URI.joinPath(userHome, 'Documents', 'Gitbbon_Notes', '.gitbbon-local.json');
 
-				// 삭제 범위 선택 (원격 저장소가 있는 경우에만)
-				// User Request: 묻지 말고 그냥 양쪽 다 삭제 (기본값: 원격도 삭제)
-				let deleteRemote = false;
-				if (hasRemote) {
-					deleteRemote = true;
-				}
-
-				// 최종 확인 (Core에서는 DialogService 등을 쓰는 것이 정석이지만,
-				// 간단히 notificationService 혹은 별도 UI를 쓸 수 있음. 여기서는 prompt 대체)
-				const confirm = await new Promise<boolean>((resolve) => {
-					const qp = this.quickInputService.createQuickPick();
-					qp.title = deleteRemote
-						? `'${project.name}' 프로젝트와 GitHub 저장소를 삭제합니다. 이 작업은 되돌릴 수 없습니다!`
-						: `'${project.name}' 프로젝트를 삭제합니다. 이 작업은 되돌릴 수 없습니다!`;
-					qp.items = [
-						{ label: '삭제', description: '영구히 삭제합니다' },
-						{ label: '취소', description: '작업을 중단합니다' }
-					];
-					qp.onDidAccept(() => {
-						resolve(qp.selectedItems[0]?.label === '삭제');
-						qp.hide();
-					});
-					qp.onDidHide(() => {
-						resolve(false);
-						qp.dispose();
-					});
-					qp.show();
-				});
-
-				if (!confirm) {
-					return;
-				}
-
-				// 삭제 실행 (gitbbon-manager 익스텐션 명령어 호출)
-				try {
-					const result = await this.commandService.executeCommand('gitbbon.manager.deleteProject', {
-						projectPath: projectPath,
-						deleteRemote: deleteRemote
-					}) as { success: boolean; message: string } | undefined;
-
-					if (result?.success) {
-						this.notificationService.info(`'${project.name}' 프로젝트가 삭제되었습니다.`);
-						// 프로젝트 스위처 새로고침
-						await this.loadProjects();
-					} else {
-						this.notificationService.error(`프로젝트 삭제 실패: ${result?.message || '알 수 없는 오류'}`);
+					if (await this.fileService.exists(localConfigUri)) {
+						const content = await this.fileService.readFile(localConfigUri);
+						const localConfig = JSON.parse(content.value.toString());
+						const repoName = project.name; // folder name
+						if (localConfig.projects && localConfig.projects[repoName] && localConfig.projects[repoName].syncedAt) {
+							hasRemote = true;
+						}
 					}
 				} catch (error) {
-					this.notificationService.error(`프로젝트 삭제 실패: ${error}`);
+					console.warn('[SidebarPart] Failed to check syncedAt for deletion:', error);
 				}
+
+				// 삭제 범위 선택 및 확인 (QuickPick)
+				const qp = this.quickInputService.createQuickPick();
+				qp.title = `Are you sure you want to delete '${project.title}'?`;
+				qp.placeholder = 'This action cannot be undone.';
+
+				const items: IQuickPickItem[] = [];
+
+				// 1. Delete Option
+				items.push({
+					label: '$(trash) Delete Project',
+					description: hasRemote ? 'Permanently delete Local and Remote Project' : 'Permanently delete this project',
+					detail: hasRemote ? 'Both the local project and the GitHub project will be removed.' : undefined,
+					buttons: [] // No buttons
+				});
+
+				// 2. Visit Remote Option (if exists)
+				if (hasRemote) {
+					// 원격 URL 가져오기
+					let remoteUrl: string | undefined;
+					try {
+						const gitConfigUri = URI.joinPath(URI.file(projectPath), '.git', 'config');
+						const content = await this.fileService.readFile(gitConfigUri);
+						const configText = content.value.toString();
+						// Simple parse for url inside [remote "origin"]
+						const match = configText.match(/\[remote "origin"\][^\[]*url = ([^\n]+)/);
+						if (match) {
+							remoteUrl = match[1].trim();
+							// Convert SSH to HTTPS if needed for browser opening
+							if (remoteUrl.startsWith('git@github.com:')) {
+								remoteUrl = remoteUrl.replace('git@github.com:', 'https://github.com/');
+							}
+							if (remoteUrl.endsWith('.git')) {
+								remoteUrl = remoteUrl.slice(0, -4);
+							}
+						}
+					} catch (e) {
+						console.error('[SidebarPart] Failed to parse remote url for visit button', e);
+					}
+
+					if (remoteUrl) {
+						items.push({
+							label: '$(github) Visit Remote Project',
+							description: 'Open project in browser',
+							detail: remoteUrl // Store URL in detail or handle via mapping
+						});
+					}
+				}
+
+				// 3. Cancel Option
+				items.push({
+					label: '$(close) Cancel',
+					description: 'Do nothing'
+				});
+
+				qp.items = items;
+
+				qp.onDidAccept(async () => {
+					const selected = qp.selectedItems[0];
+					if (selected) {
+						if (selected.label.includes('Delete Project')) {
+							// Execute Delete
+							qp.hide();
+							// Gitbbon Manager Extension의 deleteProject 명령 호출
+							const result = await this.commandService.executeCommand('gitbbon.manager.deleteProject', {
+								projectPath: project.path,
+								deleteRemote: hasRemote // 원격이 있으면 무조건 함께 삭제 시도 (Extension에서 안전 처리됨)
+							}) as { success: boolean; message: string };
+
+							if (result?.success) {
+								this.notificationService.info(`Project '${project.title}' deleted.`);
+
+								// If deleted project is currently open, close the window/folder
+								const currentWorkspace = this.workspaceContextService.getWorkspace();
+								const currentFolder = currentWorkspace.folders.length > 0 ? currentWorkspace.folders[0].uri.fsPath : undefined;
+
+								// Normalize paths for comparison
+								if (currentFolder && (currentFolder === project.path || currentFolder.toLowerCase() === project.path.toLowerCase())) {
+									await this.commandService.executeCommand('workbench.action.closeWindow');
+								}
+
+								// Refresh list
+								await this.loadProjects();
+							} else if (result?.message) {
+								this.notificationService.error(`Failed to delete project: ${result.message}`);
+							}
+						} else if (selected.label.includes('Visit Remote Project')) {
+							// Open Browser
+							const url = selected.detail; // We stored URL in detail
+							if (url) {
+								this.openerService.open(URI.parse(url));
+							}
+							// Don't hide, maybe user wants to come back and delete?
+							// Usually easier to hide.
+							qp.hide();
+						} else {
+							// Cancel
+							qp.hide();
+						}
+					}
+				});
+
+				qp.onDidHide(() => qp.dispose());
+				qp.show();
+
+				// Trash block end
+				quickPick.hide();
 			}
 		});
 
