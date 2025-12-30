@@ -14,36 +14,11 @@ export class LocalProjectService implements ILocalProjectService {
 
 	async moveToTrash(projectPath: string): Promise<void> {
 		try {
-			// Check if exists
-			if (!fs.existsSync(projectPath)) {
-				return;
-			}
-
-			const trash = await import('trash');
-			await trash.default(projectPath);
-
-			const repoName = path.basename(projectPath);
-			await this.projectManager.removeFromLocalConfig(repoName);
-
-			// Check if the deleted project is the currently open workspace
-			const currentWorkspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-
-			console.log(`[LocalProjectService] Checking workspace closure: Current='${currentWorkspacePath}', Deleted='${projectPath}'`);
-
-			if (currentWorkspacePath) {
-				// Normalize both paths for comparison (handle case insensitivity on macOS/Windows)
-				const normalizedCurrent = path.resolve(currentWorkspacePath).toLowerCase();
-				const normalizedProject = path.resolve(projectPath).toLowerCase();
-
-				if (normalizedCurrent === normalizedProject) {
-					console.log('[LocalProjectService] Deleted project matches active workspace. Closing folder...');
-					// Use a small timeout to ensure logging is flushed and deletion is finalized in UI
-					setTimeout(() => {
-						vscode.commands.executeCommand('workbench.action.closeFolder');
-					}, 500);
-				} else {
-					console.log(`[LocalProjectService] Paths do not match: '${normalizedCurrent}' vs '${normalizedProject}'`);
-				}
+			// Delegate to ProjectManager to ensure consistent deletion logic (cleanup + workspace closure)
+			console.log(`[LocalProjectService] Delegating deletion of ${projectPath} to ProjectManager`);
+			const success = await this.projectManager.deleteProject(projectPath, true);
+			if (!success) {
+				throw new Error(`Failed to delete project: ${projectPath}`);
 			}
 		} catch (e) {
 			console.error(`[LocalProjectService] moveToTrash failed for ${projectPath}:`, e);

@@ -27,10 +27,53 @@ interface ProjectManifest {
 export class ProjectManager {
 	private readonly rootPath: string;
 	private readonly commitMessageGenerator: CommitMessageGenerator;
+	private selfDestructWatcher: vscode.FileSystemWatcher | undefined;
 
 	constructor() {
 		this.rootPath = path.join(os.homedir(), 'Documents', 'Gitbbon_Notes');
 		this.commitMessageGenerator = new CommitMessageGenerator();
+	}
+
+	/**
+	 * Start watching the current workspace folder for deletion.
+	 * If deleted, close the window.
+	 */
+	public startSelfDestructWatcher(context: vscode.ExtensionContext): void {
+		const currentWorkspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		if (!currentWorkspacePath) {
+			return;
+		}
+
+		// Ensure we are watching a Gitbbon project
+		if (!path.normalize(currentWorkspacePath).startsWith(path.normalize(this.rootPath))) {
+			return;
+		}
+
+		console.log(`[ProjectManager] Starting self-destruct watcher for: ${currentWorkspacePath}`);
+
+		// Watch for deletion of the workspace folder itself
+		// Note: FileSystemWatcher limit is usually per-file or recursive.
+		// Watching the *parent* folder for changes to the project folder is safer.
+		const parentDir = path.dirname(currentWorkspacePath);
+		const folderName = path.basename(currentWorkspacePath);
+
+		// Watch specifically for this folder in the parent directory
+		const pattern = new vscode.RelativePattern(parentDir, folderName);
+		this.selfDestructWatcher = vscode.workspace.createFileSystemWatcher(pattern, true, true, false);
+
+		this.selfDestructWatcher.onDidDelete(async (uri) => {
+			if (uri.fsPath === currentWorkspacePath) { // Exact match check might be needed if pattern is too broad
+				console.warn(`[ProjectManager] Workspace folder deleted! Initiating self-destruct...`);
+				// Wait a moment to ensure it's not a rename or temporary glich
+				setTimeout(async () => {
+					if (!fs.existsSync(currentWorkspacePath)) {
+						await vscode.commands.executeCommand('workbench.action.closeFolder');
+					}
+				}, 500);
+			}
+		});
+
+		context.subscriptions.push(this.selfDestructWatcher);
 	}
 
 	/**
@@ -401,6 +444,13 @@ export class ProjectManager {
 		try {
 			// Delete local folder
 			if (deleteFolder && fs.existsSync(projectPath)) {
+				// 1. Remove from local config
+				const repoName = path.basename(projectPath);
+				await this.removeFromLocalConfig(repoName);
+
+				// 2. Closure logic is now handled by startSelfDestructWatcher ("Watch-and-Close")
+				// We just proceed to delete.
+
 				await fs.promises.rm(projectPath, { recursive: true, force: true });
 				console.log(`[ProjectManager] Deleted project folder: ${projectPath}`);
 			}
