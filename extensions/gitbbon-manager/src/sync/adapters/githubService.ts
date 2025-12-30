@@ -24,20 +24,36 @@ export class GitHubService implements IRemoteRepositoryService {
 			return this.session;
 		}
 		try {
-			// Try silent first
+			// Try silent first and ONLY silent. Prompting is now explicit in ensureAuthenticated.
 			this.session = await vscode.authentication.getSession('github', ['repo', 'user:email', 'delete_repo'], { createIfNone: false });
-			if (this.session) {
-				return this.session;
-			}
-			// If not silent, we might need to prompt, but usually services are reactive.
-			// Ideally, we should ensure authentication before calling service methods or throw error/prompt.
-			// Here we strictly follow the interface which returns Promise.
-			// We'll try to create one if missing (interactive).
-			this.session = await vscode.authentication.getSession('github', ['repo', 'user:email', 'delete_repo'], { createIfNone: true });
 			return this.session;
 		} catch (e) {
 			console.error('[GitHubService] Authentication failed:', e);
 			return undefined;
+		}
+	}
+
+	async ensureAuthenticated(silent: boolean): Promise<boolean> {
+		// 1. Try to get existing session (silent)
+		const session = await this.getSession();
+		if (session) {
+			return true;
+		}
+
+		// 2. If silent mode, stop here.
+		if (silent) {
+			console.log('[GitHubService] ensureAuthenticated: Not authenticated, silent mode -> returning false');
+			return false;
+		}
+
+		// 3. Interactive mode: Request login
+		try {
+			console.log('[GitHubService] ensureAuthenticated: Not authenticated, requesting login...');
+			this.session = await vscode.authentication.getSession('github', ['repo', 'user:email', 'delete_repo'], { createIfNone: true });
+			return !!this.session;
+		} catch (e) {
+			console.error('[GitHubService] ensureAuthenticated failed:', e);
+			return false;
 		}
 	}
 

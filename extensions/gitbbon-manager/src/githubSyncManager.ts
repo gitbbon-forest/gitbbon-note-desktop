@@ -33,12 +33,17 @@ export class GitHubSyncManager {
 	public async sync(silent: boolean = false): Promise<void> {
 		console.log(`\n========== [GitHubSyncManager] SYNC START (silent: ${silent}) ==========`);
 
-		// Authentication (Verification only, services handle their own auth usually but we ensure it here)
-		// GitHubService handles auth internally but we can trigger it.
-		// If silent=true, we might want to avoid a prompt if not logged in.
-		// GitHubService.getSession trying silent first.
-
-		// For now, we trust services to fail if not auth.
+		// 1. Authentication Check
+		const isAuthenticated = await this.githubService.ensureAuthenticated(silent);
+		if (!isAuthenticated) {
+			if (silent) {
+				console.log('[GitHubSyncManager] Not authenticated in silent mode. Skipping sync.');
+				return;
+			} else {
+				vscode.window.showErrorMessage('GitHub Authentication required to sync.');
+				return;
+			}
+		}
 
 		try {
 			// 2. Up Sync (Local -> Remote)
@@ -59,6 +64,7 @@ export class GitHubSyncManager {
 				vscode.window.showErrorMessage(`Sync failed: ${e}`);
 			}
 		}
+
 
 		console.log(`========== [GitHubSyncManager] SYNC END ==========\n`);
 	}

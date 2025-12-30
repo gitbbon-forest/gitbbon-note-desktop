@@ -46,6 +46,10 @@ class MockRemoteService implements IRemoteRepositoryService {
 		}
 		return false;
 	}
+
+	async ensureAuthenticated(silent: boolean): Promise<boolean> {
+		return true;
+	}
 }
 
 class MockLocalService implements ILocalProjectService {

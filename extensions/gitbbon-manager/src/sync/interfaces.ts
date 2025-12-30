@@ -23,6 +23,7 @@ export interface IRemoteRepositoryService {
 	createRepository(name: string): Promise<RepoInfo>;
 	listRepositories(): Promise<RepoInfo[]>;
 	deleteRepository(repoName: string): Promise<boolean>;
+	ensureAuthenticated(silent: boolean): Promise<boolean>;
 }
 
 export interface ILocalProjectService {
