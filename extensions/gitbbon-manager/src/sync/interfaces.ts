@@ -29,6 +29,8 @@ export interface IRemoteRepositoryService {
 export interface ILocalProjectService {
 	moveToTrash(path: string): Promise<void>;
 	pushProject(path: string, remoteUrl?: string): Promise<void>;
+	pullProject(path: string): Promise<void>;
+	pullAndPush(path: string): Promise<void>;
 	renameProject(oldPath: string, newName: string): Promise<string>; // Returns new path
 	cloneProject(cloneUrl: string, targetPath: string): Promise<void>;
 }

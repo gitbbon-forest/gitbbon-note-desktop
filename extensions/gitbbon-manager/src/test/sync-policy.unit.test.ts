@@ -55,6 +55,8 @@ class MockRemoteService implements IRemoteRepositoryService {
 class MockLocalService implements ILocalProjectService {
 	public trashedPaths: string[] = [];
 	public pushedPaths: string[] = [];
+	public pulledPaths: string[] = [];
+	public pullAndPushPaths: string[] = [];
 	public renamedProjects: { oldPath: string; newName: string; newPath: string }[] = [];
 	public clonedProjects: { cloneUrl: string; targetPath: string }[] = [];
 
@@ -64,6 +66,14 @@ class MockLocalService implements ILocalProjectService {
 
 	async pushProject(path: string): Promise<void> {
 		this.pushedPaths.push(path);
+	}
+
+	async pullProject(path: string): Promise<void> {
+		this.pulledPaths.push(path);
+	}
+
+	async pullAndPush(path: string): Promise<void> {
+		this.pullAndPushPaths.push(path);
 	}
 
 	async renameProject(oldPath: string, newName: string): Promise<string> {
@@ -100,8 +110,10 @@ describe('SyncEngine Policy Tests', () => {
 
 		// Remote has NO repository for this project (simulating remote deletion)
 
+
 		// When
-		await syncEngine.syncProject(project);
+		const remoteRepo = await remoteService.getRepository(project.name);
+		await syncEngine.syncProject(project, remoteRepo);
 
 		// Then
 		assert.strictEqual(localService.trashedPaths.length, 1, 'Should have moved one path to trash');
@@ -118,19 +130,31 @@ describe('SyncEngine Policy Tests', () => {
 		};
 
 		// Remote HAS the repository
-		remoteService.setRepo(project.name, {
+		const repoInfo = {
 			name: project.name,
 			html_url: `https://github.com/mock/${project.name}`,
 			clone_url: `https://github.com/mock/${project.name}.git`,
 			updated_at: '2023-01-02T00:00:00Z'
-		});
+		};
+		remoteService.setRepo(project.name, repoInfo);
 
 		// When
-		await syncEngine.syncProject(project);
+		const remoteRepo = await remoteService.getRepository(project.name);
+		await syncEngine.syncProject(project, remoteRepo);
 
-		// Then - No side effects should have occurred
+		// Then - Should pull and push via pullAndPush method
 		assert.strictEqual(localService.trashedPaths.length, 0, 'Should NOT have moved anything to trash');
 		assert.strictEqual(remoteService.getCreatedRepoCount(), 0, 'Should NOT have created any repository');
+
+		// New expectations for Normal Sync using pullAndPush
+		assert.strictEqual(localService.pullAndPushPaths.length, 1, 'Should have called pullAndPush');
+		assert.strictEqual(localService.pullAndPushPaths[0], project.path, 'Should have called for the correct path');
+
+		// Individual pull/push might NOT be tracked if pullAndPush is distinct in mock,
+		// depending on implementation. But 'pullAndPush' is what we want to verify.
+		// If pullAndPush calls internal pull/push in REAL service, fine.
+		// In MOCK, we just track pullAndPush call.
+
 	});
 
 	it('Scenario 3: Local(no syncedAt) + Remote(Missing) -> Should create remote and push', async () => {
@@ -145,7 +169,8 @@ describe('SyncEngine Policy Tests', () => {
 		// Remote has NO repository for this project
 
 		// When
-		await syncEngine.syncProject(project);
+		const remoteRepo = await remoteService.getRepository(project.name);
+		await syncEngine.syncProject(project, remoteRepo);
 
 		// Then - Should have created remote repository and pushed
 		assert.strictEqual(remoteService.getCreatedRepoCount(), 1, 'Should have created one repository');
@@ -165,15 +190,17 @@ describe('SyncEngine Policy Tests', () => {
 		};
 
 		// Remote already has a repository with the same name (conflict!)
-		remoteService.setRepo(project.name, {
+		const repoInfo = {
 			name: project.name,
 			html_url: `https://github.com/mock/${project.name}`,
 			clone_url: `https://github.com/mock/${project.name}.git`,
 			updated_at: '2023-01-01T00:00:00Z'
-		});
+		};
+		remoteService.setRepo(project.name, repoInfo);
 
 		// When
-		await syncEngine.syncProject(project);
+		const remoteRepo = await remoteService.getRepository(project.name);
+		await syncEngine.syncProject(project, remoteRepo);
 
 		// Then - Should rename local project and create new remote for it
 		assert.strictEqual(localService.renamedProjects.length, 1, 'Should have renamed one project');
@@ -194,15 +221,17 @@ describe('SyncEngine Policy Tests', () => {
 		};
 
 		// Remote already has a repository with the same name
-		remoteService.setRepo(project.name, {
+		const repoInfo = {
 			name: project.name,
 			html_url: `https://github.com/mock/${project.name}`,
 			clone_url: `https://github.com/mock/${project.name}.git`,
 			updated_at: '2023-01-01T00:00:00Z'
-		});
+		};
+		remoteService.setRepo(project.name, repoInfo);
 
 		// When
-		await syncEngine.syncProject(project);
+		const remoteRepo = await remoteService.getRepository(project.name);
+		await syncEngine.syncProject(project, remoteRepo);
 
 		// Then - Should delete local (valueless) and clone remote
 		assert.strictEqual(localService.trashedPaths.length, 1, 'Should have moved local to trash');

@@ -46,13 +46,22 @@ export class GitHubSyncManager {
 		}
 
 		try {
+			// Optimization: Fetch all remote repositories once
+			console.log('[GitHubSyncManager] Fetching remote repositories...');
+			const remoteRepos = await this.githubService.listRepositories();
+			const remoteRepoMap = new Map(remoteRepos.map(r => [r.name, r]));
+			console.log(`[GitHubSyncManager] Fetched ${remoteRepos.length} repositories`);
+
 			// 2. Up Sync (Local -> Remote)
 			console.log('[GitHubSyncManager] Starting Up Sync...');
-			await this.syncUp();
+			await this.syncUp(remoteRepoMap);
 
 			// 3. Down Sync (Discovery)
 			console.log('[GitHubSyncManager] Starting Down Sync...');
-			await this.syncDown();
+			// Note: remoteRepos might be slightly stale if syncUp created new repos.
+			// However, this is safe because syncDown only looks for remote repos that happen to be MISSING locally.
+			// Any repo created in syncUp would already exist locally, so syncDown would skip it anyway.
+			await this.syncDown(remoteRepos);
 
 			console.log('[GitHubSyncManager] ✅ Sync completed successfully');
 			if (!silent) {
@@ -69,7 +78,7 @@ export class GitHubSyncManager {
 		console.log(`========== [GitHubSyncManager] SYNC END ==========\n`);
 	}
 
-	private async syncUp(): Promise<void> {
+	private async syncUp(remoteRepoMap: Map<string, any>): Promise<void> {
 		const projects = await this.projectManager.getProjects();
 		const localConfig = await this.projectManager.readLocalConfig();
 
@@ -85,15 +94,15 @@ export class GitHubSyncManager {
 
 			console.log(`[GitHubSyncManager] Syncing project: ${config.name}`);
 			try {
-				await this.syncEngine.syncProject(config);
+				const remoteRepo = remoteRepoMap.get(config.name) || null;
+				await this.syncEngine.syncProject(config, remoteRepo);
 			} catch (e) {
 				console.error(`[GitHubSyncManager] Failed to sync project ${config.name}:`, e);
 			}
 		}
 	}
 
-	private async syncDown(): Promise<void> {
-		const remoteRepos = await this.githubService.listRepositories();
+	private async syncDown(remoteRepos: any[]): Promise<void> {
 		const localProjects = await this.projectManager.getProjects();
 
 		for (const repo of remoteRepos) {

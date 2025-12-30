@@ -3,7 +3,7 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalProjectService, IRemoteRepositoryService, ProjectConfig } from './interfaces';
+import { ILocalProjectService, IRemoteRepositoryService, ProjectConfig, RepoInfo } from './interfaces';
 
 export class SyncEngine {
 	constructor(
@@ -11,12 +11,17 @@ export class SyncEngine {
 		private localService: ILocalProjectService
 	) { }
 
-	async syncProject(config: ProjectConfig): Promise<void> {
-		const remoteRepo = await this.remoteService.getRepository(config.name);
+	async syncProject(config: ProjectConfig, remoteRepo: RepoInfo | null): Promise<void> {
 
 		// Case 1: Local has syncedAt (was synced before) but Remote is missing
 		if (config.syncedAt && !remoteRepo) {
 			await this.localService.moveToTrash(config.path);
+			return;
+		}
+
+		// Case 2: Local has syncedAt and Remote exists -> Normal Sync (Pull & Push)
+		if (config.syncedAt && remoteRepo) {
+			await this.localService.pullAndPush(config.path);
 			return;
 		}
 

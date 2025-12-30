@@ -30,6 +30,29 @@ export class LocalProjectService implements ILocalProjectService {
 		}
 	}
 
+	async pullProject(path: string): Promise<void> {
+		try {
+			// Pull from origin main
+			// Use --rebase to avoid merge commits if possible, or just standard pull
+			// Plan didn't specify, but standard pull is safer for now?
+			// User prefers standard.
+			await this.execGit(['pull', 'origin', 'main'], path);
+		} catch (e) {
+			console.error(`[LocalProjectService] pullProject failed for ${path}:`, e);
+			throw e;
+		}
+	}
+
+	async pullAndPush(path: string): Promise<void> {
+		try {
+			await this.pullProject(path);
+			await this.pushProject(path);
+		} catch (e) {
+			console.error(`[LocalProjectService] pullAndPush failed for ${path}:`, e);
+			throw e;
+		}
+	}
+
 	async pushProject(projectPath: string, remoteUrl?: string): Promise<void> {
 		try {
 			// 1. Link remote if provided
