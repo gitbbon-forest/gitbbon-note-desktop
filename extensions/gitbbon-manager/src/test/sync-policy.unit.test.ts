@@ -38,6 +38,14 @@ class MockRemoteService implements IRemoteRepositoryService {
 	async listRepositories(): Promise<RepoInfo[]> {
 		return Array.from(this.repos.values());
 	}
+
+	async deleteRepository(repoName: string): Promise<boolean> {
+		if (this.repos.has(repoName)) {
+			this.repos.delete(repoName);
+			return true;
+		}
+		return false;
+	}
 }
 
 class MockLocalService implements ILocalProjectService {
@@ -80,7 +88,8 @@ describe('SyncEngine Policy Tests', () => {
 	it('Scenario 1: Local(syncedAt) + Remote(Missing) -> Should delete local project', async () => {
 		// Given
 		const project: ProjectConfig = {
-			name: 'gitbbon-note-project1',
+			title: 'gitbbon-note-project1',
+			name: 'gitbbon-note-project1', // Added
 			path: '/local/path/to/project1',
 			syncedAt: '2023-01-01T00:00:00Z' // Previously synced
 		};
@@ -98,7 +107,8 @@ describe('SyncEngine Policy Tests', () => {
 	it('Scenario 2: Local(syncedAt) + Remote(Exists) -> Should do nothing', async () => {
 		// Given
 		const project: ProjectConfig = {
-			name: 'gitbbon-note-project2',
+			title: 'gitbbon-note-project2',
+			name: 'gitbbon-note-project2', // Added
 			path: '/local/path/to/project2',
 			syncedAt: '2023-01-01T00:00:00Z' // Previously synced
 		};
@@ -122,7 +132,8 @@ describe('SyncEngine Policy Tests', () => {
 	it('Scenario 3: Local(no syncedAt) + Remote(Missing) -> Should create remote and push', async () => {
 		// Given - Local project exists but has never been synced (no syncedAt)
 		const project: ProjectConfig = {
-			name: 'gitbbon-note-new-project',
+			title: 'gitbbon-note-new-project',
+			name: 'gitbbon-note-new-project', // Added
 			path: '/local/path/to/new-project'
 			// No syncedAt means this is a local-only project
 		};
@@ -142,7 +153,8 @@ describe('SyncEngine Policy Tests', () => {
 	it('Scenario 4: Local(no syncedAt, has modifiedAt) + Remote(Exists with same name) -> Should rename local and create new remote', async () => {
 		// Given - Local project with local modifications but never synced
 		const project: ProjectConfig = {
-			name: 'gitbbon-note-conflict',
+			title: 'gitbbon-note-conflict',
+			name: 'gitbbon-note-conflict', // Added
 			path: '/local/path/to/gitbbon-note-conflict',
 			modifiedAt: '2023-12-01T00:00:00Z' // Has local modifications
 			// No syncedAt - never synced
@@ -170,6 +182,7 @@ describe('SyncEngine Policy Tests', () => {
 	it('Scenario 5: Local(no syncedAt, no modifiedAt) + Remote(Exists with same name) -> Should delete local and clone remote', async () => {
 		// Given - Local project with NO local modifications and never synced
 		const project: ProjectConfig = {
+			title: 'gitbbon-note-empty',
 			name: 'gitbbon-note-empty',
 			path: '/local/path/to/gitbbon-note-empty'
 			// No syncedAt - never synced

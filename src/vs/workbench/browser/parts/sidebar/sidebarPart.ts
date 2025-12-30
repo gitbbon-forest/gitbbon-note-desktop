@@ -45,7 +45,8 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 interface IProject {
-	name: string;
+	name: string; // Identifier (folder name)
+	title: string; // Display name
 	path: string;
 }
 
@@ -481,7 +482,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 					const folderName = child.name;
 
 					projects.push({
-						name: config?.name || folderName,
+						name: folderName,
+						title: config?.title || folderName,
 						path: child.resource.fsPath
 					});
 				}
@@ -499,7 +501,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			for (const p of projects) {
 				const option = document.createElement('option');
 				option.value = p.path;
-				option.textContent = p.name;
+				option.textContent = p.title;
 				if (currentPath && p.path === currentPath) {
 					option.selected = true;
 				}
@@ -525,7 +527,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	/**
 	 * 프로젝트 설정 파일(.gitbbon.json) 읽기
 	 */
-	private async readProjectConfig(projectUri: URI): Promise<{ name?: string } | null> {
+	private async readProjectConfig(projectUri: URI): Promise<{ title?: string } | null> {
 		try {
 			const configUri = URI.joinPath(projectUri, '.gitbbon.json');
 			const exists = await this.fileService.exists(configUri);
@@ -546,7 +548,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	/**
 	 * 프로젝트 설정 파일(.gitbbon.json) 쓰기
 	 */
-	private async writeProjectConfig(projectPath: string, config: { name?: string }): Promise<void> {
+	private async writeProjectConfig(projectPath: string, config: { title?: string }): Promise<void> {
 		try {
 			const configUri = URI.joinPath(URI.file(projectPath), '.gitbbon.json');
 
@@ -594,7 +596,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 						if (isGitRepo) {
 							const config = await this.readProjectConfig(child.resource);
 							projects.push({
-								name: config?.name || child.name,
+								name: child.name,
+								title: config?.title || child.name,
 								path: child.resource.fsPath
 							});
 						}
@@ -628,7 +631,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 			items.push({
 				id: `project:${project.path}`,
-				label: `${isCurrent ? '$(check) ' : ''}${project.name}`,
+				label: `${isCurrent ? '$(check) ' : ''}${project.title}`,
 				description: isCurrent ? 'Current' : '',
 				detail: project.path,
 				buttons: [
@@ -727,11 +730,11 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				const inputBox = this.quickInputService.createInputBox();
 				inputBox.title = 'Rename Project';
 				inputBox.placeholder = 'Enter new project name';
-				inputBox.value = project.name;
+				inputBox.value = project.title;
 
 				inputBox.onDidAccept(async () => {
 					const newName = inputBox.value.trim();
-					if (newName && newName !== project.name) {
+					if (newName && newName !== project.title) {
 						// projects.json 업데이트
 						await this.renameProject(projectPath, newName);
 						// 프로젝트 스위처 새로고침
@@ -857,11 +860,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	/**
-	 * 프로젝트 이름 변경 (.gitbbon.json 파일 업데이트)
+	 * 프로젝트 이름 변경
 	 */
 	private async renameProject(projectPath: string, newName: string): Promise<void> {
-		await this.writeProjectConfig(projectPath, { name: newName });
-		console.log(`[SidebarPart] Project renamed: ${projectPath} -> ${newName}`);
+		await this.writeProjectConfig(projectPath, { title: newName });
 	}
 
 	toJSON(): object {

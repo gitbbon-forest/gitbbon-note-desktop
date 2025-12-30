@@ -64,7 +64,7 @@ export class ProjectManager {
 					console.log(`[ProjectManager] Creating .gitbbon.json for existing project: ${folderName}`);
 					// .gitbbon.json: 공유 설정 (이름 등)
 					const config = {
-						name: folderName
+						title: folderName
 					};
 					await fs.promises.writeFile(gitbbonConfigPath, JSON.stringify(config, null, 2), 'utf-8');
 				}
@@ -82,7 +82,7 @@ export class ProjectManager {
 			if (projects.length > 0) {
 				// Open first project
 				const firstProject = projects[0];
-				console.log(`[ProjectManager] Opening project: ${firstProject.name} (${firstProject.path})`);
+				console.log(`[ProjectManager] Opening project: ${firstProject.title} (${firstProject.path})`);
 				targetPath = firstProject.path;
 			} else {
 				// No projects exist, create default
@@ -104,8 +104,8 @@ export class ProjectManager {
 	/**
 	 * Scan Gitbbon_Notes directory for Git repositories
 	 */
-	public async getProjects(): Promise<{ name: string; path: string }[]> {
-		const projects: { name: string; path: string }[] = [];
+	public async getProjects(): Promise<{ name: string; title: string; path: string }[]> {
+		const projects: { name: string; title: string; path: string }[] = [];
 
 		if (!fs.existsSync(this.rootPath)) {
 			return projects;
@@ -122,23 +122,24 @@ export class ProjectManager {
 			const gitPath = path.join(projectPath, '.git');
 
 			if (fs.existsSync(gitPath)) {
-				// Read project name from .gitbbon.json if exists
+				// Read project title from .gitbbon.json if exists
 				const gitbbonConfigPath = path.join(projectPath, '.gitbbon.json');
-				let projectName = entry.name;
+				let projectTitle = entry.name;
+				const repoName = entry.name;
 
 				if (fs.existsSync(gitbbonConfigPath)) {
 					try {
 						const configContent = await fs.promises.readFile(gitbbonConfigPath, 'utf-8');
 						const config = JSON.parse(configContent);
-						if (config.name) {
-							projectName = config.name;
+						if (config.title) {
+							projectTitle = config.title;
 						}
 					} catch (e) {
 						console.warn(`[ProjectManager] Failed to read .gitbbon.json for ${entry.name}:`, e);
 					}
 				}
 
-				projects.push({ name: projectName, path: projectPath });
+				projects.push({ name: repoName, title: projectTitle, path: projectPath });
 			}
 		}
 
@@ -149,7 +150,7 @@ export class ProjectManager {
 	 * Read .gitbbon.json config from a project directory
 	 * .gitbbon.json: 공유 설정 (여러 저장소/호스트 간에 공통으로 유지되어야 하는 정보)
 	 */
-	public async readProjectConfig(projectPath: string): Promise<{ name: string } | null> {
+	public async readProjectConfig(projectPath: string): Promise<{ title: string } | null> {
 		const configPath = path.join(projectPath, '.gitbbon.json');
 		if (!fs.existsSync(configPath)) {
 			return null;
@@ -166,7 +167,7 @@ export class ProjectManager {
 	/**
 	 * Write .gitbbon.json config to a project directory
 	 */
-	public async writeProjectConfig(projectPath: string, config: { name: string }): Promise<void> {
+	public async writeProjectConfig(projectPath: string, config: { title: string }): Promise<void> {
 		const configPath = path.join(projectPath, '.gitbbon.json');
 		await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
 		console.log(`[ProjectManager] Updated .gitbbon.json at ${projectPath}`);
@@ -275,7 +276,7 @@ export class ProjectManager {
 		if (!fs.existsSync(gitbbonConfigPath)) {
 			console.log(`[ProjectManager] Creating .gitbbon.json...`);
 			const config = {
-				name: projectName
+				title: projectName
 			};
 			await fs.promises.writeFile(gitbbonConfigPath, JSON.stringify(config, null, 2), 'utf-8');
 			console.log(`[ProjectManager] .gitbbon.json created`);
@@ -356,8 +357,8 @@ export class ProjectManager {
 		const projects = await this.getProjects();
 		return {
 			version: 1,
-			projects: projects.map((p: { name: string; path: string }) => ({
-				name: p.name,
+			projects: projects.map((p: { name: string; title: string; path: string }) => ({
+				name: p.title,
 				path: p.path,
 				lastOpened: new Date().toISOString()
 			}))
@@ -367,15 +368,15 @@ export class ProjectManager {
 	/**
 	 * Initialize a new project with .gitbbon.json
 	 */
-	public async addProject(name: string, projectPath: string): Promise<void> {
+	public async addProject(title: string, projectPath: string): Promise<void> {
 		// Just ensure .gitbbon.json exists
 		const existingConfig = await this.readProjectConfig(projectPath);
 		if (!existingConfig) {
 			const config = {
-				name
+				title
 			};
 			await this.writeProjectConfig(projectPath, config);
-			console.log(`[ProjectManager] Added new project: ${name}`);
+			console.log(`[ProjectManager] Added new project: ${title}`);
 		}
 	}
 

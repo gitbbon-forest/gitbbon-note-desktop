@@ -11,6 +11,7 @@ export interface RepoInfo {
 }
 
 export interface ProjectConfig {
+	title: string;
 	name: string;
 	path: string;
 	syncedAt?: string; // ISO string
@@ -21,6 +22,7 @@ export interface IRemoteRepositoryService {
 	getRepository(name: string): Promise<RepoInfo | null>;
 	createRepository(name: string): Promise<RepoInfo>;
 	listRepositories(): Promise<RepoInfo[]>;
+	deleteRepository(repoName: string): Promise<boolean>;
 }
 
 export interface ILocalProjectService {

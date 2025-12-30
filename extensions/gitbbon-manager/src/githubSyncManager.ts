@@ -70,7 +70,8 @@ export class GitHubSyncManager {
 		for (const project of projects) {
 			const projectLocalData = localConfig.projects[path.basename(project.path)];
 			const config: ProjectConfig = {
-				name: project.name,
+				title: project.name, // Project.name from projectManager comes from .gitbbon.json title or folder name
+				name: path.basename(project.path), // Identifier
 				path: project.path,
 				syncedAt: projectLocalData?.syncedAt ?? undefined,
 				modifiedAt: projectLocalData?.lastModified ?? undefined
@@ -91,13 +92,29 @@ export class GitHubSyncManager {
 
 		for (const repo of remoteRepos) {
 			// Check if exists locally
-			const exists = localProjects.some(p => path.basename(p.path) === repo.name || p.name === repo.name);
+			const exists = localProjects.some(p => {
+				return path.basename(p.path) === repo.name;
+			});
 			if (!exists) {
 				console.log(`[GitHubSyncManager] Found new remote repo: ${repo.name}`);
 
 				// Target path: ~/Documents/Gitbbon_Notes/{repo.name}
 				const documentsPath = path.join(fs.realpathSync(require('os').homedir()), 'Documents', 'Gitbbon_Notes');
 				const targetPath = path.join(documentsPath, repo.name);
+
+				// Prevent sync loop: if directory exists and is not empty, skip download
+				if (fs.existsSync(targetPath)) {
+					try {
+						const files = await fs.promises.readdir(targetPath);
+						if (files.length > 0) {
+							console.warn(`[GitHubSyncManager] Skipped downloading ${repo.name}: Directory exists and is not empty.`);
+							continue;
+						}
+					} catch (e) {
+						console.warn(`[GitHubSyncManager] Failed to check directory ${targetPath}:`, e);
+						continue; // skip on error too to be safe
+					}
+				}
 
 				try {
 					await this.syncEngine.syncRemoteRepo(repo.name, targetPath);
@@ -111,12 +128,6 @@ export class GitHubSyncManager {
 
 	// Helper for extension.ts compatibility
 	public async deleteGitHubRepo(repoName: string): Promise<boolean> {
-		// GitHubService doesn't have deleteRepo in interface, but we implement it in class?
-		// Or we implement logic here using fetch?
-		// Better to put it in GitHubService. I'll add it to GitHubService.
-		// Since I cast/use logic.
-		// But GitHubService.ts defined earlier did NOT have deleteRepository.
-		// I need to add it to GitHubService.ts
-		return (this.githubService as any).deleteRepository ? (this.githubService as any).deleteRepository(repoName) : false;
+		return this.githubService.deleteRepository(repoName);
 	}
 }
