@@ -65,9 +65,9 @@ export interface IWorkbenchOptions {
 	resetLayout?: boolean;
 }
 
-// gitbbon custom: Floating Widget System - add dynamic floating button layer to editor area
-const FLOATING_WIDGET_BOTTOM = 48;
-const FLOATING_WIDGET_RIGHT = 48;
+// gitbbon custom: Floating Widget System - add dynamic floating button layer to editor area (centered)
+const FLOATING_WIDGET_BOTTOM = 50;
+const FLOATING_WIDGET_RIGHT = undefined; // Center horizontally
 
 export class Workbench extends Layout {
 
@@ -396,7 +396,9 @@ export class Workbench extends Layout {
 		this.floatingLayer = document.createElement('div');
 		this.floatingLayer.classList.add('gitbbon-floating-layer');
 		this.floatingLayer.style.bottom = `${FLOATING_WIDGET_BOTTOM}px`;
-		this.floatingLayer.style.right = `${FLOATING_WIDGET_RIGHT}px`;
+		// Center horizontally: left 50% + transform translateX(-50%)
+		this.floatingLayer.style.left = '50%';
+		this.floatingLayer.style.transform = 'translateX(-50%)';
 		// Event Delegation
 		this.floatingLayer.addEventListener('click', (e) => {
 			const target = e.target as HTMLElement;

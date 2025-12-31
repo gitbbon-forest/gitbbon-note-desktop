@@ -12,12 +12,12 @@
 	left: 0;
 }
 
-/* gitbbon custom: Floating Widget System - dynamic button layer styles */
+/* gitbbon custom: Floating Widget System - dynamic button layer styles (centered) */
 .gitbbon-floating-layer {
 	position: absolute;
-	/* bottom and right are set via constants in workbench.ts */
+	/* bottom is set via constant in workbench.ts, left/transform for centering */
 	display: flex;
-	flex-direction: row-reverse; /* Stack from right to left */
+	flex-direction: row; /* Stack from left to right */
 	align-items: center;
 	gap: 16px;
 	pointer-events: none; /* Let clicks pass through the layer itself */
@@ -29,14 +29,16 @@
 	display: flex;
 	flex-direction: row; /* Icon and label side by side */
 	align-items: center;
-	padding: 6px 12px;
+	padding: 10px 20px;
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
-	border-radius: 4px;
+	border-radius: 6px;
 	cursor: pointer;
-	gap: 8px;
+	gap: 10px;
 	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 	transition: background-color 0.2s ease;
+	min-width: 140px; /* Ensure consistent width for short labels */
+	justify-content: center; /* Center content */
 }
 
 .gitbbon-floating-widget:hover {

@@ -103,6 +103,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const reallyFinalCommand = vscode.commands.registerCommand(
 		'gitbbon.manager.reallyFinal',
 		async () => {
+			// Show "Saving..." state immediately
+			vscode.commands.executeCommand('_gitbbon.upsertFloatingWidget', {
+				id: 'gitbbon-main',
+				type: 'button',
+				icon: 'codicon codicon-loading',
+				label: 'Saving...',
+				tooltip: 'Commit in progress',
+				priority: 10,
+				dimmed: false
+			});
+
 			const result = await projectManager.reallyFinalCommit();
 			console.log('Really Final Result:', result);
 			if (result.success) {
