@@ -575,31 +575,46 @@ export class ProjectManager {
 
 	/**
 	 * Git 명령어 실행 헬퍼
-	 * dugite를 사용하여 내장 Git 바이너리로 실행
+	 * child_process.spawn을 사용하여 PATH에 주입된 내장 Git으로 실행
 	 * @param options.silent true일 경우 에러 로그를 출력하지 않음 (예: 브랜치 확인 등)
 	 */
 	private async execGit(args: string[], cwd: string, options: { silent?: boolean; env?: Record<string, string> } = {}): Promise<string> {
-		const dugite = await import('dugite');
-
 		const cmd = `git ${args.join(' ')}`;
 		if (!options.silent) {
 			console.log(`[ProjectManager] Executing: ${cmd} in ${cwd}`);
 		}
 
-		const execOptions = options.env ? { env: { ...process.env, ...options.env } } : undefined;
-		const result = await dugite.exec(args, cwd, execOptions);
+		const execEnv = options.env ? { ...process.env, ...options.env } : process.env;
 
-		if (result.exitCode !== 0) {
-			if (!options.silent) {
-				console.error(`[ProjectManager] Git command failed: ${cmd}`, result.stderr);
-			}
-			throw new Error(result.stderr || `Git command exited with code ${result.exitCode}`);
-		}
+		return new Promise((resolve, reject) => {
+			const git = cp.spawn('git', args, { cwd, env: execEnv as NodeJS.ProcessEnv });
+			let stdout = '';
+			let stderr = '';
 
-		if (!options.silent) {
-			console.log(`[ProjectManager] Git command succeeded: ${cmd}`);
-		}
-		return result.stdout.trim();
+			git.stdout.on('data', (data) => { stdout += data.toString(); });
+			git.stderr.on('data', (data) => { stderr += data.toString(); });
+
+			git.on('close', (code) => {
+				if (code !== 0) {
+					if (!options.silent) {
+						console.error(`[ProjectManager] Git command failed: ${cmd}`, stderr);
+					}
+					reject(new Error(stderr || `Git command exited with code ${code}`));
+				} else {
+					if (!options.silent) {
+						console.log(`[ProjectManager] Git command succeeded: ${cmd}`);
+					}
+					resolve(stdout.trim());
+				}
+			});
+
+			git.on('error', (err) => {
+				if (!options.silent) {
+					console.error(`[ProjectManager] Failed to spawn git:`, err);
+				}
+				reject(err);
+			});
+		});
 	}
 
 	/**
