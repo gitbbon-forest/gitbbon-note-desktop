@@ -127,7 +127,9 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 					resource.modifiedUri,
 					resource.goToFileUri
 				)),
-				false
+				false,
+				'default',
+				undefined
 			);
 			const sideBySide = e.altKey;
 			this.editorService.openEditor(input, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);

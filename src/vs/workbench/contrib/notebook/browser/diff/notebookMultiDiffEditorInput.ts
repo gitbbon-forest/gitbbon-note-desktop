@@ -43,7 +43,7 @@ export class NotebookMultiDiffEditorWidgetInput extends MultiDiffEditorInput imp
 		@IMultiDiffSourceResolverService _multiDiffSourceResolverService: IMultiDiffSourceResolverService,
 		@ITextFileService _textFileService: ITextFileService,
 	) {
-		super(multiDiffSource, undefined, undefined, true, _textModelService, _textResourceConfigurationService, _instantiationService, _multiDiffSourceResolverService, _textFileService);
+		super(multiDiffSource, undefined, undefined, true, 'default', undefined, _textModelService, _textResourceConfigurationService, _instantiationService, _multiDiffSourceResolverService, _textFileService);
 		this._register(_multiDiffSourceResolverService.registerResolver(this));
 	}
 

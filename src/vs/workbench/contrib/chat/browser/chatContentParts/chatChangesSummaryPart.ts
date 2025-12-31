@@ -166,7 +166,9 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 						undefined,
 					);
 				}),
-				false
+				false,
+				'default',
+				undefined
 			);
 			this.editorGroupsService.activeGroup.openEditor(input);
 			dom.EventHelper.stop(e, true);

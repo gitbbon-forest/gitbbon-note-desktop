@@ -33,7 +33,7 @@ import { ToggleActivityBarVisibilityActionId } from '../../actions/layoutActions
 import { localize2 } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
-
+// gitbbon custom: Project Switcher - imports for project management UI
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -45,18 +45,22 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
+// gitbbon custom: Project Switcher - project interface for sidebar dropdown
 interface IProject {
 	name: string; // Identifier (folder name)
 	title: string; // Display name
 	path: string;
 }
+// gitbbon custom end
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
+	// gitbbon custom: Project Switcher - UI elements for project dropdown
 	private switcherContainer: HTMLElement | undefined;
 	private projectSwitcher: HTMLSelectElement | undefined;
+	// gitbbon custom end
 
 	//#region IView
 
@@ -101,6 +105,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
+		// gitbbon custom: Project Switcher - additional dependencies
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
 		@IHostService private readonly hostService: IHostService,
@@ -108,6 +113,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		// gitbbon custom end
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -142,10 +148,11 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 		this.registerActions();
 
-		// Ensure visibility is correct when switching viewlets
+		// gitbbon custom: Project Switcher - update visibility when switching viewlets
 		this._register(this.onDidPaneCompositeOpen(composite => {
 			this.updateProjectSwitcherVisibility(composite.getId());
 		}));
+		// gitbbon custom end
 	}
 
 	private onDidChangeActivityBarLocation(): void {
@@ -324,6 +331,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}));
 	}
 
+	// gitbbon custom: Project Switcher - override title label to show project dropdown in Explorer view
 	protected override createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
 		const titleLabelParams = super.createTitleLabel(parent);
 		const originalUpdateTitle = titleLabelParams.updateTitle;
@@ -410,13 +418,14 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			}
 		};
 	}
+	// gitbbon custom end (createTitleLabel)
 
+	// gitbbon custom: Project Switcher - toggle visibility based on active view
 	private updateProjectSwitcherVisibility(id: string, title?: string, keybinding?: string, originalUpdateTitle?: (id: string, title: string, keybinding?: string) => void): void {
 		if (!this.switcherContainer || !this.projectSwitcher) {
 			return;
 		}
 
-		const isExplorer = id === 'workbench.view.explorer' || id.toLowerCase().includes('explorer');
 		const activeComposite = this.getActiveComposite();
 
 		// 실제 활성 뷰가 Explorer인지 확인
@@ -905,6 +914,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	private async renameProject(projectPath: string, newName: string): Promise<void> {
 		await this.writeProjectConfig(projectPath, { title: newName });
 	}
+	// gitbbon custom end (Project Switcher methods)
 
 	toJSON(): object {
 		return {
