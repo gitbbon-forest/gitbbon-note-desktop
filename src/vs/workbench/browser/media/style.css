@@ -12,46 +12,56 @@
 	left: 0;
 }
 
-/* Gitbbon Really Final FAB */
-.gitbbon-really-final-fab {
+/* gitbbon custom: Floating Widget System - dynamic button layer styles */
+.gitbbon-floating-layer {
 	position: absolute;
-	bottom: 40px;
-	right: 40px;
-	width: 56px;
-	height: 56px;
-	border-radius: 50%;
-	background-color: #0e639c; /* VS Code Blue */
-	color: white;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-	z-index: 10000; /* High z-index to stay on top */
-	cursor: pointer;
+	/* bottom and right are set via constants in workbench.ts */
 	display: flex;
+	flex-direction: row-reverse; /* Stack from right to left */
 	align-items: center;
-	justify-content: center;
-	transition: transform 0.2s ease, box-shadow 0.2s ease;
-	user-select: none;
+	gap: 16px;
+	pointer-events: none; /* Let clicks pass through the layer itself */
+	z-index: 10000;
 }
 
-.gitbbon-really-final-fab:hover {
-	transform: scale(1.1);
-	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+.gitbbon-floating-widget {
+	pointer-events: auto; /* Enable clicks on widgets */
+	display: flex;
+	flex-direction: row; /* Icon and label side by side */
+	align-items: center;
+	padding: 6px 12px;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-radius: 4px;
+	cursor: pointer;
+	gap: 8px;
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+	transition: background-color 0.2s ease;
 }
 
-.gitbbon-really-final-fab:active {
-	transform: scale(0.95);
+.gitbbon-floating-widget:hover {
+	background-color: var(--vscode-button-hoverBackground);
 }
 
-.gitbbon-fab-icon {
-	font-size: 24px;
-	font-weight: bold;
+.gitbbon-floating-widget span.label {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+}
+
+/* Dimmed state (no pending changes) */
+.gitbbon-floating-widget.dimmed {
+	opacity: 0.5;
+	cursor: default;
+	pointer-events: none; /* Disable clicks */
+}
+
+.gitbbon-floating-widget.dimmed:hover {
+	background-color: var(--vscode-button-background);
 }
 
 /* High Contrast Adjustments */
-.hc-black .gitbbon-really-final-fab,
-.hc-light .gitbbon-really-final-fab {
-	border: 2px solid var(--vscode-contrastBorder);
-}
-
-.monaco-workbench.modal-dialog-visible {
-	/* Just a marker class */
+.hc-black .gitbbon-floating-widget,
+.hc-light .gitbbon-floating-widget {
+	border: 1px solid var(--vscode-contrastBorder);
 }

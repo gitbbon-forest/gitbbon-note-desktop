@@ -678,6 +678,36 @@ export class ProjectManager {
 	}
 
 	/**
+	 * 임시 저장이 있는지 확인 (auto-save 브랜치가 현재 브랜치보다 앞서 있는지)
+	 */
+	public async hasPendingAutoSave(cwd: string): Promise<boolean> {
+		try {
+			const currentBranch = await this.getCurrentBranch(cwd);
+			const autoSaveBranch = `auto-save/${currentBranch}`;
+
+			// auto-save 브랜치가 없으면 임시 저장 없음
+			if (!(await this.branchExists(autoSaveBranch, cwd))) {
+				console.log(`[ProjectManager] No auto-save branch found, no pending saves`);
+				return false;
+			}
+
+			// auto-save 브랜치가 현재 브랜치보다 앞서 있는지 확인
+			// git rev-list --count main..auto-save/main
+			const aheadCount = await this.execGit(
+				['rev-list', '--count', `${currentBranch}..${autoSaveBranch}`],
+				cwd,
+				{ silent: true }
+			);
+			const count = parseInt(aheadCount.trim(), 10);
+			console.log(`[ProjectManager] Auto-save is ${count} commits ahead of ${currentBranch}`);
+			return count > 0;
+		} catch (e) {
+			console.log(`[ProjectManager] Failed to check pending auto-save: ${e}`);
+			return false;
+		}
+	}
+
+	/**
 	 * Git diff에서 추가된 텍스트 추출 (처음 등장하는 텍스트 최대 maxLength자)
 	 * @param compareRef 비교 대상 ref (auto-save 브랜치). 없으면 HEAD와 비교
 	 */

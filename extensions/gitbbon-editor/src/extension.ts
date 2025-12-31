@@ -100,6 +100,15 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 	context.subscriptions.push(directApplyCommand);
 
+	// Command: Send status update to Gitbbon Editor (for gitbbon-manager)
+	const sendStatusUpdateCommand = vscode.commands.registerCommand(
+		'gitbbon.editor.sendStatusUpdate',
+		(status: 'unsaved' | 'autoSaved' | 'committed') => {
+			GitbbonEditorProvider.sendStatusUpdate(status);
+		}
+	);
+	context.subscriptions.push(sendStatusUpdateCommand);
+
 	console.log('Gitbbon Editor extension activated!');
 }
 

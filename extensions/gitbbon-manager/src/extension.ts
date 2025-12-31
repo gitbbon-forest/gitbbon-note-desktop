@@ -107,6 +107,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			console.log('Really Final Result:', result);
 			if (result.success) {
 				await gitGraphProvider.refresh();
+				// Notify Gitbbon Editor of committed status
+				vscode.commands.executeCommand('gitbbon.editor.sendStatusUpdate', 'committed');
 				// Trigger Sync after really final commit (Silent mode)
 				console.log('[Extension] Triggering Sync after Really Final Commit (Silent)...');
 				githubSyncManager.sync(true)
@@ -120,6 +122,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}
 	);
 	context.subscriptions.push(reallyFinalCommand);
+
+	// Register hasPendingAutoSave command (checks if auto-save branch is ahead of main)
+	const hasPendingAutoSaveCommand = vscode.commands.registerCommand(
+		'gitbbon.manager.hasPendingAutoSave',
+		async () => {
+			const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+			if (!cwd) {
+				return false;
+			}
+			return await projectManager.hasPendingAutoSave(cwd);
+		}
+	);
+	context.subscriptions.push(hasPendingAutoSaveCommand);
 
 	// Register deleteProject command (called from SidebarPart project switcher)
 	const deleteProjectCommand = vscode.commands.registerCommand(

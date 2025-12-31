@@ -99,6 +99,21 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 	}
 
 	/**
+	 * 현재 활성화된 Gitbbon Editor에 상태 업데이트 전송
+	 */
+	public static sendStatusUpdate(status: 'unsaved' | 'autoSaved' | 'committed'): void {
+		if (!this.activeWebviewPanel) {
+			console.log('[GitbbonEditor] No active webview panel for status update');
+			return;
+		}
+		this.activeWebviewPanel.webview.postMessage({
+			type: 'statusUpdate',
+			status
+		});
+		console.log(`[GitbbonEditor] Sent status update: ${status}`);
+	}
+
+	/**
 	 * 현재 활성화된 Editor에 AI 수정 사항 제안 적용
 	 */
 	public static async applySuggestions(changes: any[]): Promise<void> {
@@ -314,6 +329,8 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 							type: 'statusUpdate',
 							status: 'autoSaved'
 						});
+						// Auto Saved 상태에서는 플로팅 위젯을 업데이트하지 않음
+						// (사용자 요청: "auto saved는 버튼에 상태를 표시할 필요 없음")
 						console.log(`Auto commit triggered (${delay}ms debounced):`, result.message);
 					}
 				} catch (error) {
@@ -346,6 +363,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 						}
 						// 문서 업데이트 후 타이머 리셋 (Auto Save & Auto Commit)
 						resetTimers();
+						// 플로팅 위젯 업데이트는 saveStatusChanged 핸들러에서 처리
 						break;
 					case 'ready':
 						// Webview 준비 완료 시 초기 데이터 재전송 및 상태 업데이트
@@ -388,6 +406,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 									type: 'statusUpdate',
 									status: 'committed'
 								});
+								// 플로팅 위젯 업데이트는 saveStatusChanged 핸들러에서 처리
 							}
 						} catch (error) {
 							console.error('Really Final failed:', error);
@@ -412,6 +431,34 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 					// [New] gitbbon-chat에서 요청하는 상세 선택 응답
 					case 'selectionDetailResponse':
 						GitbbonEditorProvider.handleDetailResponse(message.detail || null);
+						break;
+					// [New] Webview에서 saveStatus 변경 알림
+					case 'saveStatusChanged':
+						if (message.status === 'unsaved') {
+							// Save 버튼 진하게 표시
+							vscode.commands.executeCommand('_gitbbon.upsertFloatingWidget', {
+								id: 'gitbbon-main',
+								type: 'button',
+								icon: 'codicon codicon-check',
+								label: 'Save',
+								tooltip: 'Unsaved changes - click to save',
+								command: 'gitbbon.manager.reallyFinal',
+								priority: 10,
+								dimmed: false
+							});
+						} else if (message.status === 'committed') {
+							// Saved 버튼 흐리게 표시
+							vscode.commands.executeCommand('_gitbbon.upsertFloatingWidget', {
+								id: 'gitbbon-main',
+								type: 'button',
+								icon: 'codicon codicon-check',
+								label: 'Saved',
+								tooltip: 'All changes saved',
+								priority: 10,
+								dimmed: true
+							});
+						}
+						// autoSaved 상태에서는 위젯 상태를 변경하지 않음
 						break;
 				}
 			}

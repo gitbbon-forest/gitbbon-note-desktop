@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { MilkdownEditor, MilkdownEditorRef } from './MilkdownEditor';
-import { ReallyFinalButton, SaveStatus } from './ReallyFinalButton';
+import { SaveStatus } from './ReallyFinalButton';
 
 declare const acquireVsCodeApi: () => {
 	postMessage(message: any): void;
@@ -28,6 +28,7 @@ export const App = () => {
 	const [title, setTitle] = useState('');
 	const [editorContent, setEditorContent] = useState<string | null>(null);
 	const [saveStatus, setSaveStatus] = useState<SaveStatus>('committed');
+	console.log("🚀 ~ App ~ saveStatus:", saveStatus)
 	const editorRef = useRef<MilkdownEditorRef>(null);
 	const titleRef = useRef('');
 	const contentRef = useRef<string | null>(null);
@@ -41,6 +42,14 @@ export const App = () => {
 	useEffect(() => {
 		contentRef.current = editorContent;
 	}, [editorContent]);
+
+	// Notify extension host when saveStatus changes
+	useEffect(() => {
+		vscode.postMessage({
+			type: 'saveStatusChanged',
+			status: saveStatus,
+		});
+	}, [saveStatus]);
 
 	// Debounced send update (0.5s throttle)
 	const debouncedSendUpdate = useMemo(
@@ -201,10 +210,6 @@ export const App = () => {
 					onAskAI={handleAskAI}
 				/>
 			</div>
-			<ReallyFinalButton
-				status={saveStatus}
-				onReallyFinal={handleReallyFinal}
-			/>
 		</div>
 	);
 };

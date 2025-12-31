@@ -21,7 +21,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../platform
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent } from '../services/lifecycle/common/lifecycle.js';
-import { ICommandService } from '../../platform/commands/common/commands.js';
+import { ICommandService, CommandsRegistry } from '../../platform/commands/common/commands.js';
 import { INotificationService } from '../../platform/notification/common/notification.js';
 import { NotificationService } from '../services/notification/common/notificationService.js';
 import { NotificationsCenter } from './parts/notifications/notificationsCenter.js';
@@ -65,6 +65,10 @@ export interface IWorkbenchOptions {
 	resetLayout?: boolean;
 }
 
+// gitbbon custom: Floating Widget System - add dynamic floating button layer to editor area
+const FLOATING_WIDGET_BOTTOM = 48;
+const FLOATING_WIDGET_RIGHT = 48;
+
 export class Workbench extends Layout {
 
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
@@ -72,6 +76,18 @@ export class Workbench extends Layout {
 
 	private readonly _onDidShutdown = this._register(new Emitter<void>());
 	readonly onDidShutdown = this._onDidShutdown.event;
+
+	// gitbbon custom: Floating Widget System - state management for dynamic buttons
+	private floatingWidgets = new Map<string, {
+		type: 'button',
+		label?: string,
+		icon?: string, // CSS class e.g. 'codicon codicon-check'
+		tooltip?: string,
+		command?: string,
+		priority: number,
+		dimmed?: boolean // Optional: renders widget with reduced opacity
+	}>();
+	private floatingLayer: HTMLElement | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -368,29 +384,113 @@ export class Workbench extends Layout {
 		// Add Workbench to DOM
 		this.parent.appendChild(this.mainContainer);
 
-		// Gitbbon: Create Really Final FAB (Attached to Editor Part)
+		// gitbbon custom: Floating Widget System - initialize floating layer in editor area
 		if (editorPartContainer) {
-			this.createReallyFinalFab(editorPartContainer, commandService);
+			this.createFloatingLayer(editorPartContainer, commandService);
 		}
 	}
 
-	private createReallyFinalFab(container: HTMLElement, commandService: ICommandService): void {
-		const fab = document.createElement('div');
-		fab.classList.add('gitbbon-really-final-fab');
-		fab.setAttribute('role', 'button');
-		fab.setAttribute('title', '진짜최종 (Really Final Commit)');
-
-		// Icon (Simple Checkmark)
-		const icon = document.createElement('div');
-		icon.classList.add('gitbbon-fab-icon');
-		icon.textContent = '✓';
-		fab.appendChild(icon);
-
-		fab.addEventListener('click', () => {
-			commandService.executeCommand('gitbbon.manager.reallyFinal');
+	// gitbbon custom: Floating Widget System - create container and register commands
+	private createFloatingLayer(container: HTMLElement, commandService: ICommandService): void {
+		console.log('Gitbbon: Creating Floating Layer');
+		this.floatingLayer = document.createElement('div');
+		this.floatingLayer.classList.add('gitbbon-floating-layer');
+		this.floatingLayer.style.bottom = `${FLOATING_WIDGET_BOTTOM}px`;
+		this.floatingLayer.style.right = `${FLOATING_WIDGET_RIGHT}px`;
+		// Event Delegation
+		this.floatingLayer.addEventListener('click', (e) => {
+			const target = e.target as HTMLElement;
+			const commandElement = target.closest('[data-command]') as HTMLElement;
+			if (commandElement && commandElement.dataset.command) {
+				commandService.executeCommand(commandElement.dataset.command);
+			}
 		});
 
-		container.appendChild(fab);
+		container.appendChild(this.floatingLayer);
+
+		// Register Internal Commands
+		CommandsRegistry.registerCommand('_gitbbon.upsertFloatingWidget', (accessor, args: { id: string, type?: 'button', label?: string, icon?: string, tooltip?: string, command?: string, priority?: number }) => {
+			console.log('[Gitbbon] _gitbbon.upsertFloatingWidget called', args);
+			const existing = this.floatingWidgets.get(args.id);
+			this.floatingWidgets.set(args.id, {
+				type: args.type || 'button',
+				label: args.label ?? existing?.label,
+				icon: args.icon ?? existing?.icon,
+				tooltip: args.tooltip ?? existing?.tooltip,
+				command: args.command ?? existing?.command,
+				priority: args.priority ?? existing?.priority ?? 0
+			});
+			this.renderFloatingWidgets();
+		});
+
+		CommandsRegistry.registerCommand('_gitbbon.removeFloatingWidget', (accessor, args: { id: string }) => {
+			console.log('[Gitbbon] _gitbbon.removeFloatingWidget called', args);
+		});
+
+		// Initialize Single Main Widget (Saved state, dimmed)
+		this.floatingWidgets.set('gitbbon-main', {
+			type: 'button',
+			icon: 'codicon codicon-check',
+			label: 'Saved',
+			tooltip: 'All changes saved',
+			priority: 10,
+			dimmed: true
+		});
+		this.renderFloatingWidgets();
+	}
+
+	// gitbbon custom: Floating Widget System - render buttons based on state
+	private renderFloatingWidgets(): void {
+		if (!this.floatingLayer) {
+			console.log('[Gitbbon] renderFloatingWidgets aborted: floatingLayer not found');
+			return;
+		}
+
+		console.log('[Gitbbon] renderFloatingWidgets running. Widgets count:', this.floatingWidgets.size);
+
+		const sortedWidgets = Array.from(this.floatingWidgets.entries())
+			.sort(([, a], [, b]) => a.priority - b.priority);
+
+		this.floatingLayer.replaceChildren();
+		for (const [id, widget] of sortedWidgets) {
+			const btn = document.createElement('div');
+			btn.classList.add('gitbbon-floating-widget');
+			btn.dataset.id = id;
+
+			if (widget.tooltip) {
+				btn.title = widget.tooltip;
+			}
+
+			if (widget.command) {
+				btn.dataset.command = widget.command;
+			}
+
+			// Icon
+			if (widget.icon) {
+				const iconSpan = document.createElement('span');
+				iconSpan.className = widget.icon;
+				btn.appendChild(iconSpan);
+			}
+
+			// Label
+			if (widget.label) {
+				const labelSpan = document.createElement('span');
+				labelSpan.className = 'label';
+				labelSpan.textContent = widget.label;
+				btn.appendChild(labelSpan);
+
+				if (widget.icon) {
+					btn.classList.add('has-label');
+				}
+			}
+
+			// Dimmed state
+			if (widget.dimmed) {
+				btn.classList.add('dimmed');
+			}
+
+			this.floatingLayer.appendChild(btn);
+		}
 	}
 
 	private createPart(id: string, role: string, classes: string[]): HTMLElement {
