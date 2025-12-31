@@ -87,6 +87,14 @@ export const App = () => {
 		setSaveStatus('committed');
 	}, []);
 
+	// milkdown-editor 영역의 빈 공간 클릭 시 에디터로 포커스 이동
+	const handleEditorAreaClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+		// 클릭 대상이 milkdown-editor div 자체일 때만 포커스 이동
+		if (e.target === e.currentTarget) {
+			editorRef.current?.focus();
+		}
+	}, []);
+
 	// gitbbon custom: AI에게 물어보기 기능 - 선택된 텍스트를 채팅으로 전송
 	const handleAskAI = useCallback((text?: string) => {
 		const selectedText = text || editorRef.current?.getSelectedText();
@@ -201,7 +209,7 @@ export const App = () => {
 					placeholder="Title"
 				/>
 			</div>
-			<div className="milkdown-editor" style={{ flexGrow: 1 }}>
+			<div className="milkdown-editor" style={{ flexGrow: 1 }} onClick={handleEditorAreaClick}>
 				<MilkdownEditor
 					ref={editorRef}
 					initialContent={editorContent}

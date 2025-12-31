@@ -23,6 +23,7 @@ export interface MilkdownEditorRef {
 	getCursorContext: () => string | null;
 	applySuggestions: (changes: any[]) => void;
 	directApply: (changes: any[]) => void;
+	focus: () => void;
 }
 
 // gitbbon custom: AI 물어보기 버튼 아이콘 (sparkle)
@@ -197,6 +198,19 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 			if (typeof (editor as any).action === 'function') {
 				(editor as any).action((ctx: any) => {
 					directApplyAISuggestions(ctx, changes);
+				});
+			}
+		},
+		// 에디터로 포커스 이동
+		focus: () => {
+			if (loading) return;
+			const editor = getInstance();
+			if (!editor) return;
+
+			if (typeof (editor as any).action === 'function') {
+				(editor as any).action((ctx: any) => {
+					const view = ctx.get(editorViewCtx);
+					view.focus();
 				});
 			}
 		}
