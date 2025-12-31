@@ -28,7 +28,6 @@ export const App = () => {
 	const [title, setTitle] = useState('');
 	const [editorContent, setEditorContent] = useState<string | null>(null);
 	const [saveStatus, setSaveStatus] = useState<SaveStatus>('committed');
-	console.log("🚀 ~ App ~ saveStatus:", saveStatus)
 	const editorRef = useRef<MilkdownEditorRef>(null);
 	const titleRef = useRef('');
 	const contentRef = useRef<string | null>(null);

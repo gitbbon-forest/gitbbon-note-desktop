@@ -265,6 +265,7 @@ class CodeMain {
 			const gitBinPath = require('path').dirname(dugite.resolveGitBinary());
 			const pathDelimiter = process.platform === 'win32' ? ';' : ':';
 			process.env.PATH = `${gitBinPath}${pathDelimiter}${process.env.PATH || ''}`;
+			process.env.GITBBON_GIT_BIN_PATH = gitBinPath; // Store for Extension Host
 			console.log(`[Gitbbon] Injected bundled Git into PATH: ${gitBinPath}`);
 		} catch (error) {
 			console.warn('[Gitbbon] Failed to inject bundled Git into PATH:', error);

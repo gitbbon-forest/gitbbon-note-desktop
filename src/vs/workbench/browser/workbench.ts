@@ -410,7 +410,7 @@ export class Workbench extends Layout {
 		container.appendChild(this.floatingLayer);
 
 		// Register Internal Commands
-		CommandsRegistry.registerCommand('_gitbbon.upsertFloatingWidget', (accessor, args: { id: string, type?: 'button', label?: string, icon?: string, tooltip?: string, command?: string, priority?: number }) => {
+		CommandsRegistry.registerCommand('_gitbbon.upsertFloatingWidget', (accessor, args: { id: string, type?: 'button', label?: string, icon?: string, tooltip?: string, command?: string, priority?: number, dimmed?: boolean }) => {
 			console.log('[Gitbbon] _gitbbon.upsertFloatingWidget called', args);
 			const existing = this.floatingWidgets.get(args.id);
 			this.floatingWidgets.set(args.id, {
@@ -419,7 +419,8 @@ export class Workbench extends Layout {
 				icon: args.icon ?? existing?.icon,
 				tooltip: args.tooltip ?? existing?.tooltip,
 				command: args.command ?? existing?.command,
-				priority: args.priority ?? existing?.priority ?? 0
+				priority: args.priority ?? existing?.priority ?? 0,
+				dimmed: args.dimmed ?? existing?.dimmed ?? false
 			});
 			this.renderFloatingWidgets();
 		});

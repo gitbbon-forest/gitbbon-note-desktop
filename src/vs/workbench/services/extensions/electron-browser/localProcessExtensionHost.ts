@@ -38,6 +38,7 @@ import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensi
 import { IHostService } from '../../host/browser/host.js';
 import { ILifecycleService, WillShutdownEvent } from '../../lifecycle/common/lifecycle.js';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions.js';
+import { process as sandboxProcess } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly extensions: ExtensionHostExtensions;
@@ -189,6 +190,20 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		]);
 
 		this._extensionHostProcess = new ExtensionHostProcess(extensionHostCreationResult.id, this._extensionHostStarter);
+
+		// Inject bundled Git (dugite) into PATH for extension host process
+		// This prevents xcode-select errors on macOS when git is not installed
+		// Use GITBBON_GIT_BIN_PATH set by main process (access via sandbox process)
+		const gitBinPath = sandboxProcess.env['GITBBON_GIT_BIN_PATH'];
+		if (gitBinPath) {
+			const pathDelimiter = platform.isWindows ? ';' : ':';
+			if (processEnv['PATH']) {
+				processEnv['PATH'] = `${gitBinPath}${pathDelimiter}${processEnv['PATH']}`;
+			} else {
+				processEnv['PATH'] = gitBinPath;
+			}
+			console.log(`[Gitbbon ExtensionHost] Injected bundled Git into PATH: ${gitBinPath}`);
+		}
 
 		const env = objects.mixin(processEnv, {
 			VSCODE_ESM_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
