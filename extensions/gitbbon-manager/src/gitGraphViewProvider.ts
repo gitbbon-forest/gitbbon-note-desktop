@@ -179,7 +179,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 	 * Git 커밋 히스토리 조회
 	 */
 	private async _getCommitHistory(skip: number, count: number): Promise<CommitInfo[]> {
-		const dugite = await import('dugite');
+		const cp = await import('child_process');
 		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		if (!cwd) {
 			return [];
@@ -190,46 +190,62 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 		const args = [
 			'log',
 			'--all',
-			`-n`, `${count}`,
+			'-n', `${count}`,
 			`--skip=${skip}`,
 			`--format=${format}`
 		];
 
 		console.log(`[GitGraphViewProvider] Executing: git ${args.join(' ')}`);
 
-		const result = await dugite.exec(args, cwd);
+		return new Promise((resolve, reject) => {
+			const git = cp.spawn('git', args, { cwd });
+			let stdout = '';
+			let stderr = '';
 
-		if (result.exitCode !== 0) {
-			// 저장소가 비어있거나 커밋이 없는 경우 (exit code 128)
-			if (result.exitCode === 128 && (result.stderr.includes('does not have any commits') || result.stderr.includes('fatal: your current branch'))) {
-				console.log('[GitGraphViewProvider] No commits found (empty repository)');
-				return [];
-			}
+			git.stdout.on('data', (data) => { stdout += data.toString(); });
+			git.stderr.on('data', (data) => { stderr += data.toString(); });
 
-			console.error('[GitGraphViewProvider] Git command failed:', result.stderr);
-			throw new Error(result.stderr);
-		}
+			git.on('close', (code) => {
+				if (code !== 0) {
+					// 저장소가 비어있거나 커밋이 없는 경우 (exit code 128)
+					if (stderr.includes('does not have any commits') || stderr.includes('fatal: your current branch')) {
+						console.log('[GitGraphViewProvider] No commits found (empty repository)');
+						resolve([]);
+						return;
+					}
 
-		const commits: CommitInfo[] = [];
-		const lines = result.stdout.trim().split('\n').filter(line => line);
+					console.error('[GitGraphViewProvider] Git command failed:', stderr);
+					reject(new Error(stderr));
+					return;
+				}
 
-		for (const line of lines) {
-			const parts = line.split('|');
-			if (parts.length >= 6) {
-				commits.push({
-					hash: parts[0],
-					shortHash: parts[1],
-					parents: parts[2] ? parts[2].split(' ') : [],
-					message: parts[3],
-					author: parts[4],
-					date: parts[5],
-					refs: parts[6] ? parts[6].split(', ').filter(r => r) : []
-				});
-			}
-		}
+				const commits: CommitInfo[] = [];
+				const lines = stdout.trim().split('\n').filter(line => line);
 
-		console.log(`[GitGraphViewProvider] Loaded ${commits.length} commits`);
-		return commits;
+				for (const line of lines) {
+					const parts = line.split('|');
+					if (parts.length >= 6) {
+						commits.push({
+							hash: parts[0],
+							shortHash: parts[1],
+							parents: parts[2] ? parts[2].split(' ') : [],
+							message: parts[3],
+							author: parts[4],
+							date: parts[5],
+							refs: parts[6] ? parts[6].split(', ').filter(r => r) : []
+						});
+					}
+				}
+
+				console.log(`[GitGraphViewProvider] Loaded ${commits.length} commits`);
+				resolve(commits);
+			});
+
+			git.on('error', (err) => {
+				console.error('[GitGraphViewProvider] Failed to spawn git:', err);
+				reject(err);
+			});
+		});
 	}
 
 	/**

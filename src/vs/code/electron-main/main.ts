@@ -259,6 +259,17 @@ class CodeMain {
 			}
 		});
 
+		// Inject bundled Git (dugite) into PATH for all child processes
+		try {
+			const dugite = require('dugite');
+			const gitBinPath = require('path').dirname(dugite.resolveGitBinary());
+			const pathDelimiter = process.platform === 'win32' ? ';' : ':';
+			process.env.PATH = `${gitBinPath}${pathDelimiter}${process.env.PATH || ''}`;
+			console.log(`[Gitbbon] Injected bundled Git into PATH: ${gitBinPath}`);
+		} catch (error) {
+			console.warn('[Gitbbon] Failed to inject bundled Git into PATH:', error);
+		}
+
 		Object.assign(process.env, instanceEnvironment);
 
 		return instanceEnvironment;

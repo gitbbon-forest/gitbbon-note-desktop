@@ -145,12 +145,25 @@ export class LocalProjectService implements ILocalProjectService {
 	}
 
 	private async execGit(args: string[], cwd: string): Promise<string> {
-		const dugite = await import('dugite');
-		const result = await dugite.exec(args, cwd);
-		if (result.exitCode !== 0) {
-			throw new Error(result.stderr || `Git command exited with code ${result.exitCode}`);
-		}
-		return result.stdout.trim();
+		const cp = await import('child_process');
+		return new Promise((resolve, reject) => {
+			const git = cp.spawn('git', args, { cwd });
+			let stdout = '';
+			let stderr = '';
+
+			git.stdout.on('data', (data) => { stdout += data.toString(); });
+			git.stderr.on('data', (data) => { stderr += data.toString(); });
+
+			git.on('close', (code) => {
+				if (code !== 0) {
+					reject(new Error(stderr || `Git command exited with code ${code}`));
+				} else {
+					resolve(stdout.trim());
+				}
+			});
+
+			git.on('error', (err) => reject(err));
+		});
 	}
 
 	async confirmDeletion(projectName: string): Promise<boolean> {
