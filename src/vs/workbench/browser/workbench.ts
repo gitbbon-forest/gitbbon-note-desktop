@@ -21,6 +21,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../platform
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent } from '../services/lifecycle/common/lifecycle.js';
+import { ICommandService } from '../../platform/commands/common/commands.js';
 import { INotificationService } from '../../platform/notification/common/notification.js';
 import { NotificationService } from '../services/notification/common/notificationService.js';
 import { NotificationsCenter } from './parts/notifications/notificationsCenter.js';
@@ -140,6 +141,7 @@ export class Workbench extends Layout {
 				const hoverService = accessor.get(IHoverService);
 				const dialogService = accessor.get(IDialogService);
 				const notificationService = accessor.get(INotificationService) as NotificationService;
+				const commandService = accessor.get(ICommandService);
 				const markdownRendererService = accessor.get(IMarkdownRendererService);
 
 				// Set code block renderer for markdown rendering
@@ -164,7 +166,7 @@ export class Workbench extends Layout {
 				this.registerListeners(lifecycleService, storageService, configurationService, hostService, dialogService);
 
 				// Render Workbench
-				this.renderWorkbench(instantiationService, notificationService, storageService, configurationService);
+				this.renderWorkbench(instantiationService, notificationService, storageService, configurationService, commandService);
 
 				// Workbench Layout
 				this.createWorkbenchLayout();
@@ -312,7 +314,7 @@ export class Workbench extends Layout {
 		}
 	}
 
-	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
+	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService, commandService: ICommandService): void {
 
 		// ARIA & Signals
 		setARIAContainer(this.mainContainer);
@@ -338,6 +340,7 @@ export class Workbench extends Layout {
 		this.restoreFontInfo(storageService, configurationService);
 
 		// Create Parts
+		let editorPartContainer: HTMLElement | undefined;
 		for (const { id, role, classes, options } of [
 			{ id: Parts.TITLEBAR_PART, role: 'none', classes: ['titlebar'] },
 			{ id: Parts.BANNER_PART, role: 'banner', classes: ['banner'] },
@@ -350,6 +353,10 @@ export class Workbench extends Layout {
 		]) {
 			const partContainer = this.createPart(id, role, classes);
 
+			if (id === Parts.EDITOR_PART) {
+				editorPartContainer = partContainer;
+			}
+
 			mark(`code/willCreatePart/${id}`);
 			this.getPart(id).create(partContainer, options);
 			mark(`code/didCreatePart/${id}`);
@@ -360,6 +367,30 @@ export class Workbench extends Layout {
 
 		// Add Workbench to DOM
 		this.parent.appendChild(this.mainContainer);
+
+		// Gitbbon: Create Really Final FAB (Attached to Editor Part)
+		if (editorPartContainer) {
+			this.createReallyFinalFab(editorPartContainer, commandService);
+		}
+	}
+
+	private createReallyFinalFab(container: HTMLElement, commandService: ICommandService): void {
+		const fab = document.createElement('div');
+		fab.classList.add('gitbbon-really-final-fab');
+		fab.setAttribute('role', 'button');
+		fab.setAttribute('title', '진짜최종 (Really Final Commit)');
+
+		// Icon (Simple Checkmark)
+		const icon = document.createElement('div');
+		icon.classList.add('gitbbon-fab-icon');
+		icon.textContent = '✓';
+		fab.appendChild(icon);
+
+		fab.addEventListener('click', () => {
+			commandService.executeCommand('gitbbon.manager.reallyFinal');
+		});
+
+		container.appendChild(fab);
 	}
 
 	private createPart(id: string, role: string, classes: string[]): HTMLElement {
