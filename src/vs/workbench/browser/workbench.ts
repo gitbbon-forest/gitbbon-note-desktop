@@ -66,8 +66,7 @@ export interface IWorkbenchOptions {
 }
 
 // gitbbon custom: Floating Widget System - add dynamic floating button layer to editor area (centered)
-const FLOATING_WIDGET_BOTTOM = 50;
-const FLOATING_WIDGET_RIGHT = undefined; // Center horizontally
+const FLOATING_WIDGET_BOTTOM = 30;
 
 export class Workbench extends Layout {
 
@@ -85,7 +84,7 @@ export class Workbench extends Layout {
 		tooltip?: string,
 		command?: string,
 		priority: number,
-		dimmed?: boolean // Optional: renders widget with reduced opacity
+		dimmed?: boolean, // Optional: renders widget with reduced opacity
 	}>();
 	private floatingLayer: HTMLElement | undefined;
 
