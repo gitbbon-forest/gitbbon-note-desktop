@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { MilkdownEditor, MilkdownEditorRef } from './MilkdownEditor';
 import { SaveStatus } from './ReallyFinalButton';
+import { SearchBar } from './SearchBar';
 
 declare const acquireVsCodeApi: () => {
 	postMessage(message: any): void;
@@ -31,6 +32,12 @@ export const App = () => {
 	const editorRef = useRef<MilkdownEditorRef>(null);
 	const titleRef = useRef('');
 	const contentRef = useRef<string | null>(null);
+
+	// gitbbon custom: Search state
+	const [showSearchBar, setShowSearchBar] = useState(false);
+	const [searchQuery, setSearchQuery] = useState('');
+	const [replaceText, setReplaceText] = useState('');
+	const [searchInfo, setSearchInfo] = useState({ matchCount: 0, currentMatch: 0 });
 
 	// Keep titleRef in sync for callbacks
 	useEffect(() => {
@@ -106,16 +113,84 @@ export const App = () => {
 		}
 	}, []);
 
-	// Cmd+L / Ctrl+L 단축키 처리
+	// gitbbon custom: Search handlers
+	const handleSearchChange = useCallback((query: string, replace?: string) => {
+		setSearchQuery(query);
+		if (replace !== undefined) {
+			setReplaceText(replace);
+		}
+		editorRef.current?.setSearch(query, replace);
+		// 약간의 지연 후 매치 정보 업데이트
+		setTimeout(() => {
+			const info = editorRef.current?.getSearchInfo() || { matchCount: 0, currentMatch: 0 };
+			setSearchInfo(info);
+		}, 50);
+	}, []);
+
+	const handleReplaceChange = useCallback((replace: string) => {
+		setReplaceText(replace);
+		editorRef.current?.setSearch(searchQuery, replace);
+	}, [searchQuery]);
+
+	const handleFindNext = useCallback(() => {
+		editorRef.current?.findNextMatch();
+		setTimeout(() => {
+			const info = editorRef.current?.getSearchInfo() || { matchCount: 0, currentMatch: 0 };
+			setSearchInfo(info);
+		}, 50);
+	}, []);
+
+	const handleFindPrev = useCallback(() => {
+		editorRef.current?.findPrevMatch();
+		setTimeout(() => {
+			const info = editorRef.current?.getSearchInfo() || { matchCount: 0, currentMatch: 0 };
+			setSearchInfo(info);
+		}, 50);
+	}, []);
+
+	const handleReplaceNext = useCallback(() => {
+		editorRef.current?.replaceNextMatch();
+		setTimeout(() => {
+			const info = editorRef.current?.getSearchInfo() || { matchCount: 0, currentMatch: 0 };
+			setSearchInfo(info);
+		}, 50);
+	}, []);
+
+	const handleReplaceAll = useCallback(() => {
+		editorRef.current?.replaceAllMatches();
+		setTimeout(() => {
+			const info = editorRef.current?.getSearchInfo() || { matchCount: 0, currentMatch: 0 };
+			setSearchInfo(info);
+		}, 50);
+	}, []);
+
+	const handleSearchClose = useCallback(() => {
+		setShowSearchBar(false);
+		setSearchQuery('');
+		setReplaceText('');
+		editorRef.current?.clearSearch();
+		editorRef.current?.focus();
+		setSearchInfo({ matchCount: 0, currentMatch: 0 });
+	}, []);
+
+	// Cmd+L / Ctrl+L 단축키 처리 (AI) + Cmd+F / Ctrl+F 처리 (검색)
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
+			// gitbbon custom: Cmd+F / Ctrl+F - 검색 바 열기
+			if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+				e.preventDefault();
+				e.stopPropagation();
+				setShowSearchBar(true);
+				return;
+			}
+			// Cmd+L / Ctrl+L - AI 물어보기
 			if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
 				e.preventDefault();
 				handleAskAI();
 			}
 		};
-		window.addEventListener('keydown', handleKeyDown);
-		return () => window.removeEventListener('keydown', handleKeyDown);
+		window.addEventListener('keydown', handleKeyDown, true); // capture phase
+		return () => window.removeEventListener('keydown', handleKeyDown, true);
 	}, [handleAskAI]);
 
 	useEffect(() => {
@@ -200,6 +275,22 @@ export const App = () => {
 
 	return (
 		<div className="app" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+			{/* gitbbon custom: Search Bar */}
+			{showSearchBar && (
+				<SearchBar
+					searchQuery={searchQuery}
+					onSearchChange={handleSearchChange}
+					onFindNext={handleFindNext}
+					onFindPrev={handleFindPrev}
+					onClose={handleSearchClose}
+					matchCount={searchInfo.matchCount}
+					currentMatch={searchInfo.currentMatch}
+					replaceText={replaceText}
+					onReplaceChange={handleReplaceChange}
+					onReplaceNext={handleReplaceNext}
+					onReplaceAll={handleReplaceAll}
+				/>
+			)}
 			<div className="title-container">
 				<input
 					id="title-input"

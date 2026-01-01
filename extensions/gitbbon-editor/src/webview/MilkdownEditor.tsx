@@ -3,12 +3,20 @@ import { MilkdownProvider, useEditor, Milkdown } from '@milkdown/react';
 import { Crepe } from '@milkdown/crepe';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { editorViewCtx, parserCtx } from '@milkdown/core';
+import { $prose } from '@milkdown/utils';
 import "@milkdown/crepe/theme/common/style.css";
 // import "@milkdown/crepe/theme/frame.css"; // Optional: Frame theme
 
 // gitbbon custom: Inline Suggestion
 import { suggestionPlugin, suggestionInsertMark, suggestionDeleteMark, applyAISuggestions, directApplyAISuggestions } from './suggestionPlugin';
 import './suggestion.css';
+
+// gitbbon custom: Search functionality
+import { search, SearchQuery, setSearchState, findNext, findPrev, getSearchState, getMatchHighlights, replaceNext, replaceAll } from 'prosemirror-search';
+import './SearchBar.css';
+
+// Milkdown 호환 search 플러그인 래핑
+const searchPlugin = $prose(() => search());
 
 interface MilkdownEditorProps {
 	initialContent: string;
@@ -24,6 +32,15 @@ export interface MilkdownEditorRef {
 	applySuggestions: (changes: any[]) => void;
 	directApply: (changes: any[]) => void;
 	focus: () => void;
+	// gitbbon custom: Search functionality
+	setSearch: (query: string, replace?: string) => void;
+	findNextMatch: () => void;
+	findPrevMatch: () => void;
+	getSearchInfo: () => { matchCount: number; currentMatch: number };
+	clearSearch: () => void;
+	// gitbbon custom: Replace functionality
+	replaceNextMatch: () => void;
+	replaceAllMatches: () => void;
 }
 
 // gitbbon custom: AI 물어보기 버튼 아이콘 (sparkle)
@@ -76,7 +93,9 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 			.use(listener)
 			.use(suggestionInsertMark)
 			.use(suggestionDeleteMark)
-			.use(suggestionPlugin);
+			.use(suggestionPlugin)
+			// gitbbon custom: Search functionality
+			.use(searchPlugin);
 
 		return crepe;
 	}, [onAskAI]);
@@ -211,6 +230,117 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 				(editor as any).action((ctx: any) => {
 					const view = ctx.get(editorViewCtx);
 					view.focus();
+				});
+			}
+		},
+		// gitbbon custom: Search functionality - 검색어 설정 (바꾸기 텍스트 포함)
+		setSearch: (query: string, replace?: string) => {
+			if (loading) return;
+			const editor = getInstance();
+			if (!editor) return;
+
+			if (typeof (editor as any).action === 'function') {
+				(editor as any).action((ctx: any) => {
+					const view = ctx.get(editorViewCtx);
+					const searchQuery = new SearchQuery({ search: query, replace: replace || '' });
+					const tr = setSearchState(view.state.tr, searchQuery);
+					view.dispatch(tr);
+				});
+			}
+		},
+		// gitbbon custom: Search functionality - 다음 매치로 이동
+		findNextMatch: () => {
+			if (loading) return;
+			const editor = getInstance();
+			if (!editor) return;
+
+			if (typeof (editor as any).action === 'function') {
+				(editor as any).action((ctx: any) => {
+					const view = ctx.get(editorViewCtx);
+					findNext(view.state, view.dispatch, view);
+				});
+			}
+		},
+		// gitbbon custom: Search functionality - 이전 매치로 이동
+		findPrevMatch: () => {
+			if (loading) return;
+			const editor = getInstance();
+			if (!editor) return;
+
+			if (typeof (editor as any).action === 'function') {
+				(editor as any).action((ctx: any) => {
+					const view = ctx.get(editorViewCtx);
+					findPrev(view.state, view.dispatch, view);
+				});
+			}
+		},
+		// gitbbon custom: Search functionality - 현재 검색 상태 정보
+		getSearchInfo: (): { matchCount: number; currentMatch: number } => {
+			if (loading) return { matchCount: 0, currentMatch: 0 };
+			const editor = getInstance();
+			if (!editor) return { matchCount: 0, currentMatch: 0 };
+
+			let result = { matchCount: 0, currentMatch: 0 };
+			if (typeof (editor as any).action === 'function') {
+				(editor as any).action((ctx: any) => {
+					const view = ctx.get(editorViewCtx);
+					const highlights = getMatchHighlights(view.state);
+					const decorations = highlights.find();
+					result.matchCount = decorations.length;
+
+					// 현재 선택 위치와 가장 가까운 매치 찾기
+					if (decorations.length > 0) {
+						const { from } = view.state.selection;
+						let currentIdx = 1;
+						for (let i = 0; i < decorations.length; i++) {
+							if (decorations[i].from <= from) {
+								currentIdx = i + 1;
+							}
+						}
+						result.currentMatch = Math.min(currentIdx, decorations.length);
+					}
+				});
+			}
+			return result;
+		},
+		// gitbbon custom: Search functionality - 검색 초기화
+		clearSearch: () => {
+			if (loading) return;
+			const editor = getInstance();
+			if (!editor) return;
+
+			if (typeof (editor as any).action === 'function') {
+				(editor as any).action((ctx: any) => {
+					const view = ctx.get(editorViewCtx);
+					const emptyQuery = new SearchQuery({ search: '' });
+					const tr = setSearchState(view.state.tr, emptyQuery);
+					view.dispatch(tr);
+				});
+			}
+		},
+		// gitbbon custom: Replace functionality - 다음 매치 바꾸기
+		replaceNextMatch: () => {
+			if (loading) return;
+			const editor = getInstance();
+			if (!editor) return;
+
+			if (typeof (editor as any).action === 'function') {
+				(editor as any).action((ctx: any) => {
+					const view = ctx.get(editorViewCtx);
+					replaceNext(view.state, view.dispatch, view);
+				});
+			}
+		},
+		// gitbbon custom: Replace functionality - 모두 바꾸기
+		replaceAllMatches: () => {
+			if (loading) return;
+			const editor = getInstance();
+			if (!editor) return;
+
+			if (typeof (editor as any).action === 'function') {
+				(editor as any).action((ctx: any) => {
+					const view = ctx.get(editorViewCtx);
+					replaceAll(view.state, view.dispatch, view);
 				});
 			}
 		}

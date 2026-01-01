@@ -1,0 +1,120 @@
+.search-bar {
+	position: fixed;
+	top: 0;
+	right: 20px;
+	z-index: 1000;
+	padding: 8px;
+}
+
+.search-bar-wrapper {
+	display: flex;
+	align-items: flex-start;
+	gap: 4px;
+	background: var(--vscode-editorWidget-background, #252526);
+	border: 1px solid var(--vscode-editorWidget-border, #454545);
+	border-radius: 6px;
+	padding: 6px 8px;
+	box-shadow: var(--vscode-widget-shadow, 0 2px 8px rgba(0, 0, 0, 0.36));
+}
+
+.search-bar-fields {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.search-bar-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.search-toggle-btn {
+	font-size: 10px;
+	width: 20px;
+	height: 20px;
+	margin-top: 2px;
+}
+
+.search-input {
+	width: 180px;
+	padding: 4px 8px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background: var(--vscode-input-background, #3c3c3c);
+	color: var(--vscode-input-foreground, #cccccc);
+	font-size: 13px;
+	outline: none;
+	border-radius: 2px;
+}
+
+.search-input:focus {
+	border-color: var(--vscode-focusBorder, #007fd4);
+}
+
+.search-input::placeholder {
+	color: var(--vscode-input-placeholderForeground, #888888);
+}
+
+.replace-input {
+	width: 180px;
+}
+
+.search-match-count {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground, #888888);
+	min-width: 40px;
+	text-align: center;
+}
+
+.search-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 24px;
+	height: 24px;
+	padding: 0 4px;
+	border: none;
+	background: transparent;
+	color: var(--vscode-icon-foreground, #c5c5c5);
+	cursor: pointer;
+	border-radius: 4px;
+	font-size: 14px;
+	transition: background 0.15s;
+}
+
+.search-btn:hover:not(:disabled) {
+	background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.search-btn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.search-close-btn {
+	font-size: 18px;
+	font-weight: bold;
+}
+
+.replace-btn {
+	font-size: 12px;
+	padding: 0 8px;
+	white-space: nowrap;
+}
+
+.replace-row {
+	padding-left: 0;
+}
+
+/* prosemirror-search 하이라이트 스타일 - VS Code 테마 통합 */
+.ProseMirror .ProseMirror-search-match {
+	background-color: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.33));
+	border: 1px solid var(--vscode-editor-findMatchHighlightBorder, transparent);
+	border-radius: 2px;
+}
+
+.ProseMirror .ProseMirror-active-search-match {
+	background-color: var(--vscode-editor-findMatchBackground, rgba(255, 213, 0, 0.5));
+	border: 2px solid var(--vscode-editor-findMatchBorder, transparent);
+	border-radius: 2px;
+}
