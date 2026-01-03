@@ -16,11 +16,12 @@ import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanit
 import { Event } from '../../base/common/event.js';
 import { getPathLabel } from '../../base/common/labels.js';
 import { Schemas } from '../../base/common/network.js';
-import { basename, resolve } from '../../base/common/path.js';
+import { basename, dirname, resolve } from '../../base/common/path.js';
 import { mark } from '../../base/common/performance.js';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
 import { cwd } from '../../base/common/process.js';
 import { rtrim, trim } from '../../base/common/strings.js';
+
 import { Promises as FSPromises } from '../../base/node/pfs.js';
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { Client as NodeIPCClient } from '../../base/parts/ipc/common/ipc.net.js';
@@ -260,16 +261,29 @@ class CodeMain {
 		});
 
 		// Inject bundled Git (dugite) into PATH for all child processes
-		try {
-			const dugite = require('dugite');
-			const gitBinPath = require('path').dirname(dugite.resolveGitBinary());
-			const pathDelimiter = process.platform === 'win32' ? ';' : ':';
-			process.env.PATH = `${gitBinPath}${pathDelimiter}${process.env.PATH || ''}`;
-			process.env.GITBBON_GIT_BIN_PATH = gitBinPath; // Store for Extension Host
-			console.log(`[Gitbbon] Injected bundled Git into PATH: ${gitBinPath}`);
-		} catch (error) {
-			console.warn('[Gitbbon] Failed to inject bundled Git into PATH:', error);
-		}
+		// Note: Using IIFE to handle async dynamic import while keeping patchEnvironment synchronous
+		console.log('[Gitbbon] Attempting to inject bundled Git (dugite)...');
+		(async () => {
+			try {
+				// Use dynamic import for dugite module
+				const dugite = await import('dugite').catch(() => undefined) as { resolveGitBinary: () => string } | undefined;
+				if (dugite) {
+					console.log('[Gitbbon] dugite module loaded successfully via dynamic import');
+					const gitBinaryPath = dugite.resolveGitBinary();
+					console.log(`[Gitbbon] dugite.resolveGitBinary() returned: ${gitBinaryPath}`);
+					const gitBinPath = dirname(gitBinaryPath);
+					const pathDelimiter = process.platform === 'win32' ? ';' : ':';
+					process.env.PATH = `${gitBinPath}${pathDelimiter}${process.env.PATH || ''}`;
+					process.env.GITBBON_GIT_BIN_PATH = gitBinPath; // Store for Extension Host
+					console.log(`[Gitbbon] Successfully injected bundled Git into PATH: ${gitBinPath}`);
+				} else {
+					console.warn('[Gitbbon] dugite module not found - Git may not be available without system installation');
+				}
+			} catch (error) {
+				console.warn('[Gitbbon] Failed to inject bundled Git into PATH:', error);
+				console.warn('[Gitbbon] Error details:', error instanceof Error ? error.stack : String(error));
+			}
+		})();
 
 		Object.assign(process.env, instanceEnvironment);
 

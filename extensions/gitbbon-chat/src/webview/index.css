@@ -95,68 +95,112 @@ body {
 /* Chat Input Form */
 .chat-input-form {
 	display: flex;
-	gap: 8px;
-	padding: 12px;
+	gap: 12px;
+	padding: 16px;
 	border-top: 1px solid var(--vscode-panel-border);
-	background-color: var(--vscode-sideBar-background);
+	background: linear-gradient(180deg,
+		rgba(var(--vscode-sideBar-background), 0.8) 0%,
+		var(--vscode-sideBar-background) 100%
+	);
+	backdrop-filter: blur(12px);
 	align-items: flex-end;
 }
 
 .chat-input-field {
 	flex: 1;
-	padding: 10px 12px;
+	padding: 14px 18px;
 	border: 1px solid var(--vscode-input-border);
-	border-radius: 6px;
+	border-radius: 16px;
 	background-color: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
 	font-family: inherit;
 	font-size: inherit;
 	outline: none;
-	transition: border-color 0.2s;
+	transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 	/* textarea specific */
 	resize: none;
-	min-height: 40px;
+	min-height: 24px;
 	max-height: 200px;
 	overflow-y: auto;
-	line-height: 1.4;
+	line-height: 1.5;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .chat-input-field:focus {
 	border-color: var(--vscode-focusBorder);
+	box-shadow: 0 0 0 3px rgba(var(--vscode-focusBorder), 0.1),
+	            0 4px 12px rgba(0, 0, 0, 0.08);
+	transform: translateY(-1px);
 }
 
 .chat-input-field::placeholder {
 	color: var(--vscode-input-placeholderForeground);
+	opacity: 0.7;
 }
 
-.chat-input-field:disabled {
-	opacity: 0.6;
-	cursor: not-allowed;
-}
-
-/* Submit Button */
+/* Submit Button - 세련된 원형 버튼 */
 .chat-submit-btn {
-	padding: 10px 18px;
+	width: 44px;
+	height: 44px;
+	min-width: 44px;
+	padding: 0;
 	border: none;
-	border-radius: 6px;
-	background-color: var(--vscode-button-background);
+	border-radius: 50%;
+	background: linear-gradient(135deg,
+		var(--vscode-button-background) 0%,
+		var(--vscode-button-hoverBackground, var(--vscode-button-background)) 100%
+	);
 	color: var(--vscode-button-foreground);
-	font-family: inherit;
-	font-size: inherit;
-	font-weight: 500;
 	cursor: pointer;
-	transition: background-color 0.2s;
+	transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	flex-shrink: 0;
 }
 
 .chat-submit-btn:hover:not(:disabled) {
-	background-color: var(--vscode-button-hoverBackground);
+	background: linear-gradient(135deg,
+		var(--vscode-button-hoverBackground, var(--vscode-button-background)) 0%,
+		var(--vscode-button-background) 100%
+	);
+	transform: translateY(-2px) scale(1.05);
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.chat-submit-btn:active:not(:disabled) {
+	transform: translateY(0) scale(0.98);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .chat-submit-btn:disabled {
-	opacity: 0.6;
+	opacity: 0.4;
 	cursor: not-allowed;
+	transform: none;
+	box-shadow: none;
+	background: var(--vscode-button-secondaryBackground, #555);
 }
 
 .chat-submit-btn.loading {
-	min-width: 50px;
+	animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+	0%, 100% {
+		opacity: 0.6;
+		transform: scale(1);
+	}
+	50% {
+		opacity: 0.3;
+		transform: scale(0.95);
+	}
+}
+
+.chat-submit-btn svg {
+	transition: transform 0.2s ease;
+}
+
+.chat-submit-btn:hover:not(:disabled) svg {
+	transform: translateX(2px);
 }

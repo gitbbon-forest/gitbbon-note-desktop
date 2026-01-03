@@ -195,6 +195,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		// This prevents xcode-select errors on macOS when git is not installed
 		// Use GITBBON_GIT_BIN_PATH set by main process (access via sandbox process)
 		const gitBinPath = sandboxProcess.env['GITBBON_GIT_BIN_PATH'];
+		console.log(`[Gitbbon ExtensionHost] GITBBON_GIT_BIN_PATH from sandboxProcess.env: ${gitBinPath || '(not set)'}`);
 		if (gitBinPath) {
 			const pathDelimiter = platform.isWindows ? ';' : ':';
 			if (processEnv['PATH']) {
@@ -203,6 +204,15 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				processEnv['PATH'] = gitBinPath;
 			}
 			console.log(`[Gitbbon ExtensionHost] Injected bundled Git into PATH: ${gitBinPath}`);
+
+			// Set GIT_EXEC_PATH to help Git find helper programs like git-remote-https
+			// dugite structure: node_modules/dugite/git/bin/git -> ../libexec/git-core/
+			const gitExecPath = gitBinPath.replace(/\/bin$/, '/libexec/git-core');
+			processEnv['GIT_EXEC_PATH'] = gitExecPath;
+			console.log(`[Gitbbon ExtensionHost] Set GIT_EXEC_PATH: ${gitExecPath}`);
+		} else {
+			console.warn('[Gitbbon ExtensionHost] GITBBON_GIT_BIN_PATH not set - bundled Git will not be available');
+			console.warn('[Gitbbon ExtensionHost] Extensions may fail if system Git is not installed');
 		}
 
 		const env = objects.mixin(processEnv, {

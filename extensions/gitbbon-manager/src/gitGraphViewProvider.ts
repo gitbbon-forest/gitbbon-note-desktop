@@ -196,6 +196,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 		];
 
 		console.log(`[GitGraphViewProvider] Executing: git ${args.join(' ')}`);
+		console.log(`[GitGraphViewProvider] Current PATH (first 200 chars): ${(process.env.PATH || '').substring(0, 200)}...`);
 
 		return new Promise((resolve, reject) => {
 			const git = cp.spawn('git', args, { cwd });
