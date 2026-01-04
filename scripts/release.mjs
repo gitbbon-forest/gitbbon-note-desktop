@@ -5,16 +5,24 @@
 
 // @ts-check
 
-import { execSync, spawn } from 'child_process';
+/**
+ * Gitbbon Release Script
+ *
+ * 이 스크립트는 GitHub Actions를 통한 릴리스 워크플로우를 트리거합니다.
+ *
+ * 사용법:
+ *   npm run release      - 정식 릴리스 (태그 푸시 → GitHub Actions 빌드)
+ *   npm run pre-release  - 테스트 릴리스 (workflow_dispatch → Pre-release)
+ */
+
+import { execSync } from 'child_process';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import * as readline from 'readline';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.join(__dirname, '..');
-const RELEASE_OUTPUT_DIR = path.join(os.tmpdir(), 'gitbbon-release');
 
 // ANSI colors
 const colors = {
@@ -123,183 +131,25 @@ function getSuggestedVersion(currentVersion) {
 }
 
 /**
- * @returns {Promise<string>}
+ * Check if gh CLI is available
+ * @returns {boolean}
  */
-async function setupWorktree() {
-	const WORKTREE_DIR = path.join(ROOT_DIR, '..', 'git-note-build');
-
-	logStep('WORKTREE', 'Setting up build worktree...');
-
-	// Check if worktree already exists
-	if (fs.existsSync(WORKTREE_DIR)) {
-		log('Worktree already exists, updating from GitHub...', colors.yellow);
-		exec(`cd "${WORKTREE_DIR}" && git fetch origin && git reset --hard origin/main`, { silent: false });
-
-		// Install dependencies to ensure all packages are up to date
-		log('Installing dependencies in worktree (this may take a while)...', colors.yellow);
-		exec(`cd "${WORKTREE_DIR}" && npm ci`, { silent: false });
-	} else {
-		log('Creating new worktree...', colors.yellow);
-		exec(`git worktree add "${WORKTREE_DIR}" main`, { silent: false });
-
-		// Install dependencies in worktree
-		log('Installing dependencies in worktree (this may take a while)...', colors.yellow);
-		exec(`cd "${WORKTREE_DIR}" && npm ci`, { silent: false });
-	}
-
-	return WORKTREE_DIR;
-}
-
-/**
- * @param {string} worktreeDir
- * @returns {Promise<void>}
- */
-async function buildExtensions(worktreeDir) {
-	logStep('EXTENSIONS', 'Building extensions in worktree...');
-
-	const extensions = ['gitbbon-editor', 'gitbbon-manager', 'gitbbon-chat'];
-
-	for (const name of extensions) {
-		const extDir = path.join(worktreeDir, 'extensions', name);
-		if (fs.existsSync(extDir)) {
-			// Copy .env from root to extension directory if it exists
-			const envSource = path.join(ROOT_DIR, '.env');
-			const envDest = path.join(extDir, '.env');
-			if (fs.existsSync(envSource)) {
-				log(`Copying .env to ${name}...`, colors.yellow);
-				fs.copyFileSync(envSource, envDest);
-			}
-
-			log(`Building ${name}...`, colors.yellow);
-			exec(`cd "${extDir}" && npm run package`, { silent: false });
-		} else {
-			log(`Extension ${name} not found.`, colors.red);
-		}
+function checkGhCli() {
+	try {
+		exec('gh --version', { silent: true });
+		return true;
+	} catch {
+		return false;
 	}
 }
 
 /**
- * @param {string} platform
- * @param {string} worktreeDir
- * @returns {Promise<void>}
+ * 정식 릴리스: 버전 업데이트 → 태그 생성 → 푸시 → GitHub Actions 빌드
  */
-async function runBuild(platform, worktreeDir) {
-	logStep('BUILD', `Building ${platform} in worktree...`);
-	return new Promise((resolve, reject) => {
-		const child = spawn('npm', ['run', 'gulp', `vscode-${platform}-min`], {
-			cwd: worktreeDir,
-			shell: true,
-			stdio: 'inherit',
-			env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=16384', GH_TOKEN: process.env.GH_TOKEN }
-		});
-
-		child.on('close', (code) => {
-			if (code === 0) {
-				resolve();
-			} else {
-				reject(new Error(`Build failed for ${platform} with code ${code}`));
-			}
-		});
-	});
-}
-
-/**
- * @param {string} version
- * @param {string} changelogEntry
- * @param {string} worktreeDir
- * @returns {Promise<void>}
- */
-async function createGitHubRelease(version, changelogEntry, worktreeDir) {
-	logStep('RELEASE', 'Creating GitHub Release...');
-
-	// Ensure release output directory exists
-	if (!fs.existsSync(RELEASE_OUTPUT_DIR)) {
-		fs.mkdirSync(RELEASE_OUTPUT_DIR, { recursive: true });
-	}
-	log(`Release artifacts will be saved to: ${RELEASE_OUTPUT_DIR}`, colors.yellow);
-
-	const artifacts = [
-		'../VSCode-darwin-x64',
-		'../VSCode-darwin-arm64',
-		'../VSCode-win32-x64',
-		'../VSCode-linux-x64'
-	];
-
-	// Create zip/tar files
-	/** @type {string[]} */
-	const releaseFiles = [];
-
-	for (const artifact of artifacts) {
-		const artifactPath = path.join(worktreeDir, artifact);
-		if (fs.existsSync(artifactPath)) {
-			const basename = path.basename(artifact);
-			if (artifact.includes('linux')) {
-				const tarPath = path.join(RELEASE_OUTPUT_DIR, `${basename}.tar.gz`);
-				exec(`tar -czf "${tarPath}" -C "${artifactPath}" .`);
-				releaseFiles.push(tarPath);
-			} else {
-				const zipPath = path.join(RELEASE_OUTPUT_DIR, `${basename}.zip`);
-				exec(`cd "${artifactPath}" && zip -r -y "${zipPath}" .`);
-				releaseFiles.push(zipPath);
-			}
-		}
-	}
-
-	// Generate latest.yml files for each platform
-	generateUpdateMetadata(version, releaseFiles);
-
-	// Create GitHub release
-	const tag = `v${version}`;
-	const releaseFileArgs = releaseFiles.map(f => `"${f}"`).join(' ');
-	const latestYmlFiles = [
-		path.join(RELEASE_OUTPUT_DIR, 'latest-mac.yml'),
-		path.join(RELEASE_OUTPUT_DIR, 'latest.yml'),
-		path.join(RELEASE_OUTPUT_DIR, 'latest-linux.yml')
-	].filter(f => fs.existsSync(f)).map(f => `"${f}"`).join(' ');
-
-	exec(`gh release create ${tag} ${releaseFileArgs} ${latestYmlFiles} --title "Release ${tag}" --notes "${changelogEntry.replace(/"/g, '\\"')}"`);
-
-	log(`\n✅ GitHub Release ${tag} created successfully!`, colors.green);
-	log(`📁 Release files saved to: ${RELEASE_OUTPUT_DIR}`, colors.cyan);
-}
-
-/**
- * @param {string} version
- * @param {string[]} releaseFiles
- */
-function generateUpdateMetadata(version, releaseFiles) {
-	const releaseDate = new Date().toISOString();
-
-	for (const file of releaseFiles) {
-		if (!fs.existsSync(file)) continue;
-
-		const stats = fs.statSync(file);
-		const sha512 = exec(`shasum -a 512 "${file}" | awk '{print $1}'`, { silent: true }).trim();
-		const filename = path.basename(file);
-
-		let platform = '';
-		if (file.includes('darwin')) platform = 'mac';
-		else if (file.includes('win32')) platform = '';
-		else if (file.includes('linux')) platform = 'linux';
-
-		const yamlContent = `version: ${version}
-files:
-  - url: ${filename}
-    sha512: ${sha512}
-    size: ${stats.size}
-path: ${filename}
-sha512: ${sha512}
-releaseDate: '${releaseDate}'
-`;
-
-		const yamlPath = path.join(RELEASE_OUTPUT_DIR, platform ? `latest-${platform}.yml` : 'latest.yml');
-		fs.writeFileSync(yamlPath, yamlContent);
-	}
-}
-
-async function main() {
+async function release() {
 	log('\n🚀 Gitbbon Release Script', colors.bold + colors.blue);
-	log('='.repeat(40), colors.blue);
+	log('='.repeat(50), colors.blue);
+	log('GitHub Actions가 빌드를 수행합니다.', colors.yellow);
 
 	// Step 1: Show current version and suggested version
 	const currentVersion = getCurrentVersion();
@@ -317,7 +167,7 @@ async function main() {
 	}
 
 	// Step 3: Run standard-version to generate CHANGELOG
-	logStep('CHANGELOG', 'Generating CHANGELOG from git commits...');
+	logStep('1/4', 'Generating CHANGELOG from git commits...');
 	try {
 		exec(`npx standard-version --release-as ${newVersion} --skip.commit --skip.tag`, { silent: false });
 	} catch (error) {
@@ -327,16 +177,20 @@ async function main() {
 
 	// Read generated changelog for this version
 	const changelogPath = path.join(ROOT_DIR, 'CHANGELOG.md');
-	const changelog = fs.readFileSync(changelogPath, 'utf8');
-	const versionMatch = changelog.match(new RegExp(`## \\[${newVersion}\\][\\s\\S]*?(?=\\n## |$)`));
-	const changelogEntry = versionMatch ? versionMatch[0] : `Release ${newVersion}`;
+	let changelogEntry = `Release ${newVersion}`;
+	if (fs.existsSync(changelogPath)) {
+		const changelog = fs.readFileSync(changelogPath, 'utf8');
+		const versionMatch = changelog.match(new RegExp(`## \\[${newVersion}\\][\\s\\S]*?(?=\\n## |$)`));
+		changelogEntry = versionMatch ? versionMatch[0] : changelogEntry;
+	}
 
 	// Step 4: Confirm
-	log('\n' + '='.repeat(40), colors.yellow);
+	log('\n' + '='.repeat(50), colors.yellow);
 	log('Release Summary:', colors.bold);
 	log(`  Version: ${currentVersion} → ${newVersion}`);
+	log(`  Mode: 정식 릴리스 (GitHub Actions 빌드)`);
 	log(`  Changelog:\n${changelogEntry}`);
-	log('='.repeat(40), colors.yellow);
+	log('='.repeat(50), colors.yellow);
 
 	const confirm = await prompt('\nProceed with release? (y/N): ');
 	if (confirm.toLowerCase() !== 'y') {
@@ -345,54 +199,28 @@ async function main() {
 	}
 
 	try {
-		// Step 5: Update package.json (CHANGELOG already updated by standard-version)
-		logStep('1/7', 'Updating package.json...');
+		// Step 5: Update package.json
+		logStep('2/4', 'Updating package.json...');
 		updatePackageVersion(newVersion);
 
 		// Step 6: Git commit and tag
-		logStep('2/7', 'Creating git commit and tag...');
+		logStep('3/4', 'Creating git commit and tag...');
 		exec(`git add package.json CHANGELOG.md`);
 		exec(`git commit -m "chore: Release v${newVersion}"`);
 		exec(`git tag v${newVersion}`);
 
-		// Step 3: Confirm push to GitHub
-		log('\n⚠️  Ready to push to GitHub:', colors.yellow);
-		log(`  - Commit: chore: Release v${newVersion}`);
-		log(`  - Tag: v${newVersion}`);
-		const pushConfirm = await prompt('\nPush to GitHub? (y/N): ');
-		if (pushConfirm.toLowerCase() !== 'y') {
-			log('Push cancelled. Rolling back...', colors.yellow);
-			exec(`git reset HEAD~1`);
-			exec(`git tag -d v${newVersion}`);
-			process.exit(0);
-		}
-
-		logStep('3/7', 'Pushing to GitHub...');
-		exec('git pull origin main');
+		// Step 7: Push to GitHub
+		logStep('4/4', 'Pushing to GitHub (triggers GitHub Actions build)...');
 		exec('git push origin main');
 		exec('git push origin --tags');
 
-		// Step 4: Setup worktree for building
-		logStep('4/7', 'Setting up build worktree...');
-		const worktreeDir = await setupWorktree();
-
-		// Step 5: Build extensions
-		logStep('5/7', 'Building extensions in worktree...');
-		await buildExtensions(worktreeDir);
-
-		// Step 6: Build macOS ARM64
-		logStep('6/7', 'Building for macOS ARM64 in worktree...');
-		await runBuild('darwin-arm64', worktreeDir);
-		log('\n⚠️  Building ARM64 only for beta testing. Other platforms will be added later.', colors.yellow);
-
-		// Step 7: Create GitHub Release
-		logStep('7/7', 'Creating GitHub Release and uploading artifacts...');
-		await createGitHubRelease(newVersion, changelogEntry, worktreeDir);
-
-		log('\n' + '='.repeat(40), colors.green);
-		log('🎉 Release completed successfully!', colors.bold + colors.green);
+		log('\n' + '='.repeat(50), colors.green);
+		log('🎉 Release triggered successfully!', colors.bold + colors.green);
 		log(`   Version: v${newVersion}`, colors.green);
-		log('='.repeat(40), colors.green);
+		log('', colors.green);
+		log('📦 GitHub Actions에서 빌드가 진행됩니다:', colors.cyan);
+		log('   https://github.com/gitbbon-forest/gitbbon-note-desktop/actions', colors.cyan);
+		log('='.repeat(50), colors.green);
 
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
@@ -404,4 +232,92 @@ async function main() {
 	}
 }
 
-main().catch(console.error);
+/**
+ * Get next beta version based on existing tags
+ * @param {string} baseVersion
+ * @returns {string}
+ */
+function getNextBetaVersion(baseVersion) {
+	try {
+		// Get existing beta tags for this version
+		const tags = exec(`git tag -l "v${baseVersion}-beta.*"`, { silent: true }).trim();
+		if (!tags) {
+			return `${baseVersion}-beta.1`;
+		}
+
+		// Find the highest beta number
+		const betaNumbers = tags.split('\n')
+			.map(tag => {
+				const match = tag.match(/-beta\.(\d+)$/);
+				return match ? parseInt(match[1], 10) : 0;
+			})
+			.filter(n => n > 0);
+
+		const maxBeta = betaNumbers.length > 0 ? Math.max(...betaNumbers) : 0;
+		return `${baseVersion}-beta.${maxBeta + 1}`;
+	} catch {
+		return `${baseVersion}-beta.1`;
+	}
+}
+
+/**
+ * Pre-release: 베타 태그 생성 후 GitHub Actions 빌드 트리거
+ */
+async function preRelease() {
+	log('\n🧪 Gitbbon Pre-Release Script', colors.bold + colors.blue);
+	log('='.repeat(50), colors.blue);
+	log('테스트용 Pre-release 빌드를 생성합니다.', colors.yellow);
+	log('(자동 업데이트 대상에서 제외됩니다)', colors.yellow);
+
+	// Get current version and next beta version
+	const currentVersion = getCurrentVersion();
+	const betaVersion = getNextBetaVersion(currentVersion);
+
+	log(`\nCurrent version: ${colors.bold}${currentVersion}${colors.reset}`);
+	log(`Beta version: ${colors.bold}v${betaVersion}${colors.reset}`);
+
+	// Confirm
+	const confirm = await prompt('\nCreate pre-release build? (y/N): ');
+	if (confirm.toLowerCase() !== 'y') {
+		log('Pre-release cancelled.', colors.yellow);
+		process.exit(0);
+	}
+
+	try {
+		// Step 1: Create beta tag (no version change in package.json)
+		logStep('1/2', `Creating beta tag v${betaVersion}...`);
+		exec(`git tag v${betaVersion}`);
+
+		// Step 2: Push tag to GitHub
+		logStep('2/2', 'Pushing tag to GitHub (triggers GitHub Actions build)...');
+		exec('git push origin --tags');
+
+		log('\n' + '='.repeat(50), colors.green);
+		log('🧪 Pre-release triggered successfully!', colors.bold + colors.green);
+		log(`   Version: v${betaVersion}`, colors.green);
+		log('', colors.green);
+		log('📦 GitHub Actions에서 빌드가 진행됩니다:', colors.cyan);
+		log('   https://github.com/gitbbon-forest/gitbbon-note-desktop/actions', colors.cyan);
+		log('', colors.yellow);
+		log('⚠️  빌드 완료 후 Releases 탭에서 "Pre-release"로 표시됩니다.', colors.yellow);
+		log('='.repeat(50), colors.green);
+
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		log(`\n❌ Pre-release failed: ${errorMessage}`, colors.red);
+		log('\nYou may need to manually delete the tag:', colors.yellow);
+		log(`  git tag -d v${betaVersion}`, colors.yellow);
+		process.exit(1);
+	}
+}
+
+// Parse command line arguments
+const args = process.argv.slice(2);
+const isPreRelease = args.includes('--pre') || args.includes('--prerelease');
+
+if (isPreRelease) {
+	preRelease().catch(console.error);
+} else {
+	release().catch(console.error);
+}
+

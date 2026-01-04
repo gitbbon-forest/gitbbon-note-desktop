@@ -74,7 +74,8 @@
     "extensions-ci-pr": "node ./node_modules/gulp/bin/gulp.js extensions-ci-pr",
     "perf": "node scripts/code-perf.js",
     "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "pre-release": "node scripts/release.mjs --pre"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
