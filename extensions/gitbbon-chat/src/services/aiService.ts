@@ -116,8 +116,6 @@ ${openTabs.map(label => `  - ${label}`).join('\n')}
 
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		let toolResults: any[] = [];
-		// Manager가 직접 답변 가능 여부 판단
-		let managerDirectAnswer: string | undefined;
 
 		const instructions = MANAGER_SYSTEM_PROMPT + '\n\n' + environmentContext;
 		console.log(`[GitbbonChat] Instructions: ${instructions}`);
@@ -144,21 +142,13 @@ ${openTabs.map(label => `  - ${label}`).join('\n')}
 			toolResults = result.toolResults;
 			console.log(`[GitbbonChat] Phase 1: Manager finished. Tools called: ${toolResults.length}`, 'toolResults', toolResults);
 
-			// 도구 호출 없이 Manager가 직접 답변한 경우
-			if (toolResults.length === 0 && result.text && result.text.trim().length > 0) {
-				managerDirectAnswer = result.text;
-				console.log(`[GitbbonChat] Phase 1: Manager answered directly(no tools needed)`);
-			}
+			// 도구 호출 없이 Manager가 직접 답변하는 경우라도,
+			// 진짜 스트리밍을 위해 Worker 단계로 내용을 넘기도록 함.
 		} catch (e) {
 			console.warn(`[GitbbonChat] Manager phase failed(possibly model missing).`, e);
 		}
 
-		// --- Short-circuit: Manager 직접 답변 ---
-		if (managerDirectAnswer) {
-			console.log(`[GitbbonChat] Skipping Worker - Manager handled directly`);
-			yield managerDirectAnswer;
-			return;
-		}
+		// Prepare gathered context info
 
 		// Prepare gathered context info
 		const selectionResult = toolResults.find(t => t.toolName === 'get_selection')?.output;
