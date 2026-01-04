@@ -1,0 +1,190 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 'Mark as pre-release (테스트용)'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  APP_NAME: gitbbon
+  VSCODE_QUALITY: 'stable'
+  NODE_OPTIONS: '--max-old-space-size=16384'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-13
+            platform: darwin-x64
+            artifact_name: gitbbon-darwin-x64
+          - os: macos-14
+            platform: darwin-arm64
+            artifact_name: gitbbon-darwin-arm64
+          - os: windows-latest
+            platform: win32-x64
+            artifact_name: gitbbon-win32-x64
+          - os: ubuntu-22.04
+            platform: linux-x64
+            artifact_name: gitbbon-linux-x64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Setup Python (macOS x64)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+        if: matrix.platform == 'darwin-x64'
+
+      - name: Install build tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build extensions
+        run: |
+          for ext in gitbbon-editor gitbbon-manager gitbbon-chat; do
+            if [ -d "extensions/$ext" ]; then
+              echo "Building $ext..."
+              cd extensions/$ext
+              npm run package || true
+              cd ../..
+            fi
+          done
+        shell: bash
+
+      - name: Build application
+        run: npm run gulp vscode-${{ matrix.platform }}-min
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create archive (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: |
+          cd ..
+          if [ -d "VSCode-${{ matrix.platform }}" ]; then
+            if [[ "${{ matrix.platform }}" == *"linux"* ]]; then
+              tar -czf gitbbon-${{ matrix.platform }}.tar.gz VSCode-${{ matrix.platform }}
+            else
+              zip -r -y gitbbon-${{ matrix.platform }}.zip VSCode-${{ matrix.platform }}
+            fi
+          fi
+        shell: bash
+
+      - name: Create archive (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd ..
+          if (Test-Path "VSCode-${{ matrix.platform }}") {
+            Compress-Archive -Path "VSCode-${{ matrix.platform }}" -DestinationPath "gitbbon-${{ matrix.platform }}.zip"
+          }
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            ../*.zip
+            ../*.tar.gz
+          retention-days: 7
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir release
+          find artifacts -name "*.zip" -exec mv {} release/ \;
+          find artifacts -name "*.tar.gz" -exec mv {} release/ \;
+          ls -la release/
+
+      - name: Generate update metadata
+        run: |
+          cd release
+          VERSION="${GITHUB_REF_NAME#v}"
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          for file in *.zip *.tar.gz; do
+            if [ -f "$file" ]; then
+              SHA512=$(sha512sum "$file" | awk '{print $1}')
+              SIZE=$(stat -c%s "$file")
+
+              if [[ "$file" == *"darwin"* ]]; then
+                PLATFORM="mac"
+              elif [[ "$file" == *"win32"* ]]; then
+                PLATFORM=""
+              elif [[ "$file" == *"linux"* ]]; then
+                PLATFORM="linux"
+              fi
+
+              YAML_FILE="latest${PLATFORM:+-$PLATFORM}.yml"
+
+              cat > "$YAML_FILE" << EOF
+          version: ${VERSION}
+          files:
+            - url: ${file}
+              sha512: ${SHA512}
+              size: ${SIZE}
+          path: ${file}
+          sha512: ${SHA512}
+          releaseDate: '${DATE}'
+          EOF
+            fi
+          done
+          ls -la
+
+      - name: Determine release type
+        id: release_type
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "prerelease=${{ github.event.inputs.prerelease }}" >> $GITHUB_OUTPUT
+          else
+            # 태그 푸시는 정식 릴리스
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release/*.zip
+            release/*.tar.gz
+            release/*.yml
+          prerelease: ${{ steps.release_type.outputs.prerelease }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

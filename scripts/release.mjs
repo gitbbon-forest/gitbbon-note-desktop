@@ -7,12 +7,14 @@
 
 import { execSync, spawn } from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as readline from 'readline';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.join(__dirname, '..');
+const RELEASE_OUTPUT_DIR = path.join(os.tmpdir(), 'gitbbon-release');
 
 // ANSI colors
 const colors = {
@@ -210,6 +212,12 @@ async function runBuild(platform, worktreeDir) {
 async function createGitHubRelease(version, changelogEntry, worktreeDir) {
 	logStep('RELEASE', 'Creating GitHub Release...');
 
+	// Ensure release output directory exists
+	if (!fs.existsSync(RELEASE_OUTPUT_DIR)) {
+		fs.mkdirSync(RELEASE_OUTPUT_DIR, { recursive: true });
+	}
+	log(`Release artifacts will be saved to: ${RELEASE_OUTPUT_DIR}`, colors.yellow);
+
 	const artifacts = [
 		'../VSCode-darwin-x64',
 		'../VSCode-darwin-arm64',
@@ -226,11 +234,11 @@ async function createGitHubRelease(version, changelogEntry, worktreeDir) {
 		if (fs.existsSync(artifactPath)) {
 			const basename = path.basename(artifact);
 			if (artifact.includes('linux')) {
-				const tarPath = path.join(worktreeDir, '..', `${basename}.tar.gz`);
+				const tarPath = path.join(RELEASE_OUTPUT_DIR, `${basename}.tar.gz`);
 				exec(`tar -czf "${tarPath}" -C "${artifactPath}" .`);
 				releaseFiles.push(tarPath);
 			} else {
-				const zipPath = path.join(worktreeDir, '..', `${basename}.zip`);
+				const zipPath = path.join(RELEASE_OUTPUT_DIR, `${basename}.zip`);
 				exec(`cd "${artifactPath}" && zip -r -y "${zipPath}" .`);
 				releaseFiles.push(zipPath);
 			}
@@ -244,14 +252,15 @@ async function createGitHubRelease(version, changelogEntry, worktreeDir) {
 	const tag = `v${version}`;
 	const releaseFileArgs = releaseFiles.map(f => `"${f}"`).join(' ');
 	const latestYmlFiles = [
-		path.join(ROOT_DIR, '..', 'latest-mac.yml'),
-		path.join(ROOT_DIR, '..', 'latest.yml'),
-		path.join(ROOT_DIR, '..', 'latest-linux.yml')
+		path.join(RELEASE_OUTPUT_DIR, 'latest-mac.yml'),
+		path.join(RELEASE_OUTPUT_DIR, 'latest.yml'),
+		path.join(RELEASE_OUTPUT_DIR, 'latest-linux.yml')
 	].filter(f => fs.existsSync(f)).map(f => `"${f}"`).join(' ');
 
 	exec(`gh release create ${tag} ${releaseFileArgs} ${latestYmlFiles} --title "Release ${tag}" --notes "${changelogEntry.replace(/"/g, '\\"')}"`);
 
 	log(`\n✅ GitHub Release ${tag} created successfully!`, colors.green);
+	log(`📁 Release files saved to: ${RELEASE_OUTPUT_DIR}`, colors.cyan);
 }
 
 /**
@@ -283,7 +292,7 @@ sha512: ${sha512}
 releaseDate: '${releaseDate}'
 `;
 
-		const yamlPath = path.join(ROOT_DIR, '..', platform ? `latest-${platform}.yml` : 'latest.yml');
+		const yamlPath = path.join(RELEASE_OUTPUT_DIR, platform ? `latest-${platform}.yml` : 'latest.yml');
 		fs.writeFileSync(yamlPath, yamlContent);
 	}
 }
