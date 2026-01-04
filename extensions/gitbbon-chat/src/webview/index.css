@@ -94,113 +94,121 @@ body {
 
 /* Chat Input Form */
 .chat-input-form {
+	padding: 12px 16px 16px;
+	background: var(--vscode-sideBar-background);
+}
+
+/* Chat Input Container - 텍스트 필드와 버튼을 감싸는 박스 */
+.chat-input-container {
 	display: flex;
-	gap: 12px;
-	padding: 16px;
-	border-top: 1px solid var(--vscode-panel-border);
-	background: linear-gradient(180deg,
-		rgba(var(--vscode-sideBar-background), 0.8) 0%,
-		var(--vscode-sideBar-background) 100%
-	);
-	backdrop-filter: blur(12px);
-	align-items: flex-end;
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px 14px;
+	border-radius: 12px;
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border);
+	transition: border-color 0.2s ease;
+}
+
+.chat-input-container:focus-within {
+	border-color: var(--vscode-focusBorder);
+}
+
+/* Chat Input Actions - 버튼 영역 */
+.chat-input-actions {
+	display: flex;
+	justify-content: flex-end;
 }
 
 .chat-input-field {
 	flex: 1;
-	padding: 14px 18px;
-	border: 1px solid var(--vscode-input-border);
-	border-radius: 16px;
-	background-color: var(--vscode-input-background);
+	padding: 0;
+	border: none;
+	background-color: transparent;
 	color: var(--vscode-input-foreground);
 	font-family: inherit;
 	font-size: inherit;
 	outline: none;
-	transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 	/* textarea specific */
 	resize: none;
 	min-height: 24px;
 	max-height: 200px;
 	overflow-y: auto;
 	line-height: 1.5;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-.chat-input-field:focus {
-	border-color: var(--vscode-focusBorder);
-	box-shadow: 0 0 0 3px rgba(var(--vscode-focusBorder), 0.1),
-	            0 4px 12px rgba(0, 0, 0, 0.08);
-	transform: translateY(-1px);
-}
 
 .chat-input-field::placeholder {
 	color: var(--vscode-input-placeholderForeground);
 	opacity: 0.7;
 }
 
-/* Submit Button - 세련된 원형 버튼 */
+/* Submit Button - 작은 원형 버튼 */
 .chat-submit-btn {
-	width: 44px;
-	height: 44px;
-	min-width: 44px;
+	width: 30px;
+	height: 30px;
+	min-width: 30px;
 	padding: 0;
 	border: none;
 	border-radius: 50%;
-	background: linear-gradient(135deg,
-		var(--vscode-button-background) 0%,
-		var(--vscode-button-hoverBackground, var(--vscode-button-background)) 100%
-	);
+	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 	cursor: pointer;
-	transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+	transition: all 0.2s ease;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 	flex-shrink: 0;
 }
 
 .chat-submit-btn:hover:not(:disabled) {
-	background: linear-gradient(135deg,
-		var(--vscode-button-hoverBackground, var(--vscode-button-background)) 0%,
-		var(--vscode-button-background) 100%
-	);
-	transform: translateY(-2px) scale(1.05);
-	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+	background: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+	transform: scale(1.1);
 }
 
 .chat-submit-btn:active:not(:disabled) {
-	transform: translateY(0) scale(0.98);
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	transform: scale(0.95);
 }
 
 .chat-submit-btn:disabled {
 	opacity: 0.4;
 	cursor: not-allowed;
 	transform: none;
-	box-shadow: none;
 	background: var(--vscode-button-secondaryBackground, #555);
 }
 
-.chat-submit-btn.loading {
-	animation: pulse 1.5s ease-in-out infinite;
+/* 전송 중 - 화살표 위로 회전 */
+.chat-submit-btn.sending svg {
+	animation: arrow-up 0.8s ease-in-out infinite;
 }
 
-@keyframes pulse {
+/* 수신 중 - 화살표 아래로 회전 */
+.chat-submit-btn.receiving svg {
+	animation: arrow-down 0.8s ease-in-out infinite;
+}
+
+@keyframes arrow-up {
 	0%, 100% {
-		opacity: 0.6;
-		transform: scale(1);
+		transform: rotate(-90deg) translateX(0);
 	}
 	50% {
-		opacity: 0.3;
-		transform: scale(0.95);
+		transform: rotate(-90deg) translateX(-3px);
+	}
+}
+
+@keyframes arrow-down {
+	0%, 100% {
+		transform: rotate(90deg) translateX(0);
+	}
+	50% {
+		transform: rotate(90deg) translateX(-3px);
 	}
 }
 
 .chat-submit-btn svg {
-	transition: transform 0.2s ease;
+	transition: transform 0.3s ease;
 }
 
-.chat-submit-btn:hover:not(:disabled) svg {
+.chat-submit-btn:hover:not(:disabled):not(.sending):not(.receiving) svg {
 	transform: translateX(2px);
 }

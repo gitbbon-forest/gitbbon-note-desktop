@@ -3,7 +3,8 @@ import React, { useEffect, useRef } from 'react';
 interface ChatInputProps {
 	inputValue: string;
 	setInputValue: (value: string) => void;
-	isLoading: boolean;
+	isSending: boolean; // 전송 중 상태
+	isReceiving: boolean; // 수신 중 상태
 	onSubmit: (e: React.FormEvent) => void;
 	inputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
@@ -11,8 +12,8 @@ interface ChatInputProps {
 // 화살표 전송 아이콘 SVG
 const SendIcon = () => (
 	<svg
-		width="18"
-		height="18"
+		width="16"
+		height="16"
 		viewBox="0 0 24 24"
 		fill="none"
 		stroke="currentColor"
@@ -24,9 +25,10 @@ const SendIcon = () => (
 	</svg>
 );
 
-const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isLoading, onSubmit, inputRef }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSending, isReceiving, onSubmit, inputRef }) => {
 	const internalRef = useRef<HTMLTextAreaElement>(null);
 	const textareaRef = inputRef || internalRef;
+	const isLoading = isSending || isReceiving;
 
 	// 텍스트 영역 자동 높이 조절
 	useEffect(() => {
@@ -37,10 +39,11 @@ const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isLoad
 		}
 	}, [inputValue, textareaRef]);
 
-	// Enter로 전송, Shift+Enter로 줄바꿈
+	// Enter로 전송, Shift+Enter로 줄바꿈 (처리 중에도 입력은 가능하지만 전송은 불가)
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
+			// 로딩 중이 아니고 입력값이 있을 때만 전송
 			if (!isLoading && inputValue.trim()) {
 				onSubmit(e as unknown as React.FormEvent);
 			}
@@ -50,25 +53,36 @@ const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isLoad
 	// 전송 버튼 비활성화 조건: 로딩 중이거나 입력값이 없을 때
 	const isSubmitDisabled = isLoading || !inputValue.trim();
 
+	// 버튼 상태에 따른 클래스
+	const getButtonClass = () => {
+		if (isSending) return 'chat-submit-btn sending';
+		if (isReceiving) return 'chat-submit-btn receiving';
+		return 'chat-submit-btn';
+	};
+
 	return (
 		<form onSubmit={onSubmit} className="chat-input-form">
-			<textarea
-				ref={textareaRef}
-				value={inputValue}
-				onChange={(e) => setInputValue(e.target.value)}
-				onKeyDown={handleKeyDown}
-				placeholder="메시지를 입력하세요..."
-				className="chat-input-field"
-				rows={1}
-			/>
-			<button
-				type="submit"
-				disabled={isSubmitDisabled}
-				className={`chat-submit-btn ${isLoading ? 'loading' : ''}`}
-				aria-label="전송"
-			>
-				<SendIcon />
-			</button>
+			<div className="chat-input-container">
+				<textarea
+					ref={textareaRef}
+					value={inputValue}
+					onChange={(e) => setInputValue(e.target.value)}
+					onKeyDown={handleKeyDown}
+					placeholder="메시지를 입력하세요..."
+					className="chat-input-field"
+					rows={1}
+				/>
+				<div className="chat-input-actions">
+					<button
+						type="submit"
+						disabled={isSubmitDisabled}
+						className={getButtonClass()}
+						aria-label="전송"
+					>
+						<SendIcon />
+					</button>
+				</div>
+			</div>
 		</form>
 	);
 };

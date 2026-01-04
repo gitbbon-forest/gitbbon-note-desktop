@@ -13,7 +13,8 @@ const vscode = acquireVsCodeApi();
 const App: React.FC = () => {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [inputValue, setInputValue] = useState('');
-	const [isLoading, setIsLoading] = useState(false);
+	const [isSending, setIsSending] = useState(false); // 전송 중 상태
+	const [isReceiving, setIsReceiving] = useState(false); // 수신 중 상태
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 
 	// 메시지 ID 생성
@@ -34,7 +35,7 @@ const App: React.FC = () => {
 
 		setMessages((prev) => [...prev, userMessage]);
 		setInputValue('');
-		setIsLoading(true);
+		setIsSending(true); // 전송 시작
 
 		// Extension에 채팅 요청 전송
 		const allMessages = [...messages, userMessage].map((m) => ({
@@ -57,7 +58,9 @@ const App: React.FC = () => {
 
 			switch (message.type) {
 				case 'chat-chunk':
-					// AI 응답 청크 수신
+					// AI 응답 청크 수신 - 전송 완료, 수신 중으로 전환
+					setIsSending(false);
+					setIsReceiving(true);
 					currentAssistantContent += message.chunk;
 					setMessages((prev) => {
 						const lastMessage = prev[prev.length - 1];
@@ -83,7 +86,8 @@ const App: React.FC = () => {
 
 				case 'chat-done':
 					// AI 응답 완료
-					setIsLoading(false);
+					setIsSending(false);
+					setIsReceiving(false);
 					currentAssistantContent = '';
 					break;
 
@@ -106,11 +110,12 @@ const App: React.FC = () => {
 
 	return (
 		<div className="chat-container">
-			<MessageList messages={messages} isLoading={isLoading} />
+			<MessageList messages={messages} isLoading={isSending || isReceiving} />
 			<ChatInput
 				inputValue={inputValue}
 				setInputValue={setInputValue}
-				isLoading={isLoading}
+				isSending={isSending}
+				isReceiving={isReceiving}
 				onSubmit={handleSubmit}
 				inputRef={inputRef}
 			/>
