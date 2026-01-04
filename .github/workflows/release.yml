@@ -39,7 +39,7 @@ jobs:
             artifact_name: gitbbon-linux-x64
 
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 120  # 2시간 초과 시 자동 취소
+    timeout-minutes: 180  # 3시간 (macOS Rosetta 빌드 여유)
 
     steps:
       - name: Checkout
