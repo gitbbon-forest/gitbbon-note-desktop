@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.108.18](https://github.com/microsoft/vscode/compare/v1.108.18-beta.3...v1.108.18) (2026-01-04)
+
+
+### Chores
+
+* remove extension build step from release workflow ([e64bdf4](https://github.com/microsoft/vscode/commit/e64bdf4a0090bcbe11d13079894dcacb51c169f5))
+
 ### [1.108.2](https://github.com/microsoft/vscode/compare/v1.108.1...v1.108.2) (2025-12-16)
 
 
