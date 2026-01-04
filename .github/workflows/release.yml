@@ -15,7 +15,6 @@ on:
 env:
   APP_NAME: gitbbon
   VSCODE_QUALITY: 'stable'
-  NODE_OPTIONS: '--max-old-space-size=16384'
 
 permissions:
   contents: write
@@ -40,6 +39,7 @@ jobs:
             artifact_name: gitbbon-linux-x64
 
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 120  # 2시간 초과 시 자동 취소
 
     steps:
       - name: Checkout
@@ -62,6 +62,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
 
+      # Linux에서 스왑 메모리 추가 (7GB RAM 보완)
+      - name: Setup swap space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo "Swap enabled:"
+          free -h
+
       - name: Install dependencies
         run: npm ci
         env:
@@ -69,18 +80,22 @@ jobs:
 
       - name: Build application
         run: npm run gulp vscode-${{ matrix.platform }}-min
+        timeout-minutes: 90
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 표준 러너 메모리에 맞춤 (macOS 14GB, Linux/Windows 7GB)
+          NODE_OPTIONS: ${{ runner.os == 'macOS' && '--max-old-space-size=12288' || '--max-old-space-size=6144' }}
 
       - name: Create archive (macOS/Linux)
         if: runner.os != 'Windows'
         run: |
-          cd ..
-          if [ -d "VSCode-${{ matrix.platform }}" ]; then
+          if [ -d "../VSCode-${{ matrix.platform }}" ]; then
             if [[ "${{ matrix.platform }}" == *"linux"* ]]; then
-              tar -czf gitbbon-${{ matrix.platform }}.tar.gz VSCode-${{ matrix.platform }}
+              tar -czf gitbbon-${{ matrix.platform }}.tar.gz -C .. VSCode-${{ matrix.platform }}
             else
+              cd ..
               zip -r -y gitbbon-${{ matrix.platform }}.zip VSCode-${{ matrix.platform }}
+              mv gitbbon-${{ matrix.platform }}.zip $GITHUB_WORKSPACE/
             fi
           fi
         shell: bash
@@ -88,9 +103,8 @@ jobs:
       - name: Create archive (Windows)
         if: runner.os == 'Windows'
         run: |
-          cd ..
-          if (Test-Path "VSCode-${{ matrix.platform }}") {
-            Compress-Archive -Path "VSCode-${{ matrix.platform }}" -DestinationPath "gitbbon-${{ matrix.platform }}.zip"
+          if (Test-Path "../VSCode-${{ matrix.platform }}") {
+            Compress-Archive -Path "../VSCode-${{ matrix.platform }}" -DestinationPath "gitbbon-${{ matrix.platform }}.zip"
           }
         shell: pwsh
 
@@ -99,8 +113,8 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: |
-            ../*.zip
-            ../*.tar.gz
+            *.zip
+            *.tar.gz
           retention-days: 7
 
   release:
