@@ -84,32 +84,48 @@ ${after}
 		const olderMessageCount = Math.max(0, messages.length - 5);
 		const openTabs = ContextService.getOpenTabs();
 
-		const environmentContext = `
-[Current Environment Context]
-- Active File: ${activeFile}
+		// 컨텍스트가 있는 경우에만 해당 섹션 포함 (토큰 절약)
+		const contextParts: string[] = ['[Current Environment Context]'];
 
+		if (activeFile && activeFile !== 'None') {
+			contextParts.push(`- Active File: ${activeFile}`);
+		}
+
+		if (selectionPreview && selectionPreview !== 'None') {
+			contextParts.push(`
 - Selection Preview (Priority High):
 """
 ${selectionPreview}
 """
   (Rule: If this is NOT "None", assume user is talking about this code.
    If text ends with "... (truncated)", call 'get_selection' to get full content.
-   Otherwise, use this text DIRECTLY.)
+   Otherwise, use this text DIRECTLY.)`);
+		}
 
+		if (cursorContext && cursorContext !== 'None' && (!selectionPreview || selectionPreview === 'None')) {
+			contextParts.push(`
 - Cursor Context (Priority Medium):
 """
 ${cursorContext}
 """
   (Rule: Only used when Selection is "None".
-   This shows ~10 lines around the cursor. Use this for "fix this", "explain this" when nothing is selected.)
+   This shows ~10 lines around the cursor. Use this for "fix this", "explain this" when nothing is selected.)`);
+		}
 
+		if (olderMessageCount > 0) {
+			contextParts.push(`
 - Older Chat History Count: ${olderMessageCount}
-  (Rule: If 0, DO NOT call 'get_chat_history'. Recent context is already handled by Worker.)
+  (Rule: Call 'get_chat_history' if user refers to earlier conversation.)`);
+		}
 
+		if (openTabs.length > 0) {
+			contextParts.push(`
 - Open Files (Tabs):
 ${openTabs.map(label => `  - ${label}`).join('\n')}
-  (Rule: Check this list if user says "that file" or "previous file".)
-`.trim();
+  (Rule: Check this list if user says "that file" or "previous file".)`);
+		}
+
+		const environmentContext = contextParts.join('\n').trim();
 
 		console.log(`[GitbbonChat] Phase 1: Manager(${managerModelName}) starting...`);
 		console.log(`[GitbbonChat] Env Context: selectionPreview=${selectionPreview}, activeFile=${activeFile}, tabs=${openTabs.length}`);
@@ -190,10 +206,13 @@ ${openTabs.map(label => `  - ${label}`).join('\n')}
 
 		console.log(`[GitbbonChat] Phase 2: Worker(${workerModelName}) starting...`);
 
+		// Selection: 도구 결과가 있으면 사용, 없으면 원래 selectionPreview 사용
+		const selectionContent = selectionResult || (selectionPreview && selectionPreview !== 'None' ? selectionPreview : null);
+
 		const dynamicContext = `
 ${contextInfo}
 
-${selectionResult ? `\n[Selected Text]\n${selectionResult}\n` : ''}
+${selectionContent ? `\n[Selected Text]\n${selectionContent}\n` : ''}
 ${fileResult ? `\n[File Content]\n${fileResult}\n` : ''}
 ${historyResult ? `\n[Chat History (Tool)]\n${historyResult}\n` : ''}
 ${recentHistoryContext ? `\n[Recent History (Default)]\n${recentHistoryContext}\n` : ''}
