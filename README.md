@@ -1,4 +1,4 @@
-# Gitbbon (OTU2 Desktop)
+# Gitbbon
 
 > **노션의 '쉬움'과 깃(Git)의 '통제권'을 결합한 차세대 문서 편집기**
 >
@@ -316,7 +316,44 @@ npm run gulp vscode-darwin-x64-min
 npm run gulp vscode-win32-x64-min
 ```
 
----
+### 릴리스 (Release)
+
+Gitbbon은 **GitHub Actions**를 통한 자동 릴리스 시스템을 사용합니다.
+
+#### 릴리스 정책
+
+| 릴리스 타입 | 태그 형식 | 자동 업데이트 | 용도 |
+|------------|----------|--------------|------|
+| **정식 릴리스** | `v1.0.0` | ✅ 대상 | 안정된 기능 배포 |
+| **Pre-release** | `v1.0.0-beta.1` | ❌ 제외 | 테스트 및 검증용 |
+
+#### 릴리스 방법
+
+**정식 릴리스:**
+```bash
+npm run release
+# 버전 입력 → CHANGELOG 자동 생성 → 태그 푸시 → GitHub Actions 빌드
+```
+
+**테스트용 Pre-release:**
+```bash
+npm run pre-release
+# 베타 태그 생성 (v1.0.0-beta.1) → GitHub Actions 빌드
+# 사용자 자동 업데이트 대상에서 제외됨
+```
+
+#### 지원 플랫폼
+
+| 플랫폼 | 아티팩트 |
+|--------|----------|
+| macOS (Apple Silicon) | `gitbbon-darwin-arm64.zip` |
+| macOS (Intel) | `gitbbon-darwin-x64.zip` |
+| Windows | `gitbbon-win32-x64.zip` |
+| Linux | `gitbbon-linux-x64.tar.gz` |
+
+#### 빌드 상태 확인
+
+릴리스 빌드 진행 상황은 [GitHub Actions](https://github.com/gitbbon-forest/gitbbon-note-desktop/actions)에서 확인할 수 있습니다.
 
  ## 6. 비즈니스 모델: "The Freedom Strategy"
 
