@@ -67,18 +67,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build extensions
-        run: |
-          for ext in gitbbon-editor gitbbon-manager gitbbon-chat; do
-            if [ -d "extensions/$ext" ]; then
-              echo "Building $ext..."
-              cd extensions/$ext
-              npm run package || true
-              cd ../..
-            fi
-          done
-        shell: bash
-
       - name: Build application
         run: npm run gulp vscode-${{ matrix.platform }}-min
         env:
