@@ -238,4 +238,67 @@ export class ContextService {
 			}
 		}
 	}
+
+	/**
+	 * Create a new note file with content.
+	 * Automatically creates parent directories if they don't exist.
+	 */
+	public static async createNote(filePath: string, content: string): Promise<string> {
+		if (!filePath) {
+			throw new Error("File path is required.");
+		}
+
+		// Resolve URI
+		let uri: vscode.Uri;
+		if (filePath.startsWith('/') || filePath.match(/^[a-zA-Z]:\\/)) {
+			uri = vscode.Uri.file(filePath);
+		} else {
+			const workspaceFolders = vscode.workspace.workspaceFolders;
+			if (!workspaceFolders || workspaceFolders.length === 0) {
+				throw new Error("No workspace folders open");
+			}
+			uri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
+		}
+
+		// Create parent directories if needed
+		const parentDir = vscode.Uri.joinPath(uri, '..');
+		try {
+			await vscode.workspace.fs.createDirectory(parentDir);
+		} catch {
+			// Directory might already exist, ignore
+		}
+
+		// Write file
+		const encoder = new TextEncoder();
+		await vscode.workspace.fs.writeFile(uri, encoder.encode(content));
+
+		// Open the created file
+		await vscode.commands.executeCommand('vscode.open', uri);
+
+		return `Created: ${vscode.workspace.asRelativePath(uri)}`;
+	}
+
+	/**
+	 * Delete a note file.
+	 */
+	public static async deleteNote(filePath: string): Promise<string> {
+		if (!filePath) {
+			throw new Error("File path is required.");
+		}
+
+		// Resolve URI
+		let uri: vscode.Uri;
+		if (filePath.startsWith('/') || filePath.match(/^[a-zA-Z]:\\/)) {
+			uri = vscode.Uri.file(filePath);
+		} else {
+			const workspaceFolders = vscode.workspace.workspaceFolders;
+			if (!workspaceFolders || workspaceFolders.length === 0) {
+				throw new Error("No workspace folders open");
+			}
+			uri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
+		}
+
+		await vscode.workspace.fs.delete(uri);
+		return `Deleted: ${vscode.workspace.asRelativePath(uri)}`;
+	}
 }

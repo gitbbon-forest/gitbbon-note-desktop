@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import { streamText, ToolLoopAgent, type ModelMessage } from 'ai';
 import { createEditorTools } from '../tools/editorTools';
 import { ContextService } from './ContextService';
@@ -84,8 +85,23 @@ ${after}
 		const olderMessageCount = Math.max(0, messages.length - 5);
 		const openTabs = ContextService.getOpenTabs();
 
-		// 컨텍스트가 있는 경우에만 해당 섹션 포함 (토큰 절약)
+		// Context sections only if present (token saving)
 		const contextParts: string[] = ['[Current Environment Context]'];
+
+		// Project title injection from .gitbbon.json
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (workspaceFolders && workspaceFolders.length > 0) {
+			try {
+				const gitbbonConfigUri = vscode.Uri.joinPath(workspaceFolders[0].uri, '.gitbbon.json');
+				const configData = await vscode.workspace.fs.readFile(gitbbonConfigUri);
+				const config = JSON.parse(Buffer.from(configData).toString('utf-8'));
+				if (config.title && config.title.trim()) {
+					contextParts.push(`- Project: ${config.title}`);
+				}
+			} catch {
+				// .gitbbon.json not found or invalid, skip project injection
+			}
+		}
 
 		if (activeFile && activeFile !== 'None') {
 			contextParts.push(`- Active File: ${activeFile}`);

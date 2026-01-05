@@ -79,32 +79,51 @@ ${detail.after}
 		}),
 
 		edit_note: tool({
-			description: 'Edit a note file directly. Provide specific oldText (exact match) and newText. The changes are applied immediately.',
+			description: 'Create, Update, or Delete a note file. For create: directories auto-created. For update: use oldText/newText pairs.',
 			inputSchema: z.object({
-				filePath: z.string().describe('File path to edit'),
+				action: z.enum(['create', 'update', 'delete']).describe('Action type: create, update, or delete'),
+				filePath: z.string().describe('File path (relative or absolute). Directories auto-created for create.'),
+				content: z.string().optional().describe('For create: full markdown content of the new file'),
 				changes: z.array(z.object({
 					oldText: z.string().describe('The exact existing text to be replaced'),
 					newText: z.string().describe('The new text to replace with')
-				})).describe('List of changes to apply')
+				})).optional().describe('For update: list of text replacements')
 			}),
-			execute: async ({ filePath, changes }) => {
-				console.log(`[Tool:edit_note] Executing with filePath=${filePath}, changes=${changes.length}`);
+			execute: async ({ action, filePath, content, changes }) => {
+				console.log(`[Tool:edit_note] Executing action=${action}, filePath=${filePath}`);
 				try {
-					await ContextService.applySuggestions(filePath, changes, 'direct');
-					return `Changes applied to ${filePath} successfully.`;
+					switch (action) {
+						case 'create':
+							if (!content) {
+								return 'Error: content is required for create action.';
+							}
+							return await ContextService.createNote(filePath, content);
+						case 'update':
+							if (!changes || changes.length === 0) {
+								return 'Error: changes are required for update action.';
+							}
+							await ContextService.applySuggestions(filePath, changes, 'direct');
+							return `Updated: ${filePath}`;
+						case 'delete':
+							return await ContextService.deleteNote(filePath);
+						default:
+							return `Error: Unknown action ${action}`;
+					}
 				} catch (e: unknown) {
 					const errorMessage = e instanceof Error ? e.message : String(e);
 					console.error(`[Tool:edit_note] Failed: ${errorMessage}`);
 
-					// Fetch content for AI to self-correct
-					let content = '';
-					try {
-						content = await ContextService.readFile(filePath);
-					} catch (readErr) {
-						return `Error: Failed to apply suggestions AND failed to read file. Edit Error: ${errorMessage}. Read Error: ${readErr}`;
+					// For update failures, fetch content for AI to self-correct
+					if (action === 'update') {
+						let fileContent = '';
+						try {
+							fileContent = await ContextService.readFile(filePath);
+						} catch (readErr) {
+							return `Error: Failed to ${action} AND failed to read file. Error: ${errorMessage}. Read Error: ${readErr}`;
+						}
+						return `Error: Failed to update. ${errorMessage}\n\n[Current File Content - Use this to fix 'oldText']\n${fileContent}`;
 					}
-
-					return `Error: Failed to apply suggestions. ${errorMessage}\n\n[Current File Content - Use this to fix 'oldText']\n${content}`;
+					return `Error: Failed to ${action}. ${errorMessage}`;
 				}
 			}
 		}),
