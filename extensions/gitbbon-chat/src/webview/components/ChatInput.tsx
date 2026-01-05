@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 
 interface ChatInputProps {
 	inputValue: string;
@@ -31,11 +31,17 @@ const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSend
 	const isLoading = isSending || isReceiving;
 
 	// 텍스트 영역 자동 높이 조절
-	useEffect(() => {
+	React.useLayoutEffect(() => {
 		const textarea = textareaRef.current;
 		if (textarea) {
+			// 높이 계산을 위해 먼저 높이를 초기화 (줄어들 때 필요)
 			textarea.style.height = 'auto';
-			textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+
+			// scrollHeight로 내용에 맞는 높이 계산 (최대 200px 제한)
+			const computedHeight = Math.min(textarea.scrollHeight, 200);
+
+			// 계산된 높이 적용
+			textarea.style.height = `${computedHeight}px`;
 		}
 	}, [inputValue, textareaRef]);
 
