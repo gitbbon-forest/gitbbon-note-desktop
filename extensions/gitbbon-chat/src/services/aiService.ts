@@ -43,7 +43,7 @@ export class AIService {
 
 		// 도구 설정
 		const tools = createEditorTools(messages);
-		const modelName = 'openai/gpt-4o'; // 단일 고성능 모델
+		const modelName = 'google/gemini-3-pro'; // 단일 고성능 모델 (2025.11 latest)
 
 		// 환경 컨텍스트 수집
 		const activeFile = ContextService.getActiveFileName();
