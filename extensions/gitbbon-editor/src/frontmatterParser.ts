@@ -11,44 +11,72 @@ import * as yaml from 'yaml';
  */
 export class FrontmatterParser {
 	private static readonly FRONTMATTER_REGEX = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+	// 파일 끝에 위치하는 한 줄 메타데이터 (gitbbon-search extension)
+	// \n* : 앞에 줄바꿈이 없거나 여러 개일 수 있음
+	// \s*-->\s*$ : 주석 끝 뒤에 공백이나 줄바꿈이 있어도 매칭
+	// [\s\S]*? : content 안에 줄바꿈이 있어도 매칭 (DotAll)
+	private static readonly METADATA_REGEX = /\n*<!--\s*gitbbon:([\s\S]*?)\s*-->\s*$/;
 
 	/**
 	 * 마크다운 문서를 Frontmatter와 Content로 분리
+	 * (메타데이터 주석이 있으면 제거하고 별도로 반환)
 	 */
-	public static parse(text: string): { frontmatter: Record<string, any>; content: string } {
+	public static parse(text: string): { frontmatter: Record<string, any>; content: string; metadata?: string } {
+		const result: { frontmatter: Record<string, any>; content: string; metadata?: string } = {
+			frontmatter: {},
+			content: text
+		};
+
+		// 1. Frontmatter 분리
 		const match = text.match(this.FRONTMATTER_REGEX);
+		if (match) {
+			const frontmatterText = match[1];
+			result.content = text.slice(match[0].length);
 
-		if (!match) {
-			return {
-				frontmatter: {},
-				content: text
-			};
+			try {
+				result.frontmatter = yaml.parse(frontmatterText) || {};
+			} catch (error) {
+				// console.error('Failed to parse frontmatter:', error); // Removed as per instruction
+			}
 		}
 
-		const frontmatterText = match[1];
-		const content = text.slice(match[0].length);
+		// 2. Metadata 분리 (Content 끝에서 제거)
+		const metadataMatch = result.content.match(this.METADATA_REGEX);
 
-		let frontmatter: Record<string, any> = {};
-		try {
-			frontmatter = yaml.parse(frontmatterText) || {};
-		} catch (error) {
-			console.error('Failed to parse frontmatter:', error);
+		if (metadataMatch) {
+			result.metadata = metadataMatch[0]; // 줄바꿈 포함 전체 매칭 문자열 저장
+			result.content = result.content.replace(this.METADATA_REGEX, '').trimEnd();
 		}
 
-		return { frontmatter, content };
+		return result;
 	}
 
 	/**
 	 * Frontmatter와 Content를 마크다운 문서로 결합
 	 */
-	public static stringify(frontmatter: Record<string, any>, content: string): string {
-		// Frontmatter가 비어있으면 content만 반환
-		if (Object.keys(frontmatter).length === 0) {
-			return content;
+	public static stringify(frontmatter: Record<string, any>, content: string, metadata?: string): string {
+		let result = content;
+
+		// Frontmatter가 있으면 앞에 추가
+		if (Object.keys(frontmatter).length > 0) {
+			const frontmatterText = yaml.stringify(frontmatter);
+			result = `---\n${frontmatterText}---\n${result}`;
 		}
 
-		const frontmatterText = yaml.stringify(frontmatter);
-		return `---\n${frontmatterText}---\n${content}`;
+		// Metadata가 있으면 뒤에 추가
+		if (metadata) {
+			// content 끝에 줄바꿈이 없으면 추가
+			if (!result.endsWith('\n')) {
+				result += '\n';
+			}
+			// metadata가 줄바꿈으로 시작하지 않으면 추가 (보통 regex 매칭 결과는 줄바꿈 포함임)
+			if (!metadata.startsWith('\n')) {
+				result += '\n';
+			}
+			result += metadata;
+		}
+
+		return result;
 	}
 
 	/**

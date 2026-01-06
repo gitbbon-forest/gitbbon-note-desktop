@@ -508,7 +508,12 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		frontmatter: Record<string, any>,
 		content: string
 	): Promise<void> {
-		const fullText = FrontmatterParser.stringify(frontmatter, content);
+		// 현재 문서에서 메타데이터 추출 (보존을 위해)
+		const currentText = document.getText();
+		const { metadata } = FrontmatterParser.parse(currentText);
+
+		// 메타데이터를 포함하여 전체 텍스트 생성
+		const fullText = FrontmatterParser.stringify(frontmatter, content, metadata);
 
 		// TextEditor를 찾아서 직접 수정 (버전 충돌 방지)
 		const editors = vscode.window.visibleTextEditors.filter(
