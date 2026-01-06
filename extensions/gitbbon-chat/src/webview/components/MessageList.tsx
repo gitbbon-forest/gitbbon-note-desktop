@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 
 export interface ChatMessage {
 	id: string;
-	role: 'user' | 'assistant';
+	role: 'user' | 'assistant' | 'system';
 	content: string;
 }
 
@@ -21,14 +21,25 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading }) => {
 
 	return (
 		<div className="message-list">
-			{messages.map((m) => (
-				<div key={m.id} className={`message-wrapper ${m.role === 'user' ? 'user' : 'assistant'}`}>
-					<div className={`message-bubble ${m.role === 'user' ? 'user' : 'assistant'}`}>
-						<strong>{m.role === 'user' ? 'You' : 'AI'}:</strong>
-						<div className="message-content">{m.content}</div>
+			{messages.map((m) => {
+				// system 메시지는 도구 상태 표시용 - 간단한 한 줄로
+				if (m.role === 'system') {
+					return (
+						<div key={m.id} className="tool-status-line">
+							{m.content}
+						</div>
+					);
+				}
+
+				return (
+					<div key={m.id} className={`message-wrapper ${m.role === 'user' ? 'user' : 'assistant'}`}>
+						<div className={`message-bubble ${m.role === 'user' ? 'user' : 'assistant'}`}>
+							<strong>{m.role === 'user' ? 'You' : 'AI'}:</strong>
+							<div className="message-content">{m.content}</div>
+						</div>
 					</div>
-				</div>
-			))}
+				);
+			})}
 			{isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
 				<div className="message-wrapper assistant">
 					<div className="message-bubble assistant">

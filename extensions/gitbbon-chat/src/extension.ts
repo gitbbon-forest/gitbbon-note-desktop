@@ -88,15 +88,26 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 		}
 
 		try {
-			let chunkCount = 0;
 			const stream = this.aiService.streamAgentChat(messages);
 
-			for await (const textPart of stream) {
-				chunkCount++;
-				this._webviewView.webview.postMessage({
-					type: 'chat-chunk',
-					chunk: textPart
-				});
+			for await (const event of stream) {
+				switch (event.type) {
+					case 'tool-start':
+					case 'tool-end':
+						// 도구 진행 상황 전송
+						this._webviewView.webview.postMessage({
+							type: 'chat-tool-status',
+							event: event
+						});
+						break;
+					case 'text':
+						// AI 응답 텍스트 전송
+						this._webviewView.webview.postMessage({
+							type: 'chat-chunk',
+							chunk: event.content
+						});
+						break;
+				}
 			}
 
 			this._webviewView.webview.postMessage({ type: 'chat-done' });

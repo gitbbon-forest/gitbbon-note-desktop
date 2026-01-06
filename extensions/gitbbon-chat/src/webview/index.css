@@ -214,3 +214,13 @@ body {
 .chat-submit-btn:hover:not(:disabled):not(.sending):not(.receiving) svg {
 	transform: translateX(2px);
 }
+
+/* Tool Status Line - 한 줄 표시 */
+.tool-status-line {
+	padding: 4px 12px;
+	font-size: 0.85em;
+	color: var(--vscode-descriptionForeground);
+	font-family: var(--vscode-editor-font-family, monospace);
+	opacity: 0.85;
+}
+

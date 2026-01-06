@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import { tool } from 'ai';
-import { z } from 'zod';
 
 // findTextInFiles API definition (runtime check)
 interface TextSearchMatch {
@@ -15,93 +13,94 @@ type FindTextInFilesFunc = (
 	callback: (result: TextSearchMatch) => void
 ) => Thenable<void>;
 
-export const searchInWorkspaceTool = tool({
-	description: 'Search for keywords or patterns across the entire project (using ripgrep).',
-	inputSchema: z.object({
-		query: z.string().describe('Keyword or regex to search for'),
-		isRegex: z.boolean().optional().describe('Whether to use regex (default: false)'),
-		filePattern: z.string().optional().describe('File path pattern (e.g., src/**/*.ts)'),
-		context: z.number().min(0).max(500).optional().describe('Characters of context around match (default: 100)'),
-		maxResults: z.number().min(1).max(30).optional().describe('Maximum number of results (default: 3)'),
-	}),
-	execute: async ({ query, isRegex, filePattern, context, maxResults }) => {
-		console.log('[searchTool] executing', { query, isRegex, filePattern, context, maxResults });
+interface SearchArgs {
+	query: string;
+	isRegex?: boolean;
+	filePattern?: string;
+	context?: number;
+	maxResults?: number;
+}
 
-		const workspaceFolders = vscode.workspace.workspaceFolders;
-		if (!workspaceFolders || workspaceFolders.length === 0) {
-			return "Error: No workspace open.";
+/**
+ * Execute search logic - extracted for reuse with progress tracking
+ */
+export async function executeSearch({ query, isRegex, filePattern, context, maxResults }: SearchArgs): Promise<string> {
+	console.log('[searchTool] executing', { query, isRegex, filePattern, context, maxResults });
+
+	const workspaceFolders = vscode.workspace.workspaceFolders;
+	if (!workspaceFolders || workspaceFolders.length === 0) {
+		return "Error: No workspace open.";
+	}
+
+	const matches: string[] = [];
+	const MAX_RESULTS = maxResults ?? 3;
+	const CONTEXT_LENGTH = context ?? 100;
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const workspaceAny = vscode.workspace as any;
+
+	// Map to collect matches per file
+	const fileMatches = new Map<string, { uri: vscode.Uri; lines: { lineNum: number; text: string }[] }>();
+
+	try {
+		if (typeof workspaceAny.findTextInFiles !== 'function') {
+			return "Error: VS Code 'findTextInFiles' API is not available.";
 		}
 
-		const matches: string[] = [];
-		const MAX_RESULTS = maxResults ?? 3;
-		const CONTEXT_LENGTH = context ?? 100;
+		const findTextInFiles: FindTextInFilesFunc = workspaceAny.findTextInFiles.bind(vscode.workspace);
 
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const workspaceAny = vscode.workspace as any;
+		await findTextInFiles(
+			{
+				pattern: query,
+				isRegExp: !!isRegex,
+				isCaseSensitive: false,
+				isWordMatch: false,
+			},
+			{
+				include: filePattern
+					? new vscode.RelativePattern(workspaceFolders[0], filePattern)
+					: undefined,
+				exclude: '**/{node_modules,.git,dist,out}/**',
+			},
+			(result: TextSearchMatch) => {
+				if (matches.length >= MAX_RESULTS) return;
 
-		// Map to collect matches per file
-		const fileMatches = new Map<string, { uri: vscode.Uri; lines: { lineNum: number; text: string }[] }>();
+				const relativePath = vscode.workspace.asRelativePath(result.uri);
 
-		try {
-			if (typeof workspaceAny.findTextInFiles !== 'function') {
-				return "Error: VS Code 'findTextInFiles' API is not available.";
-			}
-
-			const findTextInFiles: FindTextInFilesFunc = workspaceAny.findTextInFiles.bind(vscode.workspace);
-
-			await findTextInFiles(
-				{
-					pattern: query,
-					isRegExp: !!isRegex,
-					isCaseSensitive: false,
-					isWordMatch: false,
-				},
-				{
-					include: filePattern
-						? new vscode.RelativePattern(workspaceFolders[0], filePattern)
-						: undefined,
-					exclude: '**/{node_modules,.git,dist,out}/**',
-				},
-				(result: TextSearchMatch) => {
-					if (matches.length >= MAX_RESULTS) return;
-
-					const relativePath = vscode.workspace.asRelativePath(result.uri);
-
-					if (!fileMatches.has(relativePath)) {
-						fileMatches.set(relativePath, { uri: result.uri, lines: [] });
-					}
-
-					const fileData = fileMatches.get(relativePath)!;
-
-					for (const range of result.ranges) {
-						const lineNum = range.start.line + 1;
-						const previewText = result.preview.text.trim().slice(0, CONTEXT_LENGTH * 2);
-						fileData.lines.push({ lineNum, text: previewText });
-					}
+				if (!fileMatches.has(relativePath)) {
+					fileMatches.set(relativePath, { uri: result.uri, lines: [] });
 				}
-			);
 
-			// Format results
-			for (const [relativePath, data] of fileMatches) {
-				if (matches.length >= MAX_RESULTS) break;
+				const fileData = fileMatches.get(relativePath)!;
 
-				const linesInfo = data.lines
-					.slice(0, 5) // Max 5 matches per file
-					.map(l => `  (Line ${l.lineNum}): ${l.text}`)
-					.join('\n');
-
-				matches.push(`[${relativePath}]\n${linesInfo}`);
+				for (const range of result.ranges) {
+					const lineNum = range.start.line + 1;
+					const previewText = result.preview.text.trim().slice(0, CONTEXT_LENGTH * 2);
+					fileData.lines.push({ lineNum, text: previewText });
+				}
 			}
+		);
 
-		} catch (e) {
-			console.error('[searchTool] failed:', e);
-			return `Error: Search failed - ${e}`;
+		// Format results
+		for (const [relativePath, data] of fileMatches) {
+			if (matches.length >= MAX_RESULTS) break;
+
+			const linesInfo = data.lines
+				.slice(0, 5) // Max 5 matches per file
+				.map(l => `  (Line ${l.lineNum}): ${l.text}`)
+				.join('\n');
+
+			matches.push(`[${relativePath}]\n${linesInfo}`);
 		}
 
-		if (matches.length === 0) {
-			return `No results found for "${query}".`;
-		}
+	} catch (e) {
+		console.error('[searchTool] failed:', e);
+		return `Error: Search failed - ${e}`;
+	}
 
-		return `Found ${matches.length} files with matches:\n\n` + matches.join('\n\n');
-	},
-});
+	if (matches.length === 0) {
+		return `No results found for "${query}".`;
+	}
+
+	return `Found ${matches.length} files with matches:\n\n` + matches.join('\n\n');
+}
