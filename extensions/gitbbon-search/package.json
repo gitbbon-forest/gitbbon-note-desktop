@@ -1,0 +1,82 @@
+{
+  "name": "gitbbon-search",
+  "displayName": "Gitbbon Search",
+  "description": "Semantic Search for Gitbbon Notes using E5-Small + Orama",
+  "version": "0.1.0",
+  "publisher": "gitbbon",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:gitbbon-search.searchView",
+    "workspaceContains:**/*.md"
+  ],
+  "main": "./out/extension.js",
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gitbbon-search",
+          "title": "Gitbbon Search",
+          "icon": "$(search)"
+        }
+      ]
+    },
+    "views": {
+      "gitbbon-search": [
+        {
+          "id": "gitbbon-search.searchView",
+          "name": "Semantic Search",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "gitbbon-search.reindex",
+        "title": "Reindex Workspace",
+        "category": "Gitbbon Search"
+      },
+      {
+        "command": "gitbbon-search.clearIndex",
+        "title": "Clear Index",
+        "category": "Gitbbon Search"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "npm run build:webview && tsc -p ./",
+    "package": "npm run compile",
+    "watch": "tsc -watch -p ./ & vite build --watch",
+    "watch:tsc": "tsc -watch -p ./",
+    "watch:webview": "vite build --watch",
+    "build:webview": "vite build"
+  },
+  "devDependencies": {
+    "@types/node": "22.x",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@types/vscode": "^1.70.0",
+    "@vitejs/plugin-react": "^5.1.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
+    "@orama/orama": "^3.1.18",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  }
+}

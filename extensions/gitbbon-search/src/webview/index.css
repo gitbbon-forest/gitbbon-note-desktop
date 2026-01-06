@@ -1,0 +1,172 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Gitbbon. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+:root {
+	--container-padding: 12px;
+	--input-height: 32px;
+	--border-radius: 4px;
+}
+
+* {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-sideBar-background);
+}
+
+.search-container {
+	padding: var(--container-padding);
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	height: 100vh;
+}
+
+/* 모델 로딩 UI */
+.model-loading {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	padding: 24px;
+}
+
+.loading-text {
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.9em;
+}
+
+.progress-bar {
+	width: 100%;
+	height: 4px;
+	background-color: var(--vscode-progressBar-background);
+	border-radius: 2px;
+	overflow: hidden;
+}
+
+.progress-fill {
+	height: 100%;
+	background-color: var(--vscode-progressBar-background);
+	background-color: var(--vscode-button-background);
+	transition: width 0.3s ease;
+}
+
+.search-input-wrapper {
+	display: flex;
+	gap: 8px;
+}
+
+.search-input {
+	flex: 1;
+	height: var(--input-height);
+	padding: 0 10px;
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: var(--border-radius);
+	outline: none;
+	font-size: inherit;
+}
+
+.search-input:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.search-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.search-button {
+	height: var(--input-height);
+	padding: 0 14px;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	border-radius: var(--border-radius);
+	cursor: pointer;
+	font-size: inherit;
+	white-space: nowrap;
+}
+
+.search-button:hover:not(:disabled) {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.search-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.results-container {
+	flex: 1;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.result-item {
+	padding: 10px 12px;
+	background-color: var(--vscode-list-hoverBackground);
+	border-radius: var(--border-radius);
+	cursor: pointer;
+	transition: background-color 0.1s;
+}
+
+.result-item:hover {
+	background-color: var(--vscode-list-activeSelectionBackground);
+}
+
+.result-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 6px;
+}
+
+.result-filename {
+	font-weight: 600;
+	color: var(--vscode-textLink-foreground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.result-score {
+	font-size: 0.85em;
+	color: var(--vscode-descriptionForeground);
+	background-color: var(--vscode-badge-background);
+	padding: 2px 6px;
+	border-radius: 10px;
+	flex-shrink: 0;
+}
+
+.result-snippet {
+	font-size: 0.9em;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+	word-break: break-word;
+}
+
+.no-results {
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+	padding: 20px;
+}
+
+.error-message {
+	color: var(--vscode-errorForeground);
+	background-color: var(--vscode-inputValidation-errorBackground);
+	border: 1px solid var(--vscode-inputValidation-errorBorder);
+	padding: 8px 12px;
+	border-radius: var(--border-radius);
+}

@@ -1,0 +1,468 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Gitbbon. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as vscode from 'vscode';
+import { searchService } from './services/searchService.js';
+import { FileWatcher, GitWatcher } from './watchers/fileWatcher.js';
+import {
+	parseMetadata,
+	getContentWithoutMetadata,
+	canUseCachedEmbedding,
+	decodeVector,
+	encodeVector,
+	simpleHash,
+	saveMetadataToFile,
+	getCurrentModelName,
+	type ChunkInfo,
+	type ModelEmbedding,
+} from './services/metadataService.js';
+
+let fileWatcher: FileWatcher | null = null;
+let gitWatcher: GitWatcher | null = null;
+
+/**
+ * 검색 뷰 프로바이더
+ */
+class SearchViewProvider implements vscode.WebviewViewProvider {
+	public static readonly viewType = 'gitbbon-search.searchView';
+
+	constructor(private readonly extensionUri: vscode.Uri) { }
+
+	async resolveWebviewView(
+		webviewView: vscode.WebviewView,
+		_context: vscode.WebviewViewResolveContext<unknown>,
+		_token: vscode.CancellationToken
+	): Promise<void> {
+		webviewView.webview.options = {
+			enableScripts: true,
+			localResourceRoots: [this.extensionUri]
+		};
+
+		webviewView.webview.html = this.getHtmlContent(webviewView.webview);
+
+		// 웹뷰 메시지 처리
+		webviewView.webview.onDidReceiveMessage(async (message) => {
+			console.log('[Extension] Received message from Webview:', message.type);
+			switch (message.type) {
+				case 'webviewReady':
+					// Webview가 준비되면 워크스페이스 인덱싱 시작
+					console.log('[Extension] Webview ready, starting workspace indexing...');
+					await this.startWorkspaceIndexing(webviewView);
+					break;
+				case 'embeddingResult':
+					// Webview에서 임베딩 결과를 받아 Orama에 저장
+					console.log('[Extension] Received embedding result for:', message.filePath);
+					await this.handleEmbeddingResult(message);
+					break;
+				case 'vectorSearch':
+					console.log('[Extension] vectorSearch - vector length:', message.vector?.length);
+					// Webview에서 이미 임베딩된 벡터로 검색
+					await this.handleVectorSearch(message.vector, webviewView);
+					break;
+				case 'openFile':
+					console.log('[Extension] openFile:', message.filePath);
+					await this.openFileAtPosition(message.filePath, message.range);
+					break;
+			}
+		});
+	}
+
+	/**
+	 * 워크스페이스 인덱싱 시작
+	 */
+	private async startWorkspaceIndexing(webviewView: vscode.WebviewView): Promise<void> {
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (!workspaceFolders) {
+			console.log('[Extension] No workspace folder found');
+			return;
+		}
+
+		// .md 파일 검색
+		const mdFiles = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
+		console.log(`[Extension] Found ${mdFiles.length} markdown files to index`);
+
+		for (const fileUri of mdFiles) {
+			try {
+				const content = await vscode.workspace.fs.readFile(fileUri);
+				const text = Buffer.from(content).toString('utf-8');
+
+				if (text.trim().length === 0) {
+					continue;
+				}
+
+				// 메타데이터 파싱 및 캐시 확인
+				const metadata = parseMetadata(text);
+
+				if (canUseCachedEmbedding(text, metadata)) {
+					// 캐시된 임베딩 사용 → Orama DB에만 추가
+					console.log(`[Extension] Using cached embedding for ${fileUri.fsPath}`);
+					const chunks = metadata!.embedding!.chunks.map((chunk, i) => ({
+						chunkIndex: i,
+						range: chunk.range,
+						vector: decodeVector(chunk.vector),
+					}));
+					await searchService.indexFileWithEmbeddings(fileUri.fsPath, chunks);
+					continue;
+				}
+
+				// 메타데이터 없음 또는 변경됨 → 새로 임베딩 요청
+				const cleanContent = getContentWithoutMetadata(text);
+				webviewView.webview.postMessage({
+					type: 'embedDocument',
+					filePath: fileUri.fsPath,
+					content: cleanContent,
+					originalContent: text, // 메타데이터 저장 시 필요
+				});
+			} catch (error) {
+				console.error(`[Extension] Failed to read ${fileUri.fsPath}:`, error);
+			}
+		}
+	}
+
+	/**
+	 * 임베딩 결과 처리
+	 */
+	private async handleEmbeddingResult(message: {
+		filePath: string;
+		chunks: Array<{ chunkIndex: number; range: [number, number]; vector: number[] }>;
+		contentHash: string;
+	}): Promise<void> {
+		try {
+			// Orama DB에 인덱싱
+			await searchService.indexFileWithEmbeddings(
+				message.filePath,
+				message.chunks
+			);
+			console.log(`[Extension] Indexed ${message.chunks.length} chunks from ${message.filePath}`);
+
+			// 메타데이터를 마크다운 파일에 저장
+			const uri = vscode.Uri.file(message.filePath);
+			const content = await vscode.workspace.fs.readFile(uri);
+			const text = Buffer.from(content).toString('utf-8');
+
+			// 벡터를 Base64로 인코딩
+			const chunkInfos: ChunkInfo[] = message.chunks.map(chunk => ({
+				range: chunk.range,
+				hash: simpleHash(text.slice(chunk.range[0], chunk.range[1])),
+				vector: encodeVector(chunk.vector),
+			}));
+
+			const embedding: ModelEmbedding = {
+				model: getCurrentModelName(),
+				vectorDimension: 384,
+				dtype: 'fp16',
+				contentHash: message.contentHash,
+				chunks: chunkInfos,
+			};
+
+			await saveMetadataToFile(uri, text, embedding);
+			console.log(`[Extension] Saved metadata to ${message.filePath}`);
+		} catch (error) {
+			console.error(`[Extension] Failed to index ${message.filePath}:`, error);
+		}
+	}
+
+	/**
+	 * 벡터 검색 처리 (Webview에서 임베딩된 벡터 사용)
+	 */
+	private async handleVectorSearch(vector: number[], webviewView: vscode.WebviewView): Promise<void> {
+		try {
+			console.log('[Extension] Calling searchService.vectorSearch...');
+			const results = await searchService.vectorSearch(vector, 10);
+			console.log('[Extension] vectorSearch returned:', results.count, 'hits');
+
+			// 결과에 스니펫 추가
+			const searchResults = await Promise.all(
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				results.hits.map(async (hit: any) => {
+					const doc = hit.document;
+					const snippet = await searchService.getSnippet(doc.filePath, doc.range);
+					return {
+						filePath: doc.filePath,
+						range: doc.range,
+						score: hit.score,
+						snippet,
+					};
+				})
+			);
+
+			console.log('[Extension] Sending searchResults to Webview:', searchResults.length, 'items');
+			webviewView.webview.postMessage({
+				type: 'searchResults',
+				data: searchResults
+			});
+		} catch (error) {
+			console.error('[Extension] Search error:', error);
+			webviewView.webview.postMessage({
+				type: 'searchError',
+				message: '검색 중 오류가 발생했습니다.'
+			});
+		}
+	}
+
+	/**
+	 * 파일 열기 및 위치 이동
+	 */
+	private async openFileAtPosition(filePath: string, range: [number, number]): Promise<void> {
+		try {
+			const uri = vscode.Uri.file(filePath);
+			const document = await vscode.workspace.openTextDocument(uri);
+			const editor = await vscode.window.showTextDocument(document);
+
+			// 문자 위치를 Position으로 변환
+			const startPos = document.positionAt(range[0]);
+			const endPos = document.positionAt(range[1]);
+
+			// 선택 영역 설정 및 스크롤
+			editor.selection = new vscode.Selection(startPos, endPos);
+			editor.revealRange(
+				new vscode.Range(startPos, endPos),
+				vscode.TextEditorRevealType.InCenter
+			);
+		} catch (error) {
+			vscode.window.showErrorMessage(`파일을 열 수 없습니다: ${filePath}`);
+		}
+	}
+
+	/**
+	 * Webview HTML 생성
+	 */
+	private getHtmlContent(webview: vscode.Webview): string {
+		const scriptUri = webview.asWebviewUri(
+			vscode.Uri.joinPath(this.extensionUri, 'out', 'webview', 'index.js')
+		);
+		const nonce = getNonce();
+
+		// CSP: HuggingFace 모델 다운로드, WASM, blob/data URL 허용
+		const csp = [
+			"default-src 'none'",
+			`style-src ${webview.cspSource} 'unsafe-inline'`,
+			`script-src 'nonce-${nonce}' 'unsafe-eval' blob:`,
+			`connect-src https://huggingface.co https://*.huggingface.co https://*.hf.co https://hf.co https://*.xethub.hf.co https://cdn.jsdelivr.net blob: data:`,
+			`worker-src blob:`,
+			`img-src ${webview.cspSource} https: data:`,
+		].join('; ');
+
+		return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="Content-Security-Policy" content="${csp}">
+	<title>Gitbbon Search</title>
+	<style>
+		:root {
+			--container-padding: 12px;
+		}
+		body {
+			margin: 0;
+			padding: 0;
+			font-family: var(--vscode-font-family);
+			font-size: var(--vscode-font-size);
+			color: var(--vscode-foreground);
+			background-color: var(--vscode-sideBar-background);
+		}
+		.search-container {
+			padding: var(--container-padding);
+			display: flex;
+			flex-direction: column;
+			gap: 12px;
+			height: 100vh;
+		}
+		.model-loading {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 12px;
+			padding: 24px;
+		}
+		.loading-text {
+			color: var(--vscode-descriptionForeground);
+			font-size: 0.9em;
+		}
+		.progress-bar {
+			width: 100%;
+			height: 4px;
+			background-color: var(--vscode-progressBar-background);
+			border-radius: 2px;
+			overflow: hidden;
+		}
+		.progress-fill {
+			height: 100%;
+			background-color: var(--vscode-button-background);
+			transition: width 0.3s ease;
+		}
+		.search-input-wrapper {
+			display: flex;
+			gap: 8px;
+		}
+		.search-input {
+			flex: 1;
+			padding: 8px 12px;
+			border: 1px solid var(--vscode-input-border);
+			background-color: var(--vscode-input-background);
+			color: var(--vscode-input-foreground);
+			border-radius: 4px;
+			outline: none;
+		}
+		.search-input:focus {
+			border-color: var(--vscode-focusBorder);
+		}
+		.search-button {
+			padding: 8px 16px;
+			background-color: var(--vscode-button-background);
+			color: var(--vscode-button-foreground);
+			border: none;
+			border-radius: 4px;
+			cursor: pointer;
+		}
+		.search-button:hover {
+			background-color: var(--vscode-button-hoverBackground);
+		}
+		.search-button:disabled {
+			opacity: 0.5;
+			cursor: not-allowed;
+		}
+		.error-message {
+			color: var(--vscode-errorForeground);
+			padding: 8px;
+			background-color: var(--vscode-inputValidation-errorBackground);
+			border-radius: 4px;
+		}
+		.results-container {
+			flex: 1;
+			overflow-y: auto;
+		}
+		.no-results {
+			color: var(--vscode-descriptionForeground);
+			text-align: center;
+			padding: 16px;
+		}
+		.result-item {
+			padding: 12px;
+			border-bottom: 1px solid var(--vscode-panel-border);
+			cursor: pointer;
+		}
+		.result-item:hover {
+			background-color: var(--vscode-list-hoverBackground);
+		}
+		.result-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: 4px;
+		}
+		.result-filename {
+			font-weight: 600;
+			color: var(--vscode-textLink-foreground);
+		}
+		.result-score {
+			font-size: 0.85em;
+			color: var(--vscode-descriptionForeground);
+		}
+		.result-snippet {
+			font-size: 0.9em;
+			color: var(--vscode-descriptionForeground);
+			line-height: 1.4;
+		}
+	</style>
+</head>
+<body>
+	<div id="root"></div>
+	<script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>`;
+	}
+}
+
+function getNonce(): string {
+	let text = '';
+	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	for (let i = 0; i < 32; i++) {
+		text += possible.charAt(Math.floor(Math.random() * possible.length));
+	}
+	return text;
+}
+
+// NOTE: 인덱싱은 Webview에서 Worker를 통해 처리됨
+// 추후 Webview ↔ Extension 간 인덱싱 메시지 통신 구현 예정
+
+/**
+ * 확장 활성화
+ */
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
+	console.log('[gitbbon-search] Extension activating...');
+
+	// 검색 엔진 초기화 (모델은 Webview Worker에서 로딩)
+	await vscode.window.withProgress({
+		location: vscode.ProgressLocation.Notification,
+		title: 'Gitbbon Search',
+		cancellable: false
+	}, async (progress) => {
+		try {
+			// 1. 검색 엔진 초기화
+			progress.report({ message: 'Initializing search engine...', increment: 0 });
+			await searchService.init(context);
+
+			// 2. 저장된 인덱스 복원 시도
+			progress.report({ message: 'Loading index...', increment: 50 });
+			await searchService.loadFromStorage();
+
+			progress.report({ message: 'Ready!', increment: 100 });
+		} catch (error) {
+			vscode.window.showErrorMessage(`Gitbbon Search 초기화 실패: ${error}`);
+			throw error;
+		}
+	});
+
+	// FileSystemWatcher 등록
+	fileWatcher = new FileWatcher(() => {
+		console.log('[Extension] Index updated');
+	});
+	context.subscriptions.push(fileWatcher);
+
+	// Git Watcher 등록 (TODO: Webview 인덱싱 구현 후 연결)
+	gitWatcher = new GitWatcher(async () => {
+		console.log('[Extension] Git state changed - reindex needed');
+	});
+	context.subscriptions.push(gitWatcher);
+
+	// Search View 등록
+	const searchProvider = new SearchViewProvider(context.extensionUri);
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(
+			SearchViewProvider.viewType,
+			searchProvider
+		)
+	);
+
+	// 명령어 등록
+	context.subscriptions.push(
+		vscode.commands.registerCommand('gitbbon-search.reindex', async () => {
+			await searchService.clearIndex();
+			vscode.window.showInformationMessage('인덱스가 삭제되었습니다. Webview를 열어 다시 인덱싱해주세요.');
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('gitbbon-search.clearIndex', async () => {
+			await searchService.clearIndex();
+			vscode.window.showInformationMessage('인덱스가 삭제되었습니다.');
+		})
+	);
+
+	console.log('[gitbbon-search] Extension activated!');
+}
+
+/**
+ * 확장 비활성화
+ */
+export function deactivate(): void {
+	fileWatcher?.dispose();
+	gitWatcher?.dispose();
+	console.log('[gitbbon-search] Extension deactivated');
+}
+
