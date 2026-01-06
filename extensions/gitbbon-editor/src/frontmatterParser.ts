@@ -41,10 +41,19 @@ export class FrontmatterParser {
 		}
 
 		// 2. Metadata 분리 (Content 끝에서 제거)
-		const metadataMatch = result.content.match(this.METADATA_REGEX);
+		// 반복적으로 매칭하여 누적된 중복 메타데이터까지 모두 제거
+		while (true) {
+			const metadataMatch = result.content.match(this.METADATA_REGEX);
+			if (!metadataMatch) {
+				break;
+			}
 
-		if (metadataMatch) {
-			result.metadata = metadataMatch[0]; // 줄바꿈 포함 전체 매칭 문자열 저장
+			// 가장 마지막(맨 끝)에 있는 메타데이터만 유효한 것으로 저장
+			if (!result.metadata) {
+				result.metadata = metadataMatch[0];
+			}
+
+			// 매칭된 메타데이터 제거 및 공백 정리
 			result.content = result.content.replace(this.METADATA_REGEX, '').trimEnd();
 		}
 

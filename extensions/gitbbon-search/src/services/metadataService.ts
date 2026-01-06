@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 
 // 파일 끝에 위치하는 한 줄 메타데이터
-const METADATA_REGEX = /\n+<!--\s*gitbbon:(.*?)\s*-->$/;
+const METADATA_REGEX = /\s*<!--\s*gitbbon:(.*?)\s*-->\s*$/;
 const MODEL_NAME = 'Xenova/multilingual-e5-small';
 
 /**
@@ -145,7 +145,14 @@ export function parseMetadata(content: string): GitbbonMetadata | null {
  * 마크다운 파일에서 메타데이터 제거 (본문만 추출)
  */
 export function getContentWithoutMetadata(content: string): string {
-	return content.replace(METADATA_REGEX, '').trimEnd();
+	let cleanContent = content;
+	// 반복적으로 파일 끝의 메타데이터를 제거 (누적된 메타데이터 정리)
+	while (true) {
+		const match = cleanContent.match(METADATA_REGEX);
+		if (!match) break;
+		cleanContent = cleanContent.replace(METADATA_REGEX, '');
+	}
+	return cleanContent.trimEnd();
 }
 
 /**
