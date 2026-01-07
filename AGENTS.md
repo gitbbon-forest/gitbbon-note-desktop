@@ -27,7 +27,7 @@
 **프레임워크:** Mocha (Pure Node.js 환경)
 **파일 규칙:**
 - 위치: `extensions/[extension-name]/src/test/`
-- 네이밍: `*.unit.test.ts` (예: [diffParser.unit.test.ts](cci:7://file:///Users/egoinglee/dev/project/gitbbon/git-note/extensions/gitbbon-manager/src/test/diffParser.unit.test.ts:0:0-0:0))
+- 네이밍: `*.unit.test.ts` (예: [diffParser.unit.test.ts](cci:10://file:///Users/egoinglee/dev/project/gitbbon/git-note/extensions/gitbbon-manager/src/test/diffParser.unit.test.ts:0:0-0:0))
 - `vscode` 모듈 import 금지 (순수 로직만 테스트)
 **작성 예시:**
 ```typescript
@@ -40,3 +40,8 @@ describe('테스트할클래스', () => {
         assert.strictEqual(result, 예상값);
     });
 });
+```
+
+### 5. 자동 컴파일 (Automatic Compilation)
+- 확장 기능(`extensions/gitbbon-*`)의 코드를 수정했을 때는 해당 확장 기능 폴더로 이동하여 컴파일(`npm run compile`)을 수행함으로써 변경 사항을 즉시 적용한다.
+- 이를 통해 사용자가 메모리를 많이 차지하는 `npm run watch`를 상시 실행하지 않고도 개발 결과물을 확인할 수 있도록 돕는다.
