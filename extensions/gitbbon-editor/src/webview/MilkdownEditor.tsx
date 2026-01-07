@@ -56,6 +56,8 @@ const askAIIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" f
 
 const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ initialContent, onChange, onAskAI }, ref) => {
 	const { get: getInstance, loading } = useEditor((root) => {
+		// gitbbon custom: 초기 로드 시 onChange 무시 (초기화 중 발생하는 이벤트 방지)
+		isSettingContentExternally = true;
 		const crepe = new Crepe({
 			root,
 			defaultValue: initialContent,
@@ -109,6 +111,11 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 			.use(searchPlugin)
 			// gitbbon custom: Hide metadata comments
 			.use(hideGitbbonMetadataPlugin);
+
+		// gitbbon custom: 초기 로드 완료 후 플래그 해제 (다음 tick에서)
+		setTimeout(() => {
+			isSettingContentExternally = false;
+		}, 500);
 
 		return crepe;
 	}, [onAskAI]);
