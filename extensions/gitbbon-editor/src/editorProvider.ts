@@ -353,11 +353,14 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 						if (fullText === lastWebviewText) {
 							return; // 내용이 같으면 무시
 						}
-						lastWebviewText = fullText;
+						// gitbbon custom: 저장 후 실제 문서 내용으로 업데이트 (메타데이터 포함)
+						// 아직 저장 전이므로 임시로 fullText 저장
 
 						isWebviewUpdating = true;
 						try {
 							await this.updateDocument(document, message.frontmatter, message.content);
+							// 저장 후 실제 문서 내용 (메타데이터 포함)으로 업데이트
+							lastWebviewText = document.getText();
 						} finally {
 							isWebviewUpdating = false;
 						}

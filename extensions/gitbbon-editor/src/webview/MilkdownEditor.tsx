@@ -15,8 +15,14 @@ import './suggestion.css';
 import { search, SearchQuery, setSearchState, findNext, findPrev, getSearchState, getMatchHighlights, replaceNext, replaceAll } from 'prosemirror-search';
 import './SearchBar.css';
 
+// gitbbon custom: Hide metadata comments
+import { hideGitbbonMetadataPlugin } from './hideMetadataPlugin';
+
 // Milkdown 호환 search 플러그인 래핑
 const searchPlugin = $prose(() => search());
+
+// gitbbon custom: 외부 콘텐츠 업데이트 중인지 추적 (루프 방지)
+let isSettingContentExternally = false;
 
 interface MilkdownEditorProps {
 	initialContent: string;
@@ -85,6 +91,11 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 		crepe.editor
 			.config((ctx) => {
 				ctx.get(listenerCtx).markdownUpdated((ctx, markdown, prevMarkdown) => {
+					// gitbbon custom: 외부 업데이트 중에는 onChange 무시 (루프 방지)
+					if (isSettingContentExternally) {
+						console.log('[MilkdownEditor] Ignoring onChange during external content update');
+						return;
+					}
 					if (markdown !== prevMarkdown) {
 						onChange(markdown);
 					}
@@ -95,7 +106,9 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 			.use(suggestionDeleteMark)
 			.use(suggestionPlugin)
 			// gitbbon custom: Search functionality
-			.use(searchPlugin);
+			.use(searchPlugin)
+			// gitbbon custom: Hide metadata comments
+			.use(hideGitbbonMetadataPlugin);
 
 		return crepe;
 	}, [onAskAI]);
@@ -115,6 +128,8 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 			// getInstance() returns Milkdown Editor directly (not Crepe)
 			// Editor has action method directly on it
 			if (typeof (editor as any).action === 'function') {
+				// gitbbon custom: 외부 업데이트 플래그 설정 (루프 방지)
+				isSettingContentExternally = true;
 				(editor as any).action((ctx: any) => {
 					const view = ctx.get(editorViewCtx);
 					const parser = ctx.get(parserCtx);
@@ -123,6 +138,10 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 					const { state } = view;
 					view.dispatch(state.tr.replaceWith(0, state.doc.content.size, doc));
 				});
+				// 플래그 해제 (동기적으로 즉시 해제)
+				setTimeout(() => {
+					isSettingContentExternally = false;
+				}, 0);
 				console.log('[MilkdownEditor] ✅ Content updated successfully');
 			} else {
 				console.error('[MilkdownEditor] ❌ action method not found on editor');

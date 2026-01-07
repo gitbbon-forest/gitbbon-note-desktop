@@ -36,7 +36,7 @@ export class FrontmatterParser {
 			try {
 				result.frontmatter = yaml.parse(frontmatterText) || {};
 			} catch (error) {
-				// console.error('Failed to parse frontmatter:', error); // Removed as per instruction
+				// console.error('Failed to parse frontmatter:', error);
 			}
 		}
 
@@ -78,7 +78,7 @@ export class FrontmatterParser {
 			if (!result.endsWith('\n')) {
 				result += '\n';
 			}
-			// metadata가 줄바꿈으로 시작하지 않으면 추가 (보통 regex 매칭 결과는 줄바꿈 포함임)
+			// metadata가 줄바꿈으로 시작하지 않으면 추가
 			if (!metadata.startsWith('\n')) {
 				result += '\n';
 			}
