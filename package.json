@@ -75,7 +75,8 @@
     "perf": "node scripts/code-perf.js",
     "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)",
     "release": "node scripts/release.mjs",
-    "pre-release": "node scripts/release.mjs --pre"
+    "pre-release": "node scripts/release.mjs --pre",
+    "compile-ext-gitbbon": "(npm run compile --prefix extensions/gitbbon-chat) & (npm run compile --prefix extensions/gitbbon-editor) & (npm run compile --prefix extensions/gitbbon-manager) & (npm run compile --prefix extensions/gitbbon-search) & wait"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
