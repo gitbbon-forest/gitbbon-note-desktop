@@ -31,7 +31,8 @@ export class FileWatcher implements vscode.Disposable {
 	 */
 	private handleChange(uri: vscode.Uri): void {
 		this.debounce(uri, async () => {
-			console.log(`[FileWatcher] File changed: ${uri.fsPath} - reindex needed`);
+			const now = new Date().toISOString();
+			console.log(`[FileWatcher] ⚠️ File changed at ${now}: ${uri.fsPath}`);
 			// TODO: Webview에 인덱싱 요청 메시지 전송
 			this.onIndexUpdate();
 		});

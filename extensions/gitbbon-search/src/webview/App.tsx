@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { useState, useEffect, useCallback } from 'react';
-import { modelService } from './modelService';
 
 interface SearchResult {
 	filePath: string;
@@ -28,91 +27,29 @@ export function App() {
 	const [error, setError] = useState<string | null>(null);
 	const [modelStatus, setModelStatus] = useState<'loading' | 'ready' | 'error'>('loading');
 	const [loadProgress, setLoadProgress] = useState(0);
-	const [indexingCount, setIndexingCount] = useState(0);
-
-	// 문서를 청크로 분할
-	const chunkDocument = (text: string, chunkSize = 500, overlap = 100): Array<{ text: string; range: [number, number] }> => {
-		const chunks: Array<{ text: string; range: [number, number] }> = [];
-		let start = 0;
-
-		while (start < text.length) {
-			const end = Math.min(start + chunkSize, text.length);
-			chunks.push({
-				text: text.slice(start, end),
-				range: [start, end]
-			});
-			start += chunkSize - overlap;
-		}
-
-		return chunks;
-	};
-
-	// 모델 초기화
-	useEffect(() => {
-		modelService.init((progress, message) => {
-			setLoadProgress(progress);
-			console.log('[App]', message);
-		}).then(() => {
-			setModelStatus('ready');
-			console.log('[App] Model ready');
-			// Extension에 Webview 준비 완료 알림
-			vscode.postMessage({ type: 'webviewReady' });
-		}).catch((err) => {
-			console.error('[App] Model init error:', err);
-			setModelStatus('error');
-			setError('모델 로딩 실패');
-		});
-	}, []);
 
 	// VS Code 메시지 수신
 	useEffect(() => {
+		// Extension에 UI 준비 완료 알림
+		vscode.postMessage({ type: 'uiReady' });
+
 		const handleMessage = async (event: MessageEvent) => {
 			const message = event.data;
 			console.log('[App] Received message from Extension:', message.type);
 
 			switch (message.type) {
-				case 'embedDocument':
-					// Extension에서 파일 임베딩 요청
-					if (modelService.isReady()) {
-						console.log('[App] Embedding document:', message.filePath);
-						try {
-							const chunks = chunkDocument(message.content);
-							const embeddedChunks: Array<{ chunkIndex: number; range: [number, number]; vector: number[] }> = [];
-
-							for (let i = 0; i < chunks.length; i++) {
-								const chunk = chunks[i];
-								const vector = await modelService.embedDocument(chunk.text);
-								embeddedChunks.push({
-									chunkIndex: i,
-									range: chunk.range,
-									vector
-								});
-							}
-
-							// 콘텐츠 해시 생성
-							const simpleHash = (text: string): string => {
-								let hash = 0;
-								for (let i = 0; i < text.length; i++) {
-									const char = text.charCodeAt(i);
-									hash = ((hash << 5) - hash) + char;
-									hash = hash & hash;
-								}
-								return Math.abs(hash).toString(16);
-							};
-
-							// Extension에 임베딩 결과 전송
-							vscode.postMessage({
-								type: 'embeddingResult',
-								filePath: message.filePath,
-								chunks: embeddedChunks,
-								contentHash: simpleHash(message.content)
-							});
-
-							setIndexingCount(prev => prev + 1);
-							console.log(`[App] Indexed ${message.filePath} (${embeddedChunks.length} chunks)`);
-						} catch (err) {
-							console.error('[App] Embedding error:', err);
-						}
+				case 'modelStatus':
+					// Hidden Webview의 모델 상태 수신
+					if (message.status === 'ready') {
+						setModelStatus('ready');
+						setLoadProgress(100);
+						console.log('[App] Model is ready (loaded in Hidden Webview)');
+					} else if (message.status === 'loading') {
+						setModelStatus('loading');
+						setLoadProgress(message.progress || 0);
+					} else if (message.status === 'error') {
+						setModelStatus('error');
+						setError('모델 로딩 실패');
 					}
 					break;
 				case 'searchResults':
@@ -139,23 +76,12 @@ export function App() {
 		setIsSearching(true);
 		setError(null);
 
-		try {
-			// 쿼리 임베딩
-			console.log('[App] Starting query embedding for:', query.trim());
-			const queryVector = await modelService.embedQuery(query.trim());
-			console.log('[App] Query embedding complete, vector length:', queryVector.length);
-
-			// Extension에 벡터 전송하여 Orama 검색
-			console.log('[App] Sending vectorSearch message to Extension');
-			vscode.postMessage({
-				type: 'vectorSearch',
-				vector: queryVector
-			});
-		} catch (err) {
-			console.error('[App] Search error:', err);
-			setError('검색 중 오류 발생');
-			setIsSearching(false);
-		}
+		// Extension에 검색 요청 (Extension이 Hidden Webview를 통해 임베딩 후 검색)
+		console.log('[App] Sending search request to Extension:', query.trim());
+		vscode.postMessage({
+			type: 'search',
+			query: query.trim()
+		});
 	}, [query, modelStatus]);
 
 	// Enter 키로 검색
@@ -192,7 +118,7 @@ export function App() {
 			)}
 
 			{modelStatus === 'error' && (
-				<div className="error-message">모델 로딩 실패. 페이지를 새로고침해주세요.</div>
+				<div className="error-message">모델 로딩 실패. 앱을 재시작해주세요.</div>
 			)}
 
 			{modelStatus === 'ready' && (

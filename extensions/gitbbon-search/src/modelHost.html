@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Gitbbon Search - Model Host (Hidden)</title>
+	<style>
+		body {
+			display: none;
+		}
+	</style>
+</head>
+
+<body>
+	<script type="module">
+		/*---------------------------------------------------------------------------------------------
+		 *  Copyright (c) Gitbbon. All rights reserved.
+		 *  Licensed under the MIT License. See License.txt in the project root for license information.
+		 *--------------------------------------------------------------------------------------------*/
+
+		console.log('[ModelHost] Script starting...');
+
+		let pipeline, AutoTokenizer;
+
+		try {
+			console.log('[ModelHost] Importing Transformers.js from CDN...');
+			const module = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js');
+			pipeline = module.pipeline;
+			AutoTokenizer = module.AutoTokenizer;
+			console.log('[ModelHost] ✓ Transformers.js loaded successfully');
+		} catch (importError) {
+			console.error('[ModelHost] ✗ Failed to import Transformers.js:', importError);
+		}
+
+		const MODEL_NAME = 'Xenova/multilingual-e5-small';
+
+		class ModelHost {
+			constructor() {
+				this.extractor = null;
+				this.tokenizer = null;
+				this.initialized = false;
+				this.initPromise = null;
+			}
+
+			async checkWebGPU() {
+				try {
+					if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
+						const adapter = await navigator.gpu.requestAdapter();
+						if (adapter) {
+							console.log('[ModelHost] ✓ WebGPU available');
+							return true;
+						}
+					}
+				} catch (e) {
+					console.log('[ModelHost] WebGPU check failed:', e);
+				}
+				console.log('[ModelHost] ✗ Falling back to WASM');
+				return false;
+			}
+
+			async init() {
+				if (this.initialized) {
+					console.log('[ModelHost] Already initialized');
+					return;
+				}
+
+				if (this.initPromise) {
+					console.log('[ModelHost] Already initializing, waiting...');
+					return this.initPromise;
+				}
+
+				this.initPromise = this._init();
+				return this.initPromise;
+			}
+
+			async _init() {
+				console.log('[ModelHost] Starting model initialization...');
+
+				if (!pipeline || !AutoTokenizer) {
+					const error = 'Transformers.js not loaded';
+					console.error('[ModelHost]', error);
+					this.sendMessage({ type: 'modelError', error });
+					return;
+				}
+
+				try {
+					console.log('[ModelHost] Loading tokenizer...');
+					this.sendProgress(0, 'Loading tokenizer...');
+					this.tokenizer = await AutoTokenizer.from_pretrained(MODEL_NAME);
+					console.log('[ModelHost] ✓ Tokenizer loaded');
+
+					console.log('[ModelHost] Loading model with progress...');
+					this.sendProgress(30, 'Loading E5-Small model...');
+
+					const useWebGPU = await this.checkWebGPU();
+					console.log('[ModelHost] Creating pipeline...');
+
+					this.extractor = await pipeline('feature-extraction', MODEL_NAME, {
+						device: useWebGPU ? 'webgpu' : 'wasm',
+						dtype: 'fp16',
+						progress_callback: (p) => {
+							console.log('[ModelHost] Download progress:', p);
+							if (typeof p?.progress === 'number') {
+								const modelProgress = 30 + (p.progress * 0.7);
+								this.sendProgress(modelProgress, `Model loading: ${Math.round(p.progress)}%`);
+							} else if (p?.status) {
+								console.log('[ModelHost] Status:', p.status, p.file || '');
+							}
+						},
+					});
+
+					this.initialized = true;
+					this.sendProgress(100, 'Model ready');
+					console.log(`[ModelHost] ✓ Model initialized with ${useWebGPU ? 'WebGPU 🚀' : 'WASM'}`);
+
+					// Notify extension that model is ready
+					this.sendMessage({ type: 'modelReady' });
+				} catch (error) {
+					console.error('[ModelHost] ✗ Initialization failed:', error);
+					this.sendMessage({ type: 'modelError', error: error.message });
+				}
+			}
+
+			sendProgress(progress, message) {
+				console.log(`[ModelHost] Progress: ${progress}% - ${message}`);
+				this.sendMessage({ type: 'modelProgress', progress, message });
+			}
+
+			sendMessage(data) {
+				if (window.gitbbonBridge) {
+					window.gitbbonBridge.postMessage(data);
+				} else {
+					window.parent.postMessage(data, '*');
+				}
+			}
+
+			async embedQuery(query) {
+				if (!this.extractor) {
+					throw new Error('Model not initialized');
+				}
+				const input = `query: ${query}`;
+				const output = await this.extractor(input, { pooling: 'mean', normalize: true });
+				return Array.from(output.data);
+			}
+
+			async embedDocument(text) {
+				if (!this.extractor) {
+					throw new Error('Model not initialized');
+				}
+				const input = `passage: ${text}`;
+				const output = await this.extractor(input, { pooling: 'mean', normalize: true });
+				return Array.from(output.data);
+			}
+
+			/**
+			 * Split content into chunks and compute content hash
+			 */
+			async embedDocumentChunks(filePath, content, originalContent) {
+				if (!this.extractor || !this.tokenizer) {
+					throw new Error('Model not initialized');
+				}
+
+				const MAX_TOKENS = 512;
+				const OVERLAP_TOKENS = 50;
+
+				// Simple tokenization for chunking
+				const tokens = this.tokenizer.encode(content);
+				const chunks = [];
+				let offset = 0;
+				let chunkIndex = 0;
+
+				while (offset < tokens.length) {
+					const endOffset = Math.min(offset + MAX_TOKENS, tokens.length);
+					const chunkTokens = tokens.slice(offset, endOffset);
+					const chunkText = this.tokenizer.decode(chunkTokens, { skip_special_tokens: true });
+
+					// Calculate character range (approximate)
+					const startPos = this.findCharPosition(content, offset);
+					const endPos = this.findCharPosition(content, endOffset);
+
+					const vector = await this.embedDocument(chunkText);
+
+					chunks.push({
+						chunkIndex,
+						range: [startPos, endPos],
+						vector
+					});
+
+					offset += MAX_TOKENS - OVERLAP_TOKENS;
+					chunkIndex++;
+				}
+
+				// Calculate content hash
+				const contentHash = await this.simpleHash(content);
+
+				this.sendMessage({
+					type: 'embeddingResult',
+					filePath,
+					chunks,
+					contentHash
+				});
+			}
+
+			findCharPosition(text, tokenIndex) {
+				// Approximate: assume 4 chars per token on average
+				return Math.min(tokenIndex * 4, text.length);
+			}
+
+			async simpleHash(str) {
+				const encoder = new TextEncoder();
+				const data = encoder.encode(str);
+				const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+				const hashArray = Array.from(new Uint8Array(hashBuffer));
+				return hashArray.slice(0, 8).map(b => b.toString(16).padStart(2, '0')).join('');
+			}
+		}
+
+		// Initialize model host
+		const modelHost = new ModelHost();
+
+		// Listen for messages from extension
+		window.addEventListener('gitbbon-message', async (event) => {
+			const message = event.detail;
+			console.log('[ModelHost] Received message:', message.type);
+
+			switch (message.type) {
+				case 'initModel':
+					await modelHost.init();
+					break;
+				case 'embedDocument':
+					try {
+						await modelHost.embedDocumentChunks(message.filePath, message.content, message.originalContent);
+					} catch (error) {
+						console.error('[ModelHost] embedDocument error:', error);
+					}
+					break;
+				case 'embedQuery':
+					try {
+						const vector = await modelHost.embedQuery(message.query);
+						modelHost.sendMessage({ type: 'queryEmbedding', vector, requestId: message.requestId });
+					} catch (error) {
+						console.error('[ModelHost] embedQuery error:', error);
+						modelHost.sendMessage({ type: 'queryEmbeddingError', error: error.message, requestId: message.requestId });
+					}
+					break;
+			}
+		});
+
+		// Also listen for direct postMessage (fallback)
+		window.addEventListener('message', (event) => {
+			if (event.source !== window.parent) {
+				return;
+			}
+			window.dispatchEvent(new CustomEvent('gitbbon-message', { detail: event.data }));
+		});
+
+		console.log('[ModelHost] Initialized and listening for messages');
+
+		// ★ AUTO-INITIALIZE: Start loading model immediately
+		console.log('[ModelHost] Starting auto-initialization...');
+		modelHost.init().then(() => {
+			console.log('[ModelHost] Auto-initialization completed');
+		}).catch(err => {
+			console.error('[ModelHost] Auto-initialization failed:', err);
+		});
+	</script>
+</body>
+
+</html>

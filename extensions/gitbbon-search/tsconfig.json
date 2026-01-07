@@ -10,7 +10,11 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "vscode": ["../../src/vscode-dts/vscode.d.ts"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "src/webview/**/*"]

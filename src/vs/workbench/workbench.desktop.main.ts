@@ -83,6 +83,8 @@ import '../platform/telemetry/electron-browser/customEndpointTelemetryService.js
 import '../platform/remoteTunnel/electron-browser/remoteTunnelService.js';
 import './services/files/electron-browser/elevatedFileService.js';
 import './services/search/electron-browser/searchService.js';
+// gitbbon custom: Hidden Webview Service for background model loading
+import './services/hiddenWebview/browser/hiddenWebviewService.js';
 import './services/workingCopy/electron-browser/workingCopyHistoryService.js';
 import './services/userDataSync/browser/userDataSyncEnablementService.js';
 import './services/extensions/electron-browser/nativeExtensionService.js';

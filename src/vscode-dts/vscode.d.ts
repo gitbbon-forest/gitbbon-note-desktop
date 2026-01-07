@@ -10264,6 +10264,53 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Content settings for a hidden webview.
+	 */
+	export interface HiddenWebviewOptions {
+		/**
+		 * Content settings for the webview.
+		 */
+		readonly webviewOptions?: WebviewOptions;
+	}
+
+	/**
+	 * A hidden webview.
+	 */
+	export interface HiddenWebview {
+		/**
+		 * Unique identifier for the hidden webview.
+		 */
+		readonly id: string;
+
+		/**
+		 * HTML content of the hidden webview.
+		 */
+		html: string;
+
+		/**
+		 * Fired when the hidden webview is disposed.
+		 */
+		readonly onDidDispose: Event<void>;
+
+		/**
+		 * Fired when the hidden webview receives a message from its content.
+		 */
+		readonly onDidReceiveMessage: Event<any>;
+
+		/**
+		 * Post a message to the hidden webview's content.
+		 *
+		 * @param message Message to send.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+
+		/**
+		 * Dispose of the hidden webview.
+		 */
+		dispose(): void;
+	}
+
+	/**
 	 * Additional information the webview view being resolved.
 	 *
 	 * @param T Type of the webview's state.
@@ -11516,6 +11563,15 @@ declare module 'vscode' {
 			 */
 			readonly preserveFocus?: boolean;
 		}, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
+
+		/**
+		 * Create a new hidden webview.
+		 *
+		 * @param id Unique identifier for the hidden webview.
+		 * @param options Settings for the new hidden webview.
+		 * @returns New hidden webview.
+		 */
+		export function createHiddenWebview(id: string, options?: HiddenWebviewOptions): HiddenWebview;
 
 		/**
 		 * Set a message to the status bar. This is a short hand for the more powerful

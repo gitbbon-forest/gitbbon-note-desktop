@@ -13,6 +13,7 @@
     "Other"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "onView:gitbbon-search.searchView",
     "workspaceContains:**/*.md"
   ],

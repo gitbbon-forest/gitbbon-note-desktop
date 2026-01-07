@@ -9,6 +9,7 @@ import { MainThreadCustomEditors } from './mainThreadCustomEditors.js';
 import { MainThreadWebviewPanels } from './mainThreadWebviewPanels.js';
 import { MainThreadWebviews } from './mainThreadWebviews.js';
 import { MainThreadWebviewsViews } from './mainThreadWebviewViews.js';
+import { MainThreadHiddenWebview } from './mainThreadHiddenWebview.js';
 import * as extHostProtocol from '../common/extHost.protocol.js';
 import { extHostCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { MainThreadChatOutputRenderer } from './mainThreadChatOutputRenderer.js';
@@ -35,5 +36,8 @@ export class MainThreadWebviewManager extends Disposable {
 
 		const chatOutputRenderers = this._register(instantiationService.createInstance(MainThreadChatOutputRenderer, context, webviews));
 		context.set(extHostProtocol.MainContext.MainThreadChatOutputRenderer, chatOutputRenderers);
+
+		const hiddenWebview = this._register(instantiationService.createInstance(MainThreadHiddenWebview, context));
+		context.set(extHostProtocol.MainContext.MainThreadHiddenWebview, hiddenWebview);
 	}
 }

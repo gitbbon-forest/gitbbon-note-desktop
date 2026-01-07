@@ -185,6 +185,8 @@ export async function saveMetadataToFile(
 	const newContent = `${cleanContent}\n\n${metadataComment}`;
 
 	const encoder = new TextEncoder();
+	console.log(`[Metadata] ⚠️ WRITING FILE: ${uri.fsPath}`);
+	console.log(`[Metadata] Stack trace:`, new Error().stack);
 	await vscode.workspace.fs.writeFile(uri, encoder.encode(newContent));
 	console.log(`[Metadata] Saved to ${uri.fsPath}`);
 }
