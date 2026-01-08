@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { searchService } from '../services/searchService.js';
+import { vectorStorageService } from '../services/vectorStorageService.js';
 
 /**
  * 파일 감시자
@@ -57,6 +58,7 @@ export class FileWatcher implements vscode.Disposable {
 		this.debounce(uri, async () => {
 			console.log(`[FileWatcher] File deleted: ${uri.fsPath}`);
 			await searchService.removeFile(uri);
+			await vectorStorageService.deleteVectorData(uri);
 			await searchService.saveToStorage();
 			this.onIndexUpdate();
 		});

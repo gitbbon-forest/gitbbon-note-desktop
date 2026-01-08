@@ -79,15 +79,15 @@
 
 | 작업 | 상세 |
 |------|------|
-| [ ] import 추가 | `import { vectorStorageService } from '../services/vectorStorageService.js'` |
-| [ ] 로직 추가 | `searchService.removeFile(uri)` 다음에 `vectorStorageService.deleteVectorData(uri)` 호출 |
+| [x] import 추가 | `import { vectorStorageService } from '../services/vectorStorageService.js'` |
+| [x] 로직 추가 | `searchService.removeFile(uri)` 다음에 `vectorStorageService.deleteVectorData(uri)` 호출 |
 
 ### 3.2 흐름 확인
 | 이벤트 | 호출 체인 | 확인 |
 |--------|----------|------|
-| 파일 생성 | `handleCreate` → `onIndexUpdate(uri)` → `indexFile(uri)` | [ ] |
-| 파일 수정 | `handleChange` → `onIndexUpdate(uri)` → `indexFile(uri)` | [ ] |
-| 파일 삭제 | `handleDelete` → `removeFile` + `deleteVectorData` | [ ] |
+| 파일 생성 | `handleCreate` → `onIndexUpdate(uri)` → `indexFile(uri)` | [x] |
+| 파일 수정 | `handleChange` → `onIndexUpdate(uri)` → `indexFile(uri)` | [x] |
+| 파일 삭제 | `handleDelete` → `removeFile` + `deleteVectorData` | [x] |
 
 ---
 
