@@ -6,18 +6,16 @@
 import * as vscode from 'vscode';
 import { searchService } from './services/searchService.js';
 import { FileWatcher, GitWatcher } from './watchers/fileWatcher.js';
+import { vectorStorageService, type VectorData } from './services/vectorStorageService.js';
 import {
-	parseMetadata,
-	getContentWithoutMetadata,
-	canUseCachedEmbedding,
 	decodeVector,
 	encodeVector,
 	simpleHash,
-	saveMetadataToFile,
-	getCurrentModelName,
-	type ChunkInfo,
-	type ModelEmbedding,
 } from './services/metadataService.js';
+
+// 모델명 상수
+const MODEL_NAME = 'Xenova/multilingual-e5-small';
+const VECTOR_DIMENSION = 384;
 
 let fileWatcher: FileWatcher | null = null;
 let gitWatcher: GitWatcher | null = null;
@@ -147,28 +145,30 @@ class SearchViewProvider implements vscode.WebviewViewProvider {
 					continue;
 				}
 
-				// 메타데이터 파싱 및 캐시 확인
-				const metadata = parseMetadata(text);
+				// contentHash 계산
+				const contentHash = simpleHash(text);
 
-				if (canUseCachedEmbedding(text, metadata)) {
+				// VectorStorageService로 캐시 확인
+				if (await vectorStorageService.hasValidCache(fileUri, contentHash, MODEL_NAME)) {
 					// 캐시된 임베딩 사용 → Orama DB에만 추가
 					console.log(`[Extension] Using cached embedding for ${fileUri.fsPath}`);
-					const chunks = metadata!.embedding!.chunks.map((chunk, i) => ({
-						chunkIndex: i,
-						range: chunk.range,
-						vector: decodeVector(chunk.vector),
-					}));
-					await searchService.indexFileWithEmbeddings(fileUri.fsPath, chunks);
+					const vectorData = await vectorStorageService.loadVectorData(fileUri);
+					if (vectorData) {
+						const chunks = vectorData.chunks.map((chunk, i) => ({
+							chunkIndex: i,
+							range: chunk.range,
+							vector: decodeVector(chunk.vector),
+						}));
+						await searchService.indexFileWithEmbeddings(fileUri.fsPath, chunks);
+					}
 					continue;
 				}
 
-				// 메타데이터 없음 또는 변경됨 → 새로 임베딩 요청
-				const cleanContent = getContentWithoutMetadata(text);
+				// 캐시 없음 → 새로 임베딩 요청
 				webviewView.webview.postMessage({
 					type: 'embedDocument',
 					filePath: fileUri.fsPath,
-					content: cleanContent,
-					originalContent: text, // 메타데이터 저장 시 필요
+					content: text,
 				});
 			} catch (error) {
 				console.error(`[Extension] Failed to read ${fileUri.fsPath}:`, error);
@@ -192,28 +192,25 @@ class SearchViewProvider implements vscode.WebviewViewProvider {
 			);
 			console.log(`[Extension] Indexed ${message.chunks.length} chunks from ${message.filePath}`);
 
-			// 메타데이터를 마크다운 파일에 저장
+			// VectorData 객체 생성
 			const uri = vscode.Uri.file(message.filePath);
 			const content = await vscode.workspace.fs.readFile(uri);
 			const text = Buffer.from(content).toString('utf-8');
 
-			// 벡터를 Base64로 인코딩
-			const chunkInfos: ChunkInfo[] = message.chunks.map(chunk => ({
-				range: chunk.range,
-				hash: simpleHash(text.slice(chunk.range[0], chunk.range[1])),
-				vector: encodeVector(chunk.vector),
-			}));
-
-			const embedding: ModelEmbedding = {
-				model: getCurrentModelName(),
-				vectorDimension: 384,
-				dtype: 'fp16',
+			const vectorData: VectorData = {
+				model: MODEL_NAME,
+				dim: VECTOR_DIMENSION,
 				contentHash: message.contentHash,
-				chunks: chunkInfos,
+				chunks: message.chunks.map(chunk => ({
+					range: chunk.range,
+					hash: simpleHash(text.slice(chunk.range[0], chunk.range[1])),
+					vector: encodeVector(chunk.vector),
+				})),
 			};
 
-			await saveMetadataToFile(uri, text, embedding);
-			console.log(`[Extension] Saved metadata to ${message.filePath}`);
+			// VectorStorageService로 저장
+			await vectorStorageService.saveVectorData(uri, vectorData);
+			console.log(`[Extension] Saved vector data to ${message.filePath}`);
 		} catch (error) {
 			console.error(`[Extension] Failed to index ${message.filePath}:`, error);
 		}
@@ -646,26 +643,30 @@ async function indexFile(fileUri: vscode.Uri): Promise<void> {
 			return;
 		}
 
-		const metadata = parseMetadata(text);
+		// contentHash 계산
+		const contentHash = simpleHash(text);
 
-		if (canUseCachedEmbedding(text, metadata)) {
+		// VectorStorageService로 캐시 확인
+		if (await vectorStorageService.hasValidCache(fileUri, contentHash, MODEL_NAME)) {
 			console.log(`[Extension] Using cached embedding for ${fileUri.fsPath}`);
-			const chunks = metadata!.embedding!.chunks.map((chunk, i) => ({
-				chunkIndex: i,
-				range: chunk.range,
-				vector: decodeVector(chunk.vector),
-			}));
-			await searchService.indexFileWithEmbeddings(fileUri.fsPath, chunks);
+			const vectorData = await vectorStorageService.loadVectorData(fileUri);
+			if (vectorData) {
+				const chunks = vectorData.chunks.map((chunk, i) => ({
+					chunkIndex: i,
+					range: chunk.range,
+					vector: decodeVector(chunk.vector),
+				}));
+				await searchService.indexFileWithEmbeddings(fileUri.fsPath, chunks);
+			}
 			return;
 		}
 
+		// 캐시 없음 → 새로 임베딩 요청
 		console.log(`[Extension] Requesting embedding for ${fileUri.fsPath}`);
-		const cleanContent = getContentWithoutMetadata(text);
 		hiddenWebview.postMessage({
 			type: 'embedDocument',
 			filePath: fileUri.fsPath,
-			content: cleanContent,
-			originalContent: text,
+			content: text,
 		});
 	} catch (error) {
 		console.error(`[Extension] Failed to read ${fileUri.fsPath}:`, error);
@@ -681,32 +682,32 @@ async function handleEmbeddingResult(message: {
 	contentHash: string;
 }): Promise<void> {
 	try {
+		// Orama DB에 인덱싱
 		await searchService.indexFileWithEmbeddings(
 			message.filePath,
 			message.chunks
 		);
 		console.log(`[Extension] Indexed ${message.chunks.length} chunks from ${message.filePath}`);
 
+		// VectorData 객체 생성
 		const uri = vscode.Uri.file(message.filePath);
 		const content = await vscode.workspace.fs.readFile(uri);
 		const text = Buffer.from(content).toString('utf-8');
 
-		const chunkInfos: ChunkInfo[] = message.chunks.map(chunk => ({
-			range: chunk.range,
-			hash: simpleHash(text.slice(chunk.range[0], chunk.range[1])),
-			vector: encodeVector(chunk.vector),
-		}));
-
-		const embedding: ModelEmbedding = {
-			model: getCurrentModelName(),
-			vectorDimension: 384,
-			dtype: 'fp16',
+		const vectorData: VectorData = {
+			model: MODEL_NAME,
+			dim: VECTOR_DIMENSION,
 			contentHash: message.contentHash,
-			chunks: chunkInfos,
+			chunks: message.chunks.map(chunk => ({
+				range: chunk.range,
+				hash: simpleHash(text.slice(chunk.range[0], chunk.range[1])),
+				vector: encodeVector(chunk.vector),
+			})),
 		};
 
-		await saveMetadataToFile(uri, text, embedding);
-		console.log(`[Extension] Saved metadata to ${message.filePath}`);
+		// VectorStorageService로 저장
+		await vectorStorageService.saveVectorData(uri, vectorData);
+		console.log(`[Extension] Saved vector data to ${message.filePath}`);
 	} catch (error) {
 		console.error(`[Extension] Failed to index ${message.filePath}:`, error);
 	}

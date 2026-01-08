@@ -40,35 +40,35 @@
 ### 2.1 import 수정
 | 작업 | 상세 |
 |------|------|
-| [ ] 추가 | `import { vectorStorageService, type VectorData } from './services/vectorStorageService.js'` |
-| [ ] 제거 | `parseMetadata` |
-| [ ] 제거 | `getContentWithoutMetadata` |
-| [ ] 제거 | `canUseCachedEmbedding` |
-| [ ] 제거 | `saveMetadataToFile` |
-| [ ] 제거 | `type ChunkInfo`, `type ModelEmbedding` |
-| [ ] 유지 | `simpleHash`, `encodeVector`, `decodeVector` |
+| [x] 추가 | `import { vectorStorageService, type VectorData } from './services/vectorStorageService.js'` |
+| [x] 제거 | `parseMetadata` |
+| [x] 제거 | `getContentWithoutMetadata` |
+| [x] 제거 | `canUseCachedEmbedding` |
+| [x] 제거 | `saveMetadataToFile` |
+| [x] 제거 | `type ChunkInfo`, `type ModelEmbedding` |
+| [x] 유지 | `simpleHash`, `encodeVector`, `decodeVector` |
 
 ### 2.2 handleEmbeddingResult() 수정
 **위치:** L678-713
 
 | 변경 전 | 변경 후 |
 |---------|---------|
-| [ ] `saveMetadataToFile(uri, text, embedding)` | `vectorStorageService.saveVectorData(uri, vectorData)` |
+| [x] `saveMetadataToFile(uri, text, embedding)` | `vectorStorageService.saveVectorData(uri, vectorData)` |
 
 **추가 로직:**
-- [ ] `VectorData` 객체 생성: `{ model, dim, contentHash, chunks }` 형태로 조립
-- [ ] 각 chunk의 vector를 `encodeVector()`로 Base64 변환
+- [x] `VectorData` 객체 생성: `{ model, dim, contentHash, chunks }` 형태로 조립
+- [x] 각 chunk의 vector를 `encodeVector()`로 Base64 변환
 
 ### 2.3 indexFile() 수정
 **위치:** L635-673
 
 | 변경 전 | 변경 후 |
 |---------|---------|
-| [ ] `const metadata = parseMetadata(text)` | 제거 |
-| [ ] `canUseCachedEmbedding(text, metadata)` | `vectorStorageService.hasValidCache(fileUri, contentHash, model)` |
-| [ ] `metadata!.embedding!.chunks` | `vectorData.chunks` (loadVectorData로 가져옴) |
-| [ ] `getContentWithoutMetadata(text)` | 제거, `text` 그대로 사용 |
-| [ ] `originalContent: text` 전송 | 제거 (더 이상 필요 없음) |
+| [x] `const metadata = parseMetadata(text)` | 제거 |
+| [x] `canUseCachedEmbedding(text, metadata)` | `vectorStorageService.hasValidCache(fileUri, contentHash, model)` |
+| [x] `metadata!.embedding!.chunks` | `vectorData.chunks` (loadVectorData로 가져옴) |
+| [x] `getContentWithoutMetadata(text)` | 제거, `text` 그대로 사용 |
+| [x] `originalContent: text` 전송 | 제거 (더 이상 필요 없음) |
 
 ---
 
@@ -164,3 +164,12 @@ feat(search): 임베딩 저장소를 별도 JSON 파일로 분리
 | `.gitignore` | 패턴 추가 | 1줄 |
 
 **예상 시간:** ~2시간
+
+---
+
+## 향후 기능 개선
+
+| # | 기능 | 설명 | 우선순위 |
+|---|------|------|----------|
+| 1 | 제목 포함 청킹 | 각 청크에 문서 제목을 포함하여 임베딩 품질 향상. `modelHost.html`의 청킹 로직 수정 필요. | 중 |
+
