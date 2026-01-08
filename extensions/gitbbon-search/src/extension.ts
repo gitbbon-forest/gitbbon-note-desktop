@@ -11,7 +11,7 @@ import {
 	decodeVector,
 	encodeVector,
 	simpleHash,
-} from './services/metadataService.js';
+} from './services/vectorUtils.js';
 
 // 모델명 상수
 const MODEL_NAME = 'Xenova/multilingual-e5-small';
@@ -120,100 +120,6 @@ class SearchViewProvider implements vscode.WebviewViewProvider {
 			query,
 			requestId
 		});
-	}
-
-	/**
-	 * 워크스페이스 인덱싱 시작
-	 */
-	private async startWorkspaceIndexing(webviewView: vscode.WebviewView): Promise<void> {
-		const workspaceFolders = vscode.workspace.workspaceFolders;
-		if (!workspaceFolders) {
-			console.log('[Extension] No workspace folder found');
-			return;
-		}
-
-		// .md 파일 검색
-		const mdFiles = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
-		console.log(`[Extension] Found ${mdFiles.length} markdown files to index`);
-
-		for (const fileUri of mdFiles) {
-			try {
-				const content = await vscode.workspace.fs.readFile(fileUri);
-				const text = Buffer.from(content).toString('utf-8');
-
-				if (text.trim().length === 0) {
-					continue;
-				}
-
-				// contentHash 계산
-				const contentHash = simpleHash(text);
-
-				// VectorStorageService로 캐시 확인
-				if (await vectorStorageService.hasValidCache(fileUri, contentHash, MODEL_NAME)) {
-					// 캐시된 임베딩 사용 → Orama DB에만 추가
-					console.log(`[Extension] Using cached embedding for ${fileUri.fsPath}`);
-					const vectorData = await vectorStorageService.loadVectorData(fileUri);
-					if (vectorData) {
-						const chunks = vectorData.chunks.map((chunk, i) => ({
-							chunkIndex: i,
-							range: chunk.range,
-							vector: decodeVector(chunk.vector),
-						}));
-						await searchService.indexFileWithEmbeddings(fileUri.fsPath, chunks);
-					}
-					continue;
-				}
-
-				// 캐시 없음 → 새로 임베딩 요청
-				webviewView.webview.postMessage({
-					type: 'embedDocument',
-					filePath: fileUri.fsPath,
-					content: text,
-				});
-			} catch (error) {
-				console.error(`[Extension] Failed to read ${fileUri.fsPath}:`, error);
-			}
-		}
-	}
-
-	/**
-	 * 임베딩 결과 처리
-	 */
-	private async handleEmbeddingResult(message: {
-		filePath: string;
-		chunks: Array<{ chunkIndex: number; range: [number, number]; vector: number[] }>;
-		contentHash: string;
-	}): Promise<void> {
-		try {
-			// Orama DB에 인덱싱
-			await searchService.indexFileWithEmbeddings(
-				message.filePath,
-				message.chunks
-			);
-			console.log(`[Extension] Indexed ${message.chunks.length} chunks from ${message.filePath}`);
-
-			// VectorData 객체 생성
-			const uri = vscode.Uri.file(message.filePath);
-			const content = await vscode.workspace.fs.readFile(uri);
-			const text = Buffer.from(content).toString('utf-8');
-
-			const vectorData: VectorData = {
-				model: MODEL_NAME,
-				dim: VECTOR_DIMENSION,
-				contentHash: message.contentHash,
-				chunks: message.chunks.map(chunk => ({
-					range: chunk.range,
-					hash: simpleHash(text.slice(chunk.range[0], chunk.range[1])),
-					vector: encodeVector(chunk.vector),
-				})),
-			};
-
-			// VectorStorageService로 저장
-			await vectorStorageService.saveVectorData(uri, vectorData);
-			console.log(`[Extension] Saved vector data to ${message.filePath}`);
-		} catch (error) {
-			console.error(`[Extension] Failed to index ${message.filePath}:`, error);
-		}
 	}
 
 	/**

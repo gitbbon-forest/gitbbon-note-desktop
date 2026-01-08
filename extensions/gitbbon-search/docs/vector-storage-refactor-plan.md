@@ -98,26 +98,26 @@
 
 | 작업 | 상세 |
 |------|------|
-| [ ] 함수 제거 | `parseMetadata()` |
-| [ ] 함수 제거 | `saveMetadataToFile()` |
-| [ ] 함수 제거 | `canUseCachedEmbedding()` |
-| [ ] 함수 제거 | `getContentWithoutMetadata()` |
-| [ ] 함수 제거 | `getCurrentModelName()` |
-| [ ] 인터페이스 제거 | `ChunkInfo`, `ModelEmbedding`, `GitbbonMetadata`, `Short*` 타입들 |
-| [ ] 상수 제거 | `METADATA_REGEX`, `MODEL_NAME` |
-| [ ] 함수 유지 | `simpleHash()`, `encodeVector()`, `decodeVector()` |
-| [ ] 파일명 변경 | `metadataService.ts` → `vectorUtils.ts` |
+| [x] 함수 제거 | `parseMetadata()` |
+| [x] 함수 제거 | `saveMetadataToFile()` |
+| [x] 함수 제거 | `canUseCachedEmbedding()` |
+| [x] 함수 제거 | `getContentWithoutMetadata()` |
+| [x] 함수 제거 | `getCurrentModelName()` |
+| [x] 인터페이스 제거 | `ChunkInfo`, `ModelEmbedding`, `GitbbonMetadata`, `Short*` 타입들 |
+| [x] 상수 제거 | `METADATA_REGEX`, `MODEL_NAME` |
+| [x] 함수 유지 | `simpleHash()`, `encodeVector()`, `decodeVector()` |
+| [x] 파일명 변경 | `metadataService.ts` → `vectorUtils.ts` |
 
 ### 4.2 import 경로 업데이트
 | 파일 | 변경 |
 |------|------|
-| [ ] `extension.ts` | `./services/metadataService.js` → `./services/vectorUtils.js` |
+| [x] `extension.ts` | `./services/metadataService.js` → `./services/vectorUtils.js` |
 
 ### 4.3 불필요한 코드 확인
 | 확인 대상 | 위치 | 액션 |
 |-----------|------|------|
-| [ ] `startWorkspaceIndexing()` | L130-177 | 사용 여부 확인, 미사용 시 제거 |
-| [ ] `SearchViewProvider.handleEmbeddingResult()` | L182-220 | 중복 확인, 정리 |
+| [x] `startWorkspaceIndexing()` | L130-177 | 미사용, 제거 완료 |
+| [x] `SearchViewProvider.handleEmbeddingResult()` | L182-220 | 미사용, 제거 완료 |
 
 ---
 
