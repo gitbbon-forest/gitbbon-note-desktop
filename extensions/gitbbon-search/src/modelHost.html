@@ -23,6 +23,8 @@
 
 		let pipeline, AutoTokenizer;
 
+		// TODO: 성능 및 오프라인 지원을 위해 CDN 대신 설치된 npm 패키지를 사용하도록 개선 필요.
+		// 이를 위해 modelHost의 로직을 Vite 번들링 프로세스(Webview Worker 등)에 통합해야 함.
 		try {
 			console.log('[ModelHost] Importing Transformers.js from CDN...');
 			const module = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js');
@@ -41,6 +43,57 @@
 				this.tokenizer = null;
 				this.initialized = false;
 				this.initPromise = null;
+				// 우선순위 큐 (검색 쿼리 우선 처리)
+				this.highPriorityQueue = [];  // embedQuery용 (검색)
+				this.normalQueue = [];         // embedDocument용 (인덱싱)
+				this.isProcessing = false;
+			}
+
+			/**
+			 * 요청을 큐에 추가하고 순차 처리
+			 * @param {Function} task - 실행할 비동기 작업
+			 * @param {number} timeoutMs - 타임아웃 (밀리초, 기본 60초)
+			 * @param {'high' | 'normal'} priority - 우선순위 (high: 검색, normal: 인덱싱)
+			 */
+			async enqueue(task, timeoutMs = 60000, priority = 'normal') {
+				return new Promise((resolve, reject) => {
+					const queue = priority === 'high' ? this.highPriorityQueue : this.normalQueue;
+					queue.push({ task, resolve, reject, timeoutMs });
+					this.processQueue();
+				});
+			}
+
+			async processQueue() {
+				// 두 큐가 모두 비었거나 이미 처리 중이면 리턴
+				if (this.isProcessing || (this.highPriorityQueue.length === 0 && this.normalQueue.length === 0)) {
+					return;
+				}
+
+				this.isProcessing = true;
+
+				// 고우선순위 큐(검색 쿼리)를 먼저 확인, 없으면 일반 큐(인덱싱) 처리
+				let item = this.highPriorityQueue.shift();
+				if (!item) {
+					item = this.normalQueue.shift();
+				}
+
+				const { task, resolve, reject, timeoutMs } = item;
+
+				try {
+					// 타임아웃과 작업을 경쟁시킴
+					const result = await Promise.race([
+						task(),
+						new Promise((_, timeoutReject) =>
+							setTimeout(() => timeoutReject(new Error(`Task timed out after ${timeoutMs}ms`)), timeoutMs)
+						)
+					]);
+					resolve(result);
+				} catch (error) {
+					reject(error);
+				} finally {
+					this.isProcessing = false;
+					this.processQueue(); // 다음 요청 처리
+				}
 			}
 
 			async checkWebGPU() {
@@ -229,20 +282,28 @@
 					await modelHost.init();
 					break;
 				case 'embedDocument':
-					try {
+					// 큐를 통해 순차 처리 (동시 실행 방지, 60초 타임아웃)
+					modelHost.enqueue(async () => {
 						await modelHost.embedDocumentChunks(message.filePath, message.content, message.originalContent);
-					} catch (error) {
+					}).catch(error => {
 						console.error('[ModelHost] embedDocument error:', error);
-					}
+						// Extension에 에러 전파하여 해당 파일의 임베딩 실패를 알림
+						modelHost.sendMessage({
+							type: 'embeddingError',
+							filePath: message.filePath,
+							error: error.message
+						});
+					});
 					break;
 				case 'embedQuery':
-					try {
+					// 우선순위 큐를 통해 검색 쿼리 우선 처리 (10초 타임아웃, high priority)
+					modelHost.enqueue(async () => {
 						const vector = await modelHost.embedQuery(message.query);
 						modelHost.sendMessage({ type: 'queryEmbedding', vector, requestId: message.requestId });
-					} catch (error) {
+					}, 10000, 'high').catch(error => {
 						console.error('[ModelHost] embedQuery error:', error);
 						modelHost.sendMessage({ type: 'queryEmbeddingError', error: error.message, requestId: message.requestId });
-					}
+					});
 					break;
 			}
 		});
