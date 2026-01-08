@@ -8,13 +8,15 @@ export default defineConfig({
 		outDir: 'out/webview',
 		emptyOutDir: true,
 		rollupOptions: {
-			input: 'src/webview/index.tsx',
+			input: {
+				index: 'src/webview/index.tsx',
+				modelHost: 'src/modelHost.ts',
+			},
 			output: {
-				format: 'iife',
-				entryFileNames: 'index.js',
+				format: 'es',
+				entryFileNames: '[name].js',
 				chunkFileNames: 'assets/[name].js',
 				assetFileNames: 'assets/[name].[ext]',
-				inlineDynamicImports: true,
 			},
 		},
 		sourcemap: true,

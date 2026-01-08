@@ -411,10 +411,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			}
 		});
 
-		// modelHost.html 읽기
-		const modelHostUri = vscode.Uri.joinPath(context.extensionUri, 'src', 'modelHost.html');
-		const modelHostContent = await vscode.workspace.fs.readFile(modelHostUri);
-		hiddenWebview.html = Buffer.from(modelHostContent).toString('utf-8');
+		// modelHost.js를 읽어서 인라인으로 삽입 (Hidden Webview에서 외부 ES 모듈 로드 불가)
+		const modelHostScriptUri = vscode.Uri.joinPath(context.extensionUri, 'out', 'webview', 'modelHost.js');
+		const modelHostScriptContent = await vscode.workspace.fs.readFile(modelHostScriptUri);
+		const scriptCode = Buffer.from(modelHostScriptContent).toString('utf-8');
+		hiddenWebview.html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Gitbbon Search - Model Host (Hidden)</title>
+	<style>body { display: none; }</style>
+</head>
+<body>
+	<script type="module">${scriptCode}</script>
+</body>
+</html>`;
 
 		// Hidden Webview로부터 메시지 수신
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
