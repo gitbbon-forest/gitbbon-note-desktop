@@ -345,15 +345,38 @@ export class ProjectManager {
 				await fs.promises.mkdir(vscodePath, { recursive: true });
 			}
 			const settings = {
-				"files.exclude": {
-					"**/.gitbbon.json": true,
-					".vscode": true
+				'files.exclude': {
+					'**/.gitbbon.json': true,
+					'**/.gitignore': true,
+					'**/.gitbbon': true,
+					'.vscode': true
 				}
 			};
 			await fs.promises.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
 			console.log(`[ProjectManager] .vscode/settings.json created`);
 		} else {
 			console.log(`[ProjectManager] .vscode/settings.json already exists`);
+		}
+
+		// 3.6. Create .gitignore (for vector cache)
+		const gitignorePath = path.join(projectPath, '.gitignore');
+		if (!fs.existsSync(gitignorePath)) {
+			console.log(`[ProjectManager] Creating .gitignore...`);
+			const gitignoreContent = `# Gitbbon vector cache (local only)
+.gitbbon/vectors/
+`;
+			await fs.promises.writeFile(gitignorePath, gitignoreContent, 'utf-8');
+			console.log(`[ProjectManager] .gitignore created`);
+		} else {
+			// Check if .gitbbon/vectors/ pattern exists, if not, append it
+			const existingContent = await fs.promises.readFile(gitignorePath, 'utf-8');
+			if (!existingContent.includes('.gitbbon/vectors/')) {
+				console.log(`[ProjectManager] Appending .gitbbon/vectors/ to existing .gitignore...`);
+				await fs.promises.appendFile(gitignorePath, `\n# Gitbbon vector cache (local only)\n.gitbbon/vectors/\n`);
+				console.log(`[ProjectManager] .gitignore updated`);
+			} else {
+				console.log(`[ProjectManager] .gitignore already contains .gitbbon/vectors/`);
+			}
 		}
 
 		// 4. Create README (Non-destructive)
