@@ -25,7 +25,8 @@ export default tseslint.config(
 			}
 		},
 		rules: {
-			'header/header': 'off'
+			'header/header': 'off',
+			'@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
 		}
 	},
 	{

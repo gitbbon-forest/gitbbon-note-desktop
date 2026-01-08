@@ -276,7 +276,7 @@ class SearchViewProvider implements vscode.WebviewViewProvider {
 				new vscode.Range(startPos, endPos),
 				vscode.TextEditorRevealType.InCenter
 			);
-		} catch (_error) {
+		} catch {
 			vscode.window.showErrorMessage(`파일을 열 수 없습니다: ${filePath}`);
 		}
 	}
@@ -537,6 +537,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					break;
 				case 'embeddingResult':
 					await handleEmbeddingResult(message);
+					break;
+				case 'embeddingError':
+					// 임베딩 실패 처리
+					console.error(`[Extension] Embedding failed for ${message.filePath}:`, message.error);
+					// TODO: 필요 시 재시도 로직 또는 사용자 알림 추가
 					break;
 				case 'queryEmbedding':
 					// 쿼리 임베딩 결과 수신 - 벡터 검색 수행
