@@ -15,7 +15,7 @@ export class FileWatcher implements vscode.Disposable {
 	private debounceTimers = new Map<string, NodeJS.Timeout>();
 	private readonly DEBOUNCE_MS = 500;
 
-	constructor(private readonly onIndexUpdate: () => void) {
+	constructor(private readonly onIndexUpdate: (uri?: vscode.Uri) => void) {
 		this.watcher = vscode.workspace.createFileSystemWatcher('**/*.md');
 
 		this.watcher.onDidChange(this.handleChange.bind(this));
@@ -34,7 +34,7 @@ export class FileWatcher implements vscode.Disposable {
 			const now = new Date().toISOString();
 			console.log(`[FileWatcher] ⚠️ File changed at ${now}: ${uri.fsPath}`);
 			// TODO: Webview에 인덱싱 요청 메시지 전송
-			this.onIndexUpdate();
+			this.onIndexUpdate(uri);
 		});
 	}
 
@@ -46,7 +46,7 @@ export class FileWatcher implements vscode.Disposable {
 		this.debounce(uri, async () => {
 			console.log(`[FileWatcher] File created: ${uri.fsPath} - index needed`);
 			// TODO: Webview에 인덱싱 요청 메시지 전송
-			this.onIndexUpdate();
+			this.onIndexUpdate(uri);
 		});
 	}
 

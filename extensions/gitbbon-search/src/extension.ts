@@ -474,8 +474,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	});
 
 	// FileSystemWatcher 등록
-	fileWatcher = new FileWatcher(() => {
-		console.log('[Extension] Index updated');
+	fileWatcher = new FileWatcher(async (uri) => {
+		if (uri) {
+			console.log(`[Extension] File changed: ${uri.fsPath} - reindexing...`);
+			await indexFile(uri);
+		} else {
+			console.log('[Extension] Index updated (full scan needed?)');
+			// 필요 시 startBackgroundIndexing() 호출 가능하나 너무 무거울 수 있음
+		}
 	});
 	context.subscriptions.push(fileWatcher);
 
@@ -617,38 +623,52 @@ async function startBackgroundIndexing(): Promise<void> {
 	const mdFiles = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
 	console.log(`[Extension] Background indexing: ${mdFiles.length} markdown files`);
 
+
 	for (const fileUri of mdFiles) {
-		try {
-			const content = await vscode.workspace.fs.readFile(fileUri);
-			const text = Buffer.from(content).toString('utf-8');
+		await indexFile(fileUri);
+	}
+}
 
-			if (text.trim().length === 0) {
-				continue;
-			}
+/**
+ * 단일 파일 인덱싱
+ */
+async function indexFile(fileUri: vscode.Uri): Promise<void> {
+	if (!hiddenWebview || !modelReady) {
+		console.log(`[Extension] Skipping indexFile(${fileUri.fsPath}) - model not ready`);
+		return;
+	}
 
-			const metadata = parseMetadata(text);
+	try {
+		const content = await vscode.workspace.fs.readFile(fileUri);
+		const text = Buffer.from(content).toString('utf-8');
 
-			if (canUseCachedEmbedding(text, metadata)) {
-				console.log(`[Extension] Using cached embedding for ${fileUri.fsPath}`);
-				const chunks = metadata!.embedding!.chunks.map((chunk, i) => ({
-					chunkIndex: i,
-					range: chunk.range,
-					vector: decodeVector(chunk.vector),
-				}));
-				await searchService.indexFileWithEmbeddings(fileUri.fsPath, chunks);
-				continue;
-			}
-
-			const cleanContent = getContentWithoutMetadata(text);
-			hiddenWebview.postMessage({
-				type: 'embedDocument',
-				filePath: fileUri.fsPath,
-				content: cleanContent,
-				originalContent: text,
-			});
-		} catch (error) {
-			console.error(`[Extension] Failed to read ${fileUri.fsPath}:`, error);
+		if (text.trim().length === 0) {
+			return;
 		}
+
+		const metadata = parseMetadata(text);
+
+		if (canUseCachedEmbedding(text, metadata)) {
+			console.log(`[Extension] Using cached embedding for ${fileUri.fsPath}`);
+			const chunks = metadata!.embedding!.chunks.map((chunk, i) => ({
+				chunkIndex: i,
+				range: chunk.range,
+				vector: decodeVector(chunk.vector),
+			}));
+			await searchService.indexFileWithEmbeddings(fileUri.fsPath, chunks);
+			return;
+		}
+
+		console.log(`[Extension] Requesting embedding for ${fileUri.fsPath}`);
+		const cleanContent = getContentWithoutMetadata(text);
+		hiddenWebview.postMessage({
+			type: 'embedDocument',
+			filePath: fileUri.fsPath,
+			content: cleanContent,
+			originalContent: text,
+		});
+	} catch (error) {
+		console.error(`[Extension] Failed to read ${fileUri.fsPath}:`, error);
 	}
 }
 
