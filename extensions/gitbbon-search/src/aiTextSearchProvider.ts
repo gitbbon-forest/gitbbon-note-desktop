@@ -113,13 +113,9 @@ export class GitbbonAITextSearchProvider {
 							: lines[lines.length - 1].length;
 
 						// TextSearchMatch2 클래스 인스턴스 생성
-						// ranges: { sourceRange: Range, previewRange: Range }[]
-						const snippetLines = snippet.split('\n');
-						const previewEndLine = snippetLines.length - 1;
-						const previewEndCol = snippetLines[previewEndLine].length;
-
+						// 시맨틱 검색은 의미적 일치 위치를 알 수 없으므로 하이라이트 없음
 						const sourceRange = new vscode.Range(startLine, startCol, endLine, endCol);
-						const previewRange = new vscode.Range(0, 0, previewEndLine, previewEndCol);
+						const previewRange = new vscode.Range(0, 0, 0, 0);  // 빈 범위 = 하이라이트 없음
 
 						// eslint-disable-next-line @typescript-eslint/no-explicit-any
 						const TextSearchMatch2 = (vscode as any).TextSearchMatch2;
