@@ -557,13 +557,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		})
 	);
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand('gitbbon-search.clearIndex', async () => {
-			await searchService.clearIndex();
-			vscode.window.showInformationMessage('인덱스가 삭제되었습니다.');
-		})
-	);
-
 	console.log('[gitbbon-search] Extension activated!');
 }
 

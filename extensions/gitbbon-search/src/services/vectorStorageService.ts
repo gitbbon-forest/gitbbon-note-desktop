@@ -174,6 +174,25 @@ export class VectorStorageService {
 
 		return true;
 	}
+
+	/**
+	 * 전체 vectors 폴더 삭제 (재인덱싱 시 사용)
+	 */
+	async clearAllVectors(): Promise<void> {
+		const root = this.getWorkspaceRoot();
+		if (!root) {
+			return;
+		}
+
+		const vectorsDir = vscode.Uri.file(path.join(root.fsPath, '.gitbbon', 'vectors'));
+		try {
+			await vscode.workspace.fs.delete(vectorsDir, { recursive: true });
+			console.log('[VectorStorage] Cleared all vectors:', vectorsDir.fsPath);
+		} catch {
+			// 폴더가 없으면 무시
+			console.log('[VectorStorage] No vectors folder to clear');
+		}
+	}
 }
 
 // 싱글톤 인스턴스

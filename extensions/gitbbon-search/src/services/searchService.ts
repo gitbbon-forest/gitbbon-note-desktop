@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { create, insertMultiple, search, save, load, remove } from '@orama/orama';
+import { create, insertMultiple, search, save, load, remove, count } from '@orama/orama';
 import type { Orama, SearchParams } from '@orama/orama';
 import type { IndexedDocument } from '../types.js';
+import { vectorStorageService } from './vectorStorageService.js';
 
 const VECTOR_SIZE = 384;
 
@@ -47,6 +48,8 @@ export class SearchService {
 	private db: OramaDB | null = null;
 	private context: vscode.ExtensionContext | null = null;
 	private indexedFiles = new Set<string>();
+	// 파일별 chunk ID 추적 (removeFile에서 사용)
+	private fileChunkIds = new Map<string, string[]>();
 
 	/**
 	 * 검색 엔진 초기화
@@ -73,6 +76,10 @@ export class SearchService {
 		try {
 			const data = this.context.globalState.get<string>('orama-index');
 			const files = this.context.globalState.get<string[]>('indexed-files');
+			const chunkIdsData = this.context.globalState.get<[string, string[]][]>('file-chunk-ids');
+
+			console.log('[SearchService] loadFromStorage - data exists:', !!data);
+			console.log('[SearchService] loadFromStorage - indexed files stored:', files?.length ?? 0);
 
 			if (!data) {
 				return false;
@@ -80,6 +87,12 @@ export class SearchService {
 
 			await load(this.db, JSON.parse(data));
 			this.indexedFiles = new Set(files || []);
+			this.fileChunkIds = new Map(chunkIdsData || []);
+
+			// 복원 후 DB 문서 수 확인
+			const dbCount = await count(this.db);
+			console.log('[SearchService] loadFromStorage - DB document count after restore:', dbCount);
+
 			console.log('[SearchService] Index restored from storage');
 			return true;
 		} catch (error) {
@@ -97,9 +110,19 @@ export class SearchService {
 		}
 
 		try {
+			// 저장 전 DB 문서 수 확인
+			const dbCount = await count(this.db);
+			console.log('[SearchService] saveToStorage - DB document count before save:', dbCount);
+
 			const data = await save(this.db);
-			await this.context.globalState.update('orama-index', JSON.stringify(data));
+
+			// 저장 데이터 크기 확인
+			const dataStr = JSON.stringify(data);
+			console.log('[SearchService] saveToStorage - serialized data size:', dataStr.length, 'bytes');
+
+			await this.context.globalState.update('orama-index', dataStr);
 			await this.context.globalState.update('indexed-files', Array.from(this.indexedFiles));
+			await this.context.globalState.update('file-chunk-ids', Array.from(this.fileChunkIds.entries()));
 			console.log('[SearchService] Index saved to storage');
 		} catch (error) {
 			console.error('[SearchService] Failed to save index:', error);
@@ -130,9 +153,20 @@ export class SearchService {
 				vector: emb.vector,
 			}));
 
+			// 벡터 값 확인 (첫 번째 문서의 첫 5개 값)
+			if (docs.length > 0 && docs[0].vector.length > 0) {
+				console.log('[SearchService] indexFileWithEmbeddings - first doc vector[0:5]:', docs[0].vector.slice(0, 5));
+			}
+
 			if (docs.length > 0) {
 				await insertMultiple(this.db, docs);
 				this.indexedFiles.add(filePath);
+				// chunk ID 저장
+				this.fileChunkIds.set(filePath, docs.map(d => d.id));
+
+				// 삽입 후 DB 문서 수 확인
+				const dbCount = await count(this.db);
+				console.log('[SearchService] indexFileWithEmbeddings - DB document count after insert:', dbCount);
 			}
 
 			console.log(`[SearchService] Indexed ${filePath} (${docs.length} chunks)`);
@@ -142,7 +176,7 @@ export class SearchService {
 	}
 
 	/**
-	 * 파일 인덱스 제거
+	 * 파일 인덱스 제거 (ID 기반 삭제)
 	 */
 	async removeFile(uri: vscode.Uri): Promise<void> {
 		if (!this.db) {
@@ -150,26 +184,27 @@ export class SearchService {
 		}
 
 		const filePath = uri.fsPath;
+		const chunkIds = this.fileChunkIds.get(filePath);
+
+		if (!chunkIds || chunkIds.length === 0) {
+			// 저장된 ID가 없으면 삭제할 것 없음
+			this.indexedFiles.delete(filePath);
+			return;
+		}
 
 		try {
-			// 해당 파일의 모든 청크 검색
-			const results = await search(this.db, {
-				mode: 'fulltext',
-				term: filePath,
-				properties: ['filePath'],
-				limit: 1000,
-			} as SearchParams<OramaDB, 'fulltext'>);
-
-			// 각 문서 제거
-			for (const hit of results.hits) {
+			// 저장된 ID 목록으로 직접 삭제
+			for (const id of chunkIds) {
 				try {
-					await remove(this.db, hit.id);
+					await remove(this.db, id);
 				} catch {
 					// 이미 제거된 경우 무시
 				}
 			}
 
+			this.fileChunkIds.delete(filePath);
 			this.indexedFiles.delete(filePath);
+			console.log(`[SearchService] Removed ${chunkIds.length} chunks for ${filePath}`);
 		} catch (error) {
 			console.error(`[SearchService] Failed to remove ${filePath}:`, error);
 		}
@@ -187,7 +222,14 @@ export class SearchService {
 
 		console.log('[SearchService] vectorSearch called, vector length:', queryVector.length);
 		console.log('[SearchService] Indexed files count:', this.indexedFiles.size);
+
+		// Orama DB의 실제 문서 수 확인
+		const dbDocCount = await count(this.db);
+		console.log('[SearchService] Orama DB document count:', dbDocCount);
+
 		console.log('[SearchService] Indexed files:', Array.from(this.indexedFiles));
+
+		console.log('[SearchService] Query vector first 5 values:', queryVector.slice(0, 5));
 
 		const result = await search(this.db, {
 			mode: 'vector',
@@ -200,10 +242,16 @@ export class SearchService {
 		} as SearchParams<OramaDB, 'vector'>);
 
 		console.log('[SearchService] Search result count:', result.count);
+		console.log('[SearchService] Search results:', result.hits.map(h => ({
+			id: h.id,
+			score: h.score,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			filePath: (h.document as any).filePath,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			vectorFirst5: ((h.document as any).vector as number[])?.slice(0, 5),
+		})));
 		return result;
 	}
-
-
 
 	/**
 	 * 파일에서 스니펫 추출
@@ -233,8 +281,14 @@ export class SearchService {
 		if (this.context) {
 			await this.context.globalState.update('orama-index', undefined);
 			await this.context.globalState.update('indexed-files', undefined);
+			await this.context.globalState.update('file-chunk-ids', undefined);
 		}
 		this.indexedFiles.clear();
+		this.fileChunkIds.clear();
+
+		// vectors 폴더도 삭제
+		await vectorStorageService.clearAllVectors();
+
 		// DB 재생성
 		this.db = await create({
 			schema,

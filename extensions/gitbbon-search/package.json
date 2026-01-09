@@ -52,11 +52,6 @@
         "command": "gitbbon-search.reindex",
         "title": "Reindex Workspace",
         "category": "Gitbbon Search"
-      },
-      {
-        "command": "gitbbon-search.clearIndex",
-        "title": "Clear Index",
-        "category": "Gitbbon Search"
       }
     ]
   },

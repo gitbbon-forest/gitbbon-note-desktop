@@ -110,7 +110,9 @@ class ModelHost {
 			const useWebGPU = await this.checkWebGPU();
 			console.log('[ModelHost] Creating pipeline...');
 
-			this.extractor = await pipeline('feature-extraction', MODEL_NAME, {
+			// Note: Using 'unknown' intermediate cast to avoid TypeScript error:
+			// "Expression produces a union type that is too complex to represent"
+			this.extractor = await (pipeline as Function)('feature-extraction', MODEL_NAME, {
 				device: useWebGPU ? 'webgpu' : 'wasm',
 				dtype: 'fp16',
 				progress_callback: (p: { progress?: number; status?: string; file?: string }) => {
@@ -122,7 +124,7 @@ class ModelHost {
 						console.log('[ModelHost] Status:', p.status, p.file || '');
 					}
 				},
-			});
+			}) as Pipeline;
 
 			this.initialized = true;
 			this.sendProgress(100, 'Model ready');
@@ -142,7 +144,7 @@ class ModelHost {
 
 	private sendMessage(data: Record<string, unknown>): void {
 		if ((window as WindowWithGitbbonBridge).gitbbonBridge) {
-			(window as WindowWithGitbbonBridge).gitbbonBridge.postMessage(data);
+			(window as WindowWithGitbbonBridge).gitbbonBridge!.postMessage(data);
 		} else {
 			window.parent.postMessage(data, '*');
 		}
@@ -231,9 +233,23 @@ interface WindowWithGitbbonBridge extends Window {
 // Initialize model host
 const modelHost = new ModelHost();
 
+// 중복 메시지 처리 방지
+const processedMessages = new Set<string>();
+
 // Listen for messages from extension
 window.addEventListener('gitbbon-message', async (event) => {
 	const message = (event as CustomEvent).detail;
+
+	// 중복 메시지 체크 (requestId 또는 filePath 기반)
+	const messageId = message.requestId || message.filePath || `${message.type}-${Date.now()}`;
+	if (processedMessages.has(messageId)) {
+		console.log('[ModelHost] Duplicate message ignored:', message.type, messageId);
+		return;
+	}
+	processedMessages.add(messageId);
+	// 오래된 메시지 ID 정리 (5초 후)
+	setTimeout(() => processedMessages.delete(messageId), 5000);
+
 	console.log('[ModelHost] Received message:', message.type);
 
 	switch (message.type) {
