@@ -12,6 +12,7 @@ import {
 	encodeVector,
 	simpleHash,
 } from './services/vectorUtils.js';
+import { aiTextSearchProvider } from './aiTextSearchProvider.js';
 
 // 모델명 상수
 const MODEL_NAME = 'Xenova/multilingual-e5-small';
@@ -23,6 +24,9 @@ let hiddenWebview: vscode.HiddenWebview | null = null;
 let modelReady = false;
 let searchProvider: SearchViewProvider | null = null;
 const pendingSearchRequests = new Map<string, vscode.WebviewView>();
+
+// AI 검색 쿼리 임베딩 대기 맵
+const pendingQueryEmbeddings = new Map<string, (vector: number[]) => void>();
 
 /**
  * 검색 뷰 프로바이더
@@ -440,6 +444,40 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					if (searchProvider) {
 						searchProvider.sendModelStatus('ready');
 					}
+
+					// AITextSearchProvider 설정 및 등록
+					aiTextSearchProvider.setEmbedQueryFn(async (query: string): Promise<number[]> => {
+						return new Promise((resolve, reject) => {
+							const requestId = `ai-search-${Date.now()}`;
+							pendingQueryEmbeddings.set(requestId, resolve);
+
+							// 타임아웃 설정 (10초)
+							setTimeout(() => {
+								if (pendingQueryEmbeddings.has(requestId)) {
+									pendingQueryEmbeddings.delete(requestId);
+									reject(new Error('Query embedding timeout'));
+								}
+							}, 10000);
+
+							hiddenWebview?.postMessage({
+								type: 'embedQuery',
+								query,
+								requestId,
+							});
+						});
+					});
+
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					const registerFn = (vscode.workspace as any).registerAITextSearchProvider;
+					if (registerFn) {
+						context.subscriptions.push(
+							registerFn('file', aiTextSearchProvider)
+						);
+						console.log('[Extension] AITextSearchProvider registered for file scheme');
+					} else {
+						console.warn('[Extension] registerAITextSearchProvider not available (proposed API)');
+					}
+
 					// 모델이 준비되면 인덱싱 시작
 					await startBackgroundIndexing();
 					break;
@@ -467,6 +505,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				case 'queryEmbedding':
 					// 쿼리 임베딩 결과 수신 - 벡터 검색 수행
 					console.log('[Extension] Query embedding received, requestId:', message.requestId);
+
+					// AITextSearchProvider를 위한 콜백 처리
+					const aiSearchResolver = pendingQueryEmbeddings.get(message.requestId);
+					if (aiSearchResolver) {
+						aiSearchResolver(message.vector);
+						pendingQueryEmbeddings.delete(message.requestId);
+					}
+
+					// 기존 UI Webview 검색 처리
 					await handleQueryEmbeddingResult(message.vector, message.requestId);
 					break;
 				case 'queryEmbeddingError':

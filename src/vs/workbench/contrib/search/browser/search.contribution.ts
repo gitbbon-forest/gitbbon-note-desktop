@@ -392,7 +392,8 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			description: nls.localize('search.searchView.semanticSearchBehavior', "Controls the behavior of the semantic search results displayed in the Search view."),
 			enum: [SemanticSearchBehavior.Manual, SemanticSearchBehavior.RunOnEmpty, SemanticSearchBehavior.Auto],
-			default: SemanticSearchBehavior.Manual,
+			// [Gitbbon] Changed default from Manual to Auto
+			default: SemanticSearchBehavior.Auto,
 			enumDescriptions: [
 				nls.localize('search.searchView.semanticSearchBehavior.manual', "Only request semantic search results manually."),
 				nls.localize('search.searchView.semanticSearchBehavior.runOnEmpty', "Request semantic results automatically only when text search results are empty."),

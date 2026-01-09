@@ -9,6 +9,10 @@
   "engines": {
     "vscode": "^1.70.0"
   },
+  "enabledApiProposals": [
+    "aiTextSearchProvider",
+    "textSearchProvider2"
+  ],
   "categories": [
     "Other"
   ],

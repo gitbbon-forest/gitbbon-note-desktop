@@ -13,7 +13,11 @@
     "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
-      "vscode": ["../../src/vscode-dts/vscode.d.ts"]
+      "vscode": [
+        "../../src/vscode-dts/vscode.d.ts",
+        "../../src/vscode-dts/vscode.proposed.aiTextSearchProvider.d.ts",
+        "../../src/vscode-dts/vscode.proposed.textSearchProvider2.d.ts"
+      ]
     }
   },
   "include": ["src/**/*"],
