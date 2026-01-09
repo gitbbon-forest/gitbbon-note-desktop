@@ -238,7 +238,7 @@ export class SearchService {
 				property: 'vector',
 			},
 			limit,
-			similarity: 0.0,
+			similarity: 0.5,  // 관련성 낮은 결과 필터링 (0.0~1.0, 높을수록 엄격)
 		} as SearchParams<OramaDB, 'vector'>);
 
 		console.log('[SearchService] Search result count:', result.count);
