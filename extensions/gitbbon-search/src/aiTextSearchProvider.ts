@@ -112,14 +112,26 @@ export class GitbbonAITextSearchProvider {
 							? startCol + textInRange.length
 							: lines[lines.length - 1].length;
 
-						// TextSearchMatch2 형식으로 보고
-						const match = {
-							uri: fileUri,
-							ranges: new vscode.Range(startLine, startCol, endLine, endCol),
-							previewText: snippet,
-						};
+						// TextSearchMatch2 클래스 인스턴스 생성
+						// ranges: { sourceRange: Range, previewRange: Range }[]
+						const snippetLines = snippet.split('\n');
+						const previewEndLine = snippetLines.length - 1;
+						const previewEndCol = snippetLines[previewEndLine].length;
 
-						progress.report(match);
+						const sourceRange = new vscode.Range(startLine, startCol, endLine, endCol);
+						const previewRange = new vscode.Range(0, 0, previewEndLine, previewEndCol);
+
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any
+						const TextSearchMatch2 = (vscode as any).TextSearchMatch2;
+						if (TextSearchMatch2) {
+							const match = new TextSearchMatch2(
+								fileUri,
+								[{ sourceRange, previewRange }],
+								snippet
+							);
+
+							progress.report(match);
+						}
 					} catch (e) {
 						console.warn(`[AITextSearchProvider] Failed to read file ${filePath}:`, e);
 					}
