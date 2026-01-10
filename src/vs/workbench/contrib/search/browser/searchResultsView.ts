@@ -464,11 +464,16 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		const extraLinesStr = numLines > 0 ? `+${numLines}` : '';
 
 		const showLineNumbers = this.configurationService.getValue<ISearchConfigurationProperties>('search').showLineNumbers;
-		const lineNumberStr = showLineNumbers ? `${match.range().startLineNumber}:` : '';
-		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
 
-		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
-		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.lineNumber, this.getMatchTitle(match, showLineNumbers)));
+		// AI 검색 결과(시맨틱 검색)인 경우 라인 번호 숨김
+		// AI 검색은 의미 기반 검색이므로 정확한 라인 번호가 사용자에게 무의미함
+		const isAISearchResult = isSearchTreeAIFileMatch(match.parent());
+		const lineNumberStr = (showLineNumbers && !isAISearchResult) ? `${match.range().startLineNumber}:` : '';
+		const shouldShowLineNumber = ((numLines > 0) || showLineNumbers) && !isAISearchResult;
+		templateData.lineNumber.classList.toggle('show', shouldShowLineNumber);
+
+		templateData.lineNumber.textContent = isAISearchResult ? '' : (lineNumberStr + extraLinesStr);
+		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.lineNumber, this.getMatchTitle(match, showLineNumbers && !isAISearchResult)));
 
 		templateData.actions.context = { viewer: this.searchView.getControl(), element: match } satisfies ISearchActionContext;
 
