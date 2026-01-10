@@ -60,9 +60,11 @@ class ModelService {
 			progressCallback?.(30, 'Loading E5-Small model...');
 
 			const useWebGPU = await this.checkWebGPU();
-			this.extractor = await pipeline('feature-extraction', MODEL_NAME, {
+			// Note: Using 'unknown' intermediate cast to avoid TypeScript error:
+			// "Expression produces a union type that is too complex to represent"
+			this.extractor = await (pipeline as Function)('feature-extraction', MODEL_NAME, {
 				device: useWebGPU ? 'webgpu' : 'wasm',
-				dtype: 'fp32',
+				dtype: 'fp16',
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				progress_callback: (p: any) => {
 					if (typeof p?.progress === 'number') {
@@ -70,7 +72,7 @@ class ModelService {
 						progressCallback?.(modelProgress, `Model loading: ${Math.round(p.progress)}%`);
 					}
 				},
-			});
+			}) as FeatureExtractionPipeline;
 
 			this.initialized = true;
 			progressCallback?.(100, 'Model ready');
