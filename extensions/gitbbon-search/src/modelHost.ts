@@ -168,7 +168,7 @@ class ModelHost {
 		return Array.from(output.data as Float32Array);
 	}
 
-	async embedDocumentChunks(filePath: string, content: string): Promise<void> {
+	async embedDocumentChunks(filePath: string, content: string, title?: string): Promise<void> {
 		if (!this.extractor || !this.tokenizer) {
 			throw new Error('Model not initialized');
 		}
@@ -189,7 +189,9 @@ class ModelHost {
 			const startPos = this.findCharPosition(content, offset);
 			const endPos = this.findCharPosition(content, endOffset);
 
-			const vector = await this.embedDocument(chunkText);
+			// 제목을 청크 앞에 접두사로 추가
+			const textWithTitle = title ? `${title}. ${chunkText}` : chunkText;
+			const vector = await this.embedDocument(textWithTitle);
 
 			chunks.push({
 				chunkIndex,
@@ -258,7 +260,7 @@ window.addEventListener('gitbbon-message', async (event) => {
 			break;
 		case 'embedDocument':
 			modelHost.enqueue(async () => {
-				await modelHost.embedDocumentChunks(message.filePath, message.content);
+				await modelHost.embedDocumentChunks(message.filePath, message.content, message.title);
 			}).catch(error => {
 				console.error('[gitbbon-search][modelHost] embedDocument error:', error);
 				(window as WindowWithGitbbonBridge).gitbbonBridge?.postMessage({

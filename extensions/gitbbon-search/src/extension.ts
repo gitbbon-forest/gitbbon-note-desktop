@@ -12,6 +12,7 @@ import {
 	encodeVector,
 	simpleHash,
 } from './services/vectorUtils.js';
+import { extractTitle } from './services/titleExtractor.js';
 import { aiTextSearchProvider } from './aiTextSearchProvider.js';
 
 // 모델명 상수
@@ -620,11 +621,13 @@ async function indexFile(fileUri: vscode.Uri): Promise<void> {
 		}
 
 		// 캐시 없음 → 새로 임베딩 요청
-		console.log(`[Extension] Requesting embedding for ${fileUri.fsPath}`);
+		const title = extractTitle(text, fileUri.fsPath);
+		console.log(`[Extension] Requesting embedding for ${fileUri.fsPath} (title: ${title})`);
 		hiddenWebview.postMessage({
 			type: 'embedDocument',
 			filePath: fileUri.fsPath,
 			content: text,
+			title,
 		});
 	} catch (error) {
 		console.error(`[Extension] Failed to read ${fileUri.fsPath}:`, error);
