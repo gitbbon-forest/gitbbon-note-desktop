@@ -20,13 +20,13 @@ const GITBBON_METADATA_REGEX = /<!--\s*gitbbon:[\s\S]*?\s*-->/;
 const hideMetadataPluginKey = new PluginKey('hideGitbbonMetadata');
 
 // 초기화 로그
-console.log('[HideMetadata] Plugin module loaded');
+// 초기화 로그 제거됨 (과도한 출력 방지)
 
 /**
  * Hide Gitbbon Metadata ProseMirror Plugin
  */
 export const hideGitbbonMetadataPlugin = $prose(() => {
-	console.log('[HideMetadata] $prose factory called - creating plugin');
+	// 플러그인 생성 로그 제거됨
 
 	return new Plugin({
 		key: hideMetadataPluginKey,
@@ -37,13 +37,7 @@ export const hideGitbbonMetadataPlugin = $prose(() => {
 				const fullText = doc.textContent;
 
 				// 매번 호출되는지 확인 (첫 호출만 로그)
-				if (!((window as any).__hideMetadataLoggedOnce)) {
-					console.log('[HideMetadata] decorations() called');
-					console.log('[HideMetadata] Doc text length:', fullText.length);
-					console.log('[HideMetadata] Last 200 chars:', fullText.slice(-200));
-					console.log('[HideMetadata] Has gitbbon pattern in textContent:', GITBBON_METADATA_REGEX.test(fullText));
-					(window as any).__hideMetadataLoggedOnce = true;
-				}
+				// 첫 호출 로그 제거됨 (과도한 출력 방지)
 
 				// 문서 내 모든 노드 순회
 				doc.descendants((node: any, pos: number) => {
@@ -56,7 +50,6 @@ export const hideGitbbonMetadataPlugin = $prose(() => {
 							const from = pos + match.index;
 							const to = from + match[0].length;
 
-							console.log('[HideMetadata] ✅ Found in text node:', { from, to });
 
 							decorations.push(
 								Decoration.inline(from, to, {
@@ -71,7 +64,6 @@ export const hideGitbbonMetadataPlugin = $prose(() => {
 					if (node.isBlock && !node.isText) {
 						const blockText = node.textContent;
 						if (blockText && GITBBON_METADATA_REGEX.test(blockText)) {
-							console.log('[HideMetadata] ✅ Found in block:', node.type.name, 'at', pos);
 
 							decorations.push(
 								Decoration.node(pos, pos + node.nodeSize, {
@@ -87,7 +79,6 @@ export const hideGitbbonMetadataPlugin = $prose(() => {
 				});
 
 				if (decorations.length > 0) {
-					console.log('[HideMetadata] Creating', decorations.length, 'decorations');
 					return DecorationSet.create(doc, decorations);
 				}
 

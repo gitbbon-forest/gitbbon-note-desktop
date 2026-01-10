@@ -95,7 +95,7 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 				ctx.get(listenerCtx).markdownUpdated((ctx, markdown, prevMarkdown) => {
 					// gitbbon custom: 외부 업데이트 중에는 onChange 무시 (루프 방지)
 					if (isSettingContentExternally) {
-						console.log('[MilkdownEditor] Ignoring onChange during external content update');
+						console.log('[gitbbon-editor][MilkdownEditor] Ignoring onChange during external content update');
 						return;
 					}
 					if (markdown !== prevMarkdown) {
@@ -123,12 +123,12 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 	useImperativeHandle(ref, () => ({
 		setContent: (markdown: string) => {
 			if (loading) {
-				console.log('[MilkdownEditor] Editor is still loading');
+				console.log('[gitbbon-editor][MilkdownEditor] Editor is still loading');
 				return;
 			}
 			const editor = getInstance();
 			if (!editor) {
-				console.log('[MilkdownEditor] Editor instance is null/undefined');
+				console.log('[gitbbon-editor][MilkdownEditor] Editor instance is null/undefined');
 				return;
 			}
 
@@ -149,9 +149,9 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 				setTimeout(() => {
 					isSettingContentExternally = false;
 				}, 0);
-				console.log('[MilkdownEditor] ✅ Content updated successfully');
+				console.log('[gitbbon-editor][MilkdownEditor] ✅ Content updated successfully');
 			} else {
-				console.error('[MilkdownEditor] ❌ action method not found on editor');
+				console.error('[gitbbon-editor][MilkdownEditor] ❌ action method not found on editor');
 			}
 		},
 		// gitbbon custom: 선택된 텍스트 가져오기 (AI에게 물어보기 기능용)

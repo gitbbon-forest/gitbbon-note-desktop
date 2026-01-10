@@ -15,13 +15,13 @@ export class LocalProjectService implements ILocalProjectService {
 	async moveToTrash(projectPath: string): Promise<void> {
 		try {
 			// Delegate to ProjectManager to ensure consistent deletion logic (cleanup + workspace closure)
-			console.log(`[LocalProjectService] Delegating deletion of ${projectPath} to ProjectManager`);
+			console.log(`[gitbbon-manager][localProjectService] Delegating deletion of ${projectPath} to ProjectManager`);
 			const success = await this.projectManager.deleteProject(projectPath, true);
 			if (!success) {
 				throw new Error(`Failed to delete project: ${projectPath}`);
 			}
 		} catch (e) {
-			console.error(`[LocalProjectService] moveToTrash failed for ${projectPath}:`, e);
+			console.error(`[gitbbon-manager][localProjectService] moveToTrash failed for ${projectPath}:`, e);
 			throw e;
 		}
 	}
@@ -34,7 +34,7 @@ export class LocalProjectService implements ILocalProjectService {
 			// User prefers standard.
 			await this.execGit(['pull', 'origin', 'main'], path);
 		} catch (e) {
-			console.error(`[LocalProjectService] pullProject failed for ${path}:`, e);
+			console.error(`[gitbbon-manager][localProjectService] pullProject failed for ${path}:`, e);
 			throw e;
 		}
 	}
@@ -44,7 +44,7 @@ export class LocalProjectService implements ILocalProjectService {
 			await this.pullProject(path);
 			await this.pushProject(path);
 		} catch (e) {
-			console.error(`[LocalProjectService] pullAndPush failed for ${path}:`, e);
+			console.error(`[gitbbon-manager][localProjectService] pullAndPush failed for ${path}:`, e);
 			throw e;
 		}
 	}
@@ -79,7 +79,7 @@ export class LocalProjectService implements ILocalProjectService {
 			await this.projectManager.updateSyncedAt(repoName);
 
 		} catch (e) {
-			console.error(`[LocalProjectService] pushProject failed for ${projectPath}:`, e);
+			console.error(`[gitbbon-manager][localProjectService] pushProject failed for ${projectPath}:`, e);
 			throw e;
 		}
 	}
@@ -107,7 +107,7 @@ export class LocalProjectService implements ILocalProjectService {
 
 			return newPath;
 		} catch (e) {
-			console.error(`[LocalProjectService] renameProject failed:`, e);
+			console.error(`[gitbbon-manager][localProjectService] renameProject failed:`, e);
 			throw e;
 		}
 	}
@@ -139,7 +139,7 @@ export class LocalProjectService implements ILocalProjectService {
 			await this.projectManager.updateSyncedAt(repoName);
 
 		} catch (e) {
-			console.error(`[LocalProjectService] cloneProject failed:`, e);
+			console.error(`[gitbbon-manager][localProjectService] cloneProject failed:`, e);
 			throw e;
 		}
 	}

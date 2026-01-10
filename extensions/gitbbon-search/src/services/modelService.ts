@@ -45,9 +45,9 @@ export class ModelService {
 
 			this.initialized = true;
 			progressCallback?.(100, 'Model ready');
-			console.log('[ModelService] E5-Small model initialized');
+			console.log('[gitbbon-search][modelService] E5-Small model initialized');
 		} catch (error) {
-			console.error('[ModelService] Initialization failed:', error);
+			console.error('[gitbbon-search][modelService] Initialization failed:', error);
 			throw error;
 		}
 	}

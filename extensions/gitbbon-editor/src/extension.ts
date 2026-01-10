@@ -109,12 +109,12 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 	context.subscriptions.push(sendStatusUpdateCommand);
 
-	console.log('Gitbbon Editor extension activated!');
+	console.log('[gitbbon-editor][extension] Activated');
 }
 
 /**
  * Extension deactivation
  */
 export function deactivate() {
-	console.log('Gitbbon Editor extension deactivated');
+	console.log('[gitbbon-editor][extension] Deactivated');
 }

@@ -103,14 +103,13 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 	 */
 	public static sendStatusUpdate(status: 'unsaved' | 'autoSaved' | 'committed'): void {
 		if (!this.activeWebviewPanel) {
-			console.log('[GitbbonEditor] No active webview panel for status update');
 			return;
 		}
 		this.activeWebviewPanel.webview.postMessage({
 			type: 'statusUpdate',
 			status
 		});
-		console.log(`[GitbbonEditor] Sent status update: ${status}`);
+
 	}
 
 	/**
@@ -153,7 +152,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			throw new Error("No active document found.");
 		}
 
-		console.log('[GitbbonEditor] Direct Apply started', changes);
+		console.log('[gitbbon-editor][editorProvider] Direct Apply started');
 
 		const document = this.activeDocument;
 		const fullText = document.getText();
@@ -209,7 +208,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			if (!success) {
 				throw new Error("Failed to apply WorkspaceEdit.");
 			}
-			console.log('[GitbbonEditor] Direct Apply success');
+			console.log('[gitbbon-editor][editorProvider] Direct Apply success');
 		}
 	}
 
@@ -299,7 +298,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			autoSaveTimer = setTimeout(async () => {
 				try {
 					await document.save();
-					console.log('Auto save triggered (1s debounced)');
+					// Auto save 로그 제거 (너무 빈번함)
 				} catch (error) {
 					console.error('Auto save failed:', error);
 				}
@@ -331,7 +330,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 						});
 						// Auto Saved 상태에서는 플로팅 위젯을 업데이트하지 않음
 						// (사용자 요청: "auto saved는 버튼에 상태를 표시할 필요 없음")
-						console.log(`Auto commit triggered (${delay}ms debounced):`, result.message);
+
 					}
 				} catch (error) {
 					console.error('Auto commit failed:', error);
@@ -371,7 +370,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 					case 'ready':
 						// Webview 준비 완료 시 초기 데이터 재전송 및 상태 업데이트
 						GitbbonEditorProvider.webviewReadyMap.set(webviewPanel, true);
-						console.log('[GitbbonEditor] Webview ready');
+						console.log('[gitbbon-editor][editorProvider] Webview ready');
 
 						const initialText = document.getText();
 						lastWebviewText = initialText;

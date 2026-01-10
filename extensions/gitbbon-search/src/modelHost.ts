@@ -69,25 +69,25 @@ class ModelHost {
 			if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
 				const adapter = await (navigator as Navigator & { gpu: GPU }).gpu.requestAdapter();
 				if (adapter) {
-					console.log('[ModelHost] ✓ WebGPU available');
+					console.log('[gitbbon-search][modelHost] ✓ WebGPU available');
 					return true;
 				}
 			}
 		} catch (e) {
-			console.log('[ModelHost] WebGPU check failed:', e);
+			console.log('[gitbbon-search][modelHost] WebGPU check failed:', e);
 		}
-		console.log('[ModelHost] ✗ Falling back to WASM');
+		console.log('[gitbbon-search][modelHost] ✗ Falling back to WASM');
 		return false;
 	}
 
 	async init(): Promise<void> {
 		if (this.initialized) {
-			console.log('[ModelHost] Already initialized');
+			console.log('[gitbbon-search][modelHost] Already initialized');
 			return;
 		}
 
 		if (this.initPromise) {
-			console.log('[ModelHost] Already initializing, waiting...');
+			console.log('[gitbbon-search][modelHost] Already initializing, waiting...');
 			return this.initPromise;
 		}
 
@@ -96,19 +96,19 @@ class ModelHost {
 	}
 
 	private async _init(): Promise<void> {
-		console.log('[ModelHost] Starting model initialization...');
+		console.log('[gitbbon-search][modelHost] Starting model initialization...');
 
 		try {
-			console.log('[ModelHost] Loading tokenizer...');
+			console.log('[gitbbon-search][modelHost] Loading tokenizer...');
 			this.sendProgress(0, 'Loading tokenizer...');
 			this.tokenizer = await AutoTokenizer.from_pretrained(MODEL_NAME);
-			console.log('[ModelHost] ✓ Tokenizer loaded');
+			console.log('[gitbbon-search][modelHost] ✓ Tokenizer loaded');
 
-			console.log('[ModelHost] Loading model with progress...');
+			console.log('[gitbbon-search][modelHost] Loading model with progress...');
 			this.sendProgress(30, 'Loading E5-Small model...');
 
 			const useWebGPU = await this.checkWebGPU();
-			console.log('[ModelHost] Creating pipeline...');
+			console.log('[gitbbon-search][modelHost] Creating pipeline...');
 
 			// Note: Using 'unknown' intermediate cast to avoid TypeScript error:
 			// "Expression produces a union type that is too complex to represent"
@@ -116,29 +116,29 @@ class ModelHost {
 				device: useWebGPU ? 'webgpu' : 'wasm',
 				dtype: 'fp16',
 				progress_callback: (p: { progress?: number; status?: string; file?: string }) => {
-					console.log('[ModelHost] Download progress:', p);
+					console.log('[gitbbon-search][modelHost] Download progress:', p);
 					if (typeof p?.progress === 'number') {
 						const modelProgress = 30 + (p.progress * 0.7);
 						this.sendProgress(modelProgress, `Model loading: ${Math.round(p.progress)}%`);
 					} else if (p?.status) {
-						console.log('[ModelHost] Status:', p.status, p.file || '');
+						console.log('[gitbbon-search][modelHost] Status:', p.status, p.file || '');
 					}
 				},
 			}) as Pipeline;
 
 			this.initialized = true;
 			this.sendProgress(100, 'Model ready');
-			console.log(`[ModelHost] ✓ Model initialized with ${useWebGPU ? 'WebGPU 🚀' : 'WASM'}`);
+			console.log(`[gitbbon-search][modelHost] ✓ Model initialized with ${useWebGPU ? 'WebGPU 🚀' : 'WASM'}`);
 
 			this.sendMessage({ type: 'modelReady' });
 		} catch (error) {
-			console.error('[ModelHost] ✗ Initialization failed:', error);
+			console.error('[gitbbon-search][modelHost] ✗ Initialization failed:', error);
 			this.sendMessage({ type: 'modelError', error: (error as Error).message });
 		}
 	}
 
 	private sendProgress(progress: number, message: string): void {
-		console.log(`[ModelHost] Progress: ${progress}% - ${message}`);
+		console.log(`[gitbbon-search][modelHost] Progress: ${progress}% - ${message}`);
 		this.sendMessage({ type: 'modelProgress', progress, message });
 	}
 
@@ -243,14 +243,14 @@ window.addEventListener('gitbbon-message', async (event) => {
 	// 중복 메시지 체크 (requestId 또는 filePath 기반)
 	const messageId = message.requestId || message.filePath || `${message.type}-${Date.now()}`;
 	if (processedMessages.has(messageId)) {
-		console.log('[ModelHost] Duplicate message ignored:', message.type, messageId);
+		console.log('[gitbbon-search][modelHost] Duplicate message ignored:', message.type, messageId);
 		return;
 	}
 	processedMessages.add(messageId);
 	// 오래된 메시지 ID 정리 (5초 후)
 	setTimeout(() => processedMessages.delete(messageId), 5000);
 
-	console.log('[ModelHost] Received message:', message.type);
+	console.log('[gitbbon-search][modelHost] Received message:', message.type);
 
 	switch (message.type) {
 		case 'initModel':
@@ -260,7 +260,7 @@ window.addEventListener('gitbbon-message', async (event) => {
 			modelHost.enqueue(async () => {
 				await modelHost.embedDocumentChunks(message.filePath, message.content);
 			}).catch(error => {
-				console.error('[ModelHost] embedDocument error:', error);
+				console.error('[gitbbon-search][modelHost] embedDocument error:', error);
 				(window as WindowWithGitbbonBridge).gitbbonBridge?.postMessage({
 					type: 'embeddingError',
 					filePath: message.filePath,
@@ -281,7 +281,7 @@ window.addEventListener('gitbbon-message', async (event) => {
 					requestId: message.requestId
 				});
 			}, 10000, 'high').catch(error => {
-				console.error('[ModelHost] embedQuery error:', error);
+				console.error('[gitbbon-search][modelHost] embedQuery error:', error);
 				((window as WindowWithGitbbonBridge).gitbbonBridge?.postMessage || ((data: Record<string, unknown>) => window.parent.postMessage(data, '*')))({
 					type: 'queryEmbeddingError',
 					error: (error as Error).message,
@@ -300,12 +300,12 @@ window.addEventListener('message', (event) => {
 	window.dispatchEvent(new CustomEvent('gitbbon-message', { detail: event.data }));
 });
 
-console.log('[ModelHost] Initialized and listening for messages');
+console.log('[gitbbon-search][modelHost] Initialized and listening for messages');
 
 // AUTO-INITIALIZE: Start loading model immediately
-console.log('[ModelHost] Starting auto-initialization...');
+console.log('[gitbbon-search][modelHost] Starting auto-initialization...');
 modelHost.init().then(() => {
-	console.log('[ModelHost] Auto-initialization completed');
+	console.log('[gitbbon-search][modelHost] Auto-initialization completed');
 }).catch(err => {
-	console.error('[ModelHost] Auto-initialization failed:', err);
+	console.error('[gitbbon-search][modelHost] Auto-initialization failed:', err);
 });

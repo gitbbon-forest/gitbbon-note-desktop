@@ -25,7 +25,7 @@ interface SearchArgs {
  * Execute search logic - extracted for reuse with progress tracking
  */
 export async function executeSearch({ query, isRegex, filePattern, context, maxResults }: SearchArgs): Promise<string> {
-	console.log('[searchTool] executing', { query, isRegex, filePattern, context, maxResults });
+	console.log('[gitbbon-chat][searchTool] Executing search:', query);
 
 	const workspaceFolders = vscode.workspace.workspaceFolders;
 	if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -94,7 +94,7 @@ export async function executeSearch({ query, isRegex, filePattern, context, maxR
 		}
 
 	} catch (e) {
-		console.error('[searchTool] failed:', e);
+		console.error('[gitbbon-chat][searchTool] Search failed:', e);
 		return `Error: Search failed - ${e}`;
 	}
 

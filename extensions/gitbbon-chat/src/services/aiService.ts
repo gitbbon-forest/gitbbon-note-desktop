@@ -60,7 +60,7 @@ export class AIService {
 
 		if (this.apiKey) {
 			process.env.AI_GATEWAY_API_KEY = this.apiKey;
-			console.log('[GitbbonChat] Initialized with API Key');
+			console.log('[gitbbon-chat][aiService] Initialized with API Key');
 		} else {
 			console.warn('[GitbbonChat] No API key found.');
 		}
@@ -137,7 +137,7 @@ export class AIService {
 		}
 
 		const instructions = SYSTEM_PROMPT + '\n\n' + contextParts.join('\n');
-		console.log(`[GitbbonChat] Starting agent: ${modelName}`);
+		console.log(`[gitbbon-chat][aiService] Starting agent: ${modelName}`);
 
 		// Run agent with phase indicators
 		const agentPromise = (async () => {
@@ -172,10 +172,7 @@ export class AIService {
 							});
 						}
 
-						console.log('[GitbbonChat] Step:', JSON.stringify({
-							toolCalls: event.toolCalls?.map(t => t.toolName),
-							finishReason: event.finishReason
-						}));
+						// Step 로그 제거 (과도한 출력 방지)
 					}
 				});
 
@@ -216,7 +213,7 @@ export class AIService {
 					channel.push({ type: 'text', content: result.text });
 				}
 			} catch (error) {
-				console.error('[GitbbonChat] Agent failed:', error);
+				console.error('[gitbbon-chat][aiService] Agent failed:', error);
 				channel.push({
 					type: 'tool-end',
 					id: thinkingId,

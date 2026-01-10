@@ -51,9 +51,7 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 
 		// 웹뷰에서 메시지 수신
 		webviewView.webview.onDidReceiveMessage(async (message) => {
-			console.log('[GitbbonChat] Received message from webview:', message.type);
 			if (message.type === 'chat-request') {
-				console.log('[GitbbonChat] Handling chat-request with messages:', message.messages.length);
 				await this._handleChatMessage(message.messages);
 			}
 		});
@@ -74,7 +72,7 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 			return;
 		}
 
-		console.log('[GitbbonChat] _handleChatMessage called.');
+
 
 		if (!this.aiService.hasApiKey()) {
 			console.warn('[GitbbonChat] Missing API Key');
@@ -212,7 +210,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		})
 	);
 
-	console.log('Gitbbon Chat extension is now active');
+	console.log('[gitbbon-chat][extension] Activated');
 }
 
 export function deactivate(): void { }

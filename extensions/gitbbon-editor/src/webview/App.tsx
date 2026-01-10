@@ -82,7 +82,7 @@ export const App = () => {
 	};
 
 	const handleEditorChangeWithTitle = useCallback((markdown: string) => {
-		console.log('[App] handleEditorChangeWithTitle called');
+		console.log('[gitbbon-editor][App] handleEditorChangeWithTitle called');
 		setEditorContent(markdown);
 		setSaveStatus('unsaved');
 		// gitbbon custom: 보낸 콘텐츠 기록 (루프 방지)
@@ -207,30 +207,30 @@ export const App = () => {
 					const remoteTitle = message.frontmatter?.title || '';
 					const remoteContent = message.content || '';
 
-					console.log(`[App] Received ${message.type} message`);
-					console.log(`[App] remoteContent length: ${remoteContent.length}, contentRef length: ${contentRef.current?.length || 'null'}`);
+					console.log(`[gitbbon-editor][App] Received ${message.type} message`);
+					console.log(`[gitbbon-editor][App] remoteContent length: ${remoteContent.length}, contentRef length: ${contentRef.current?.length || 'null'}`);
 
 					// Update Title
 					setTitle(remoteTitle);
 
 					// Update Editor
 					const contentChanged = remoteContent !== contentRef.current;
-					console.log(`[App] contentChanged: ${contentChanged}`);
+					console.log(`[gitbbon-editor][App] contentChanged: ${contentChanged}`);
 
 					if (contentRef.current === null) {
 						// First load
-						console.log('[App] First load, setting initial content');
+						console.log('[gitbbon-editor][App] First load, setting initial content');
 						setEditorContent(remoteContent);
 						lastSentContentRef.current = remoteContent;
 					} else if (editorRef.current && contentChanged) {
 						// gitbbon custom: 에코 감지 - 우리가 보낸 콘텐츠가 돌아온 경우 무시
 						if (lastSentContentRef.current === remoteContent) {
-							console.log('[App] Ignoring echo - content matches what we sent');
+							console.log('[gitbbon-editor][App] Ignoring echo - content matches what we sent');
 							break;
 						}
 
 						// Subsequent updates (only if content changed and not echo)
-						console.log('[App] External content update detected');
+						console.log('[gitbbon-editor][App] External content update detected');
 						editorRef.current.setContent(remoteContent);
 						setEditorContent(remoteContent);
 						lastSentContentRef.current = remoteContent;

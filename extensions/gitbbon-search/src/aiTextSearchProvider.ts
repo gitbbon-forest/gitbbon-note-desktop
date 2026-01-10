@@ -48,21 +48,21 @@ export class GitbbonAITextSearchProvider {
 		token: vscode.CancellationToken
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	): Promise<{ limitHit: boolean }> {
-		console.log('[AITextSearchProvider] Query received:', query);
+		console.log('[gitbbon-search][aiTextSearchProvider] Query received:', query);
 
 		if (!this.embedQuery) {
-			console.warn('[AITextSearchProvider] embedQuery function not set');
+			console.warn('[gitbbon-search][aiTextSearchProvider] embedQuery function not set');
 			return { limitHit: false };
 		}
 
 		if (!searchService.isReady()) {
-			console.warn('[AITextSearchProvider] Search service not ready');
+			console.warn('[gitbbon-search][aiTextSearchProvider] Search service not ready');
 			return { limitHit: false };
 		}
 
 		try {
 			// 1. 쿼리를 벡터로 변환
-			console.log('[AITextSearchProvider] Embedding query...');
+			console.log('[gitbbon-search][aiTextSearchProvider] Embedding query...');
 			const queryVector = await this.embedQuery(query);
 
 			if (token.isCancellationRequested) {
@@ -70,7 +70,7 @@ export class GitbbonAITextSearchProvider {
 			}
 
 			// 2. 벡터 검색 수행
-			console.log('[AITextSearchProvider] Performing vector search...');
+			console.log('[gitbbon-search][aiTextSearchProvider] Performing vector search...');
 			const results = await searchService.vectorSearch(queryVector, 20);
 
 			if (token.isCancellationRequested) {
@@ -78,7 +78,7 @@ export class GitbbonAITextSearchProvider {
 			}
 
 			// 3. 결과를 TextSearchMatch2로 변환하여 보고
-			console.log(`[AITextSearchProvider] Found ${results.count} results`);
+			console.log(`[gitbbon-search][aiTextSearchProvider] Found ${results.count} results`);
 
 			for (const hit of results.hits) {
 				if (token.isCancellationRequested) {
@@ -129,7 +129,7 @@ export class GitbbonAITextSearchProvider {
 							progress.report(match);
 						}
 					} catch (e) {
-						console.warn(`[AITextSearchProvider] Failed to read file ${filePath}:`, e);
+						console.warn(`[gitbbon-search][aiTextSearchProvider] Failed to read file ${filePath}:`, e);
 					}
 				}
 			}
@@ -138,7 +138,7 @@ export class GitbbonAITextSearchProvider {
 				limitHit: results.count > 20,
 			};
 		} catch (error) {
-			console.error('[AITextSearchProvider] Search failed:', error);
+			console.error('[gitbbon-search][aiTextSearchProvider] Search failed:', error);
 			return { limitHit: false };
 		}
 	}

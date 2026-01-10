@@ -62,7 +62,7 @@ export class SearchService {
 				tokenizer: createIntlSegmenterTokenizer(),
 			},
 		});
-		console.log('[SearchService] Orama DB initialized');
+		console.log('[gitbbon-search][searchService] Orama DB initialized');
 	}
 
 	/**
@@ -78,8 +78,8 @@ export class SearchService {
 			const files = this.context.globalState.get<string[]>('indexed-files');
 			const chunkIdsData = this.context.globalState.get<[string, string[]][]>('file-chunk-ids');
 
-			console.log('[SearchService] loadFromStorage - data exists:', !!data);
-			console.log('[SearchService] loadFromStorage - indexed files stored:', files?.length ?? 0);
+			console.log('[gitbbon-search][searchService] loadFromStorage - data exists:', !!data);
+			console.log('[gitbbon-search][searchService] loadFromStorage - indexed files stored:', files?.length ?? 0);
 
 			if (!data) {
 				return false;
@@ -91,12 +91,12 @@ export class SearchService {
 
 			// 복원 후 DB 문서 수 확인
 			const dbCount = await count(this.db);
-			console.log('[SearchService] loadFromStorage - DB document count after restore:', dbCount);
+			console.log('[gitbbon-search][searchService] loadFromStorage - DB document count after restore:', dbCount);
 
-			console.log('[SearchService] Index restored from storage');
+			console.log('[gitbbon-search][searchService] Index restored from storage');
 			return true;
 		} catch (error) {
-			console.error('[SearchService] Failed to load index:', error);
+			console.error('[gitbbon-search][searchService] Failed to load index:', error);
 			return false;
 		}
 	}
@@ -112,20 +112,20 @@ export class SearchService {
 		try {
 			// 저장 전 DB 문서 수 확인
 			const dbCount = await count(this.db);
-			console.log('[SearchService] saveToStorage - DB document count before save:', dbCount);
+			console.log('[gitbbon-search][searchService] saveToStorage - DB document count before save:', dbCount);
 
 			const data = await save(this.db);
 
 			// 저장 데이터 크기 확인
 			const dataStr = JSON.stringify(data);
-			console.log('[SearchService] saveToStorage - serialized data size:', dataStr.length, 'bytes');
+			console.log('[gitbbon-search][searchService] saveToStorage - serialized data size:', dataStr.length, 'bytes');
 
 			await this.context.globalState.update('orama-index', dataStr);
 			await this.context.globalState.update('indexed-files', Array.from(this.indexedFiles));
 			await this.context.globalState.update('file-chunk-ids', Array.from(this.fileChunkIds.entries()));
-			console.log('[SearchService] Index saved to storage');
+			console.log('[gitbbon-search][searchService] Index saved to storage');
 		} catch (error) {
-			console.error('[SearchService] Failed to save index:', error);
+			console.error('[gitbbon-search][searchService] Failed to save index:', error);
 		}
 	}
 
@@ -155,7 +155,7 @@ export class SearchService {
 
 			// 벡터 값 확인 (첫 번째 문서의 첫 5개 값)
 			if (docs.length > 0 && docs[0].vector.length > 0) {
-				console.log('[SearchService] indexFileWithEmbeddings - first doc vector[0:5]:', docs[0].vector.slice(0, 5));
+				console.log('[gitbbon-search][searchService] indexFileWithEmbeddings - first doc vector[0:5]:', docs[0].vector.slice(0, 5));
 			}
 
 			if (docs.length > 0) {
@@ -166,12 +166,12 @@ export class SearchService {
 
 				// 삽입 후 DB 문서 수 확인
 				const dbCount = await count(this.db);
-				console.log('[SearchService] indexFileWithEmbeddings - DB document count after insert:', dbCount);
+				console.log('[gitbbon-search][searchService] indexFileWithEmbeddings - DB document count after insert:', dbCount);
 			}
 
-			console.log(`[SearchService] Indexed ${filePath} (${docs.length} chunks)`);
+			console.log(`[gitbbon-search][searchService] Indexed ${filePath} (${docs.length} chunks)`);
 		} catch (error) {
-			console.error(`[SearchService] Failed to index ${filePath}:`, error);
+			console.error(`[gitbbon-search][searchService] Failed to index ${filePath}:`, error);
 		}
 	}
 
@@ -204,9 +204,9 @@ export class SearchService {
 
 			this.fileChunkIds.delete(filePath);
 			this.indexedFiles.delete(filePath);
-			console.log(`[SearchService] Removed ${chunkIds.length} chunks for ${filePath}`);
+			console.log(`[gitbbon-search][searchService] Removed ${chunkIds.length} chunks for ${filePath}`);
 		} catch (error) {
-			console.error(`[SearchService] Failed to remove ${filePath}:`, error);
+			console.error(`[gitbbon-search][searchService] Failed to remove ${filePath}:`, error);
 		}
 	}
 
@@ -216,20 +216,12 @@ export class SearchService {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async vectorSearch(queryVector: number[], limit = 10): Promise<any> {
 		if (!this.db) {
-			console.error('[SearchService] vectorSearch called but DB not initialized');
+			console.error('[gitbbon-search][searchService] vectorSearch called but DB not initialized');
 			throw new Error('Search engine not initialized');
 		}
 
-		console.log('[SearchService] vectorSearch called, vector length:', queryVector.length);
-		console.log('[SearchService] Indexed files count:', this.indexedFiles.size);
-
-		// Orama DB의 실제 문서 수 확인
 		const dbDocCount = await count(this.db);
-		console.log('[SearchService] Orama DB document count:', dbDocCount);
-
-		console.log('[SearchService] Indexed files:', Array.from(this.indexedFiles));
-
-		console.log('[SearchService] Query vector first 5 values:', queryVector.slice(0, 5));
+		console.log('[gitbbon-search][searchService] vectorSearch - docs:', dbDocCount, 'results will be returned');
 
 		const result = await search(this.db, {
 			mode: 'vector',
@@ -241,15 +233,7 @@ export class SearchService {
 			similarity: 0.5,  // 관련성 낮은 결과 필터링 (0.0~1.0, 높을수록 엄격)
 		} as SearchParams<OramaDB, 'vector'>);
 
-		console.log('[SearchService] Search result count:', result.count);
-		console.log('[SearchService] Search results:', result.hits.map(h => ({
-			id: h.id,
-			score: h.score,
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			filePath: (h.document as any).filePath,
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			vectorFirst5: ((h.document as any).vector as number[])?.slice(0, 5),
-		})));
+		console.log('[gitbbon-search][searchService] Search completed, results:', result.count);
 		return result;
 	}
 
@@ -296,7 +280,7 @@ export class SearchService {
 				tokenizer: createIntlSegmenterTokenizer(),
 			},
 		});
-		console.log('[SearchService] Index cleared');
+		console.log('[gitbbon-search][searchService] Index cleared');
 	}
 
 	/**
