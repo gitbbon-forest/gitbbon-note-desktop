@@ -8,6 +8,7 @@ import { create, insertMultiple, search, save, load, remove, count } from '@oram
 import type { Orama, SearchParams } from '@orama/orama';
 import type { IndexedDocument } from '../types.js';
 import { vectorStorageService } from './vectorStorageService.js';
+import { cleanMarkdown } from './titleExtractor.js';
 
 const VECTOR_SIZE = 384;
 
@@ -50,10 +51,9 @@ export class SearchService {
 	private indexedFiles = new Set<string>();
 	// 파일별 chunk ID 추적 (removeFile에서 사용)
 	private fileChunkIds = new Map<string, string[]>();
-
-	/**
-	 * 검색 엔진 초기화
-	 */
+	// Debounce 저장을 위한 타이머
+	private saveDebounceTimer: NodeJS.Timeout | null = null;
+	private readonly SAVE_DEBOUNCE_MS = 1000;
 	async init(context: vscode.ExtensionContext): Promise<void> {
 		this.context = context;
 		this.db = await create({
@@ -127,6 +127,20 @@ export class SearchService {
 		} catch (error) {
 			console.error('[gitbbon-search][searchService] Failed to save index:', error);
 		}
+	}
+
+	/**
+	 * 인덱스 저장 (debounce 적용 - 다수 파일 처리 시 한 번만 저장)
+	 */
+	debouncedSave(): void {
+		if (this.saveDebounceTimer) {
+			clearTimeout(this.saveDebounceTimer);
+		}
+
+		this.saveDebounceTimer = setTimeout(async () => {
+			this.saveDebounceTimer = null;
+			await this.saveToStorage();
+		}, this.SAVE_DEBOUNCE_MS);
 	}
 
 	/**
@@ -238,14 +252,15 @@ export class SearchService {
 	}
 
 	/**
-	 * 파일에서 스니펫 추출
+	 * 파일에서 스니펫 추출 (마크다운 문법 제거)
 	 */
 	async getSnippet(filePath: string, range: [number, number]): Promise<string> {
 		try {
 			const uri = vscode.Uri.file(filePath);
 			const content = await vscode.workspace.fs.readFile(uri);
 			const text = Buffer.from(content).toString('utf-8');
-			return text.slice(range[0], Math.min(range[1], range[0] + 200));
+			const rawSnippet = text.slice(range[0], Math.min(range[1], range[0] + 200));
+			return cleanMarkdown(rawSnippet);
 		} catch {
 			return '';
 		}

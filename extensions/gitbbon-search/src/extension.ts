@@ -12,7 +12,7 @@ import {
 	encodeVector,
 	simpleHash,
 } from './services/vectorUtils.js';
-import { extractTitle } from './services/titleExtractor.js';
+import { extractTitle, stripFrontmatter } from './services/titleExtractor.js';
 import { aiTextSearchProvider } from './aiTextSearchProvider.js';
 
 // 모델명 상수
@@ -622,11 +622,12 @@ async function indexFile(fileUri: vscode.Uri): Promise<void> {
 
 		// 캐시 없음 → 새로 임베딩 요청
 		const title = extractTitle(text, fileUri.fsPath);
+		const contentWithoutFrontmatter = stripFrontmatter(text);
 		console.log(`[Extension] Requesting embedding for ${fileUri.fsPath} (title: ${title})`);
 		hiddenWebview.postMessage({
 			type: 'embedDocument',
 			filePath: fileUri.fsPath,
-			content: text,
+			content: contentWithoutFrontmatter,
 			title,
 		});
 	} catch (error) {
@@ -669,6 +670,9 @@ async function handleEmbeddingResult(message: {
 		// VectorStorageService로 저장
 		await vectorStorageService.saveVectorData(uri, vectorData);
 		console.log(`[Extension] Saved vector data to ${message.filePath}`);
+
+		// 인덱스 저장 (debounce 적용)
+		searchService.debouncedSave();
 	} catch (error) {
 		console.error(`[Extension] Failed to index ${message.filePath}:`, error);
 	}

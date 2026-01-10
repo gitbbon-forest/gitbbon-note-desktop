@@ -59,7 +59,7 @@ export class FileWatcher implements vscode.Disposable {
 			console.log(`[gitbbon-search][fileWatcher] File deleted: ${uri.fsPath}`);
 			await searchService.removeFile(uri);
 			await vectorStorageService.deleteVectorData(uri);
-			await searchService.saveToStorage();
+			searchService.debouncedSave(); // searchService의 debounce 사용
 			this.onIndexUpdate();
 		});
 	}
