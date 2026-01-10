@@ -12,7 +12,7 @@ import * as path from 'path';
 export interface VectorChunk {
 	range: [number, number];
 	hash: string;
-	vector: string; // Base64 인코딩된 Int16 벡터
+	vector: string; // Base64 인코딩된 Float32 벡터
 }
 
 /**

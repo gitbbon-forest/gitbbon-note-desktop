@@ -114,7 +114,7 @@ class ModelHost {
 			// "Expression produces a union type that is too complex to represent"
 			this.extractor = await (pipeline as Function)('feature-extraction', MODEL_NAME, {
 				device: useWebGPU ? 'webgpu' : 'wasm',
-				dtype: 'fp16',
+				dtype: 'fp32',
 				progress_callback: (p: { progress?: number; status?: string; file?: string }) => {
 					console.log('[ModelHost] Download progress:', p);
 					if (typeof p?.progress === 'number') {

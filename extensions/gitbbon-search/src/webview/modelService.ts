@@ -62,7 +62,7 @@ class ModelService {
 			const useWebGPU = await this.checkWebGPU();
 			this.extractor = await pipeline('feature-extraction', MODEL_NAME, {
 				device: useWebGPU ? 'webgpu' : 'wasm',
-				dtype: 'fp16',
+				dtype: 'fp32',
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				progress_callback: (p: any) => {
 					if (typeof p?.progress === 'number') {

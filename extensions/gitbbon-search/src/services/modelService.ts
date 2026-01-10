@@ -33,7 +33,7 @@ export class ModelService {
 			progressCallback?.(30, 'Loading E5-Small model...');
 			this.extractor = await pipeline('feature-extraction', MODEL_NAME, {
 				device: 'cpu',  // Node.js 환경에서는 cpu만 지원
-				dtype: 'fp16',
+				dtype: 'fp32',
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				progress_callback: (p: any) => {
 					if (typeof p?.progress === 'number') {
