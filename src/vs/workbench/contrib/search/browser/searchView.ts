@@ -2027,19 +2027,22 @@ export class SearchView extends ViewPane {
 				dom.append(messageEl, $('span', undefined, searchingInOpenMessage, '(', disableOpenEditorsButton.element, ')'));
 			}
 
-			dom.append(messageEl, ' - ');
+			// [Gitbbon] 'Open in editor', 'Search with AI' 링크 숨김 시작
+			// Gitbbon은 노트 앱으로, 이 링크들이 사용자에게 불필요함
+			// dom.append(messageEl, ' - ');
 
-			const openInEditorTooltip = appendKeyBindingLabel(
-				nls.localize('openInEditor.tooltip', "Copy current search results to an editor"),
-				this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.OpenInEditorCommandId));
-			const openInEditorButton = this.messageDisposables.add(new SearchLinkButton(
-				nls.localize('openInEditor.message', "Open in editor"),
-				() => this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors()), this.hoverService,
-				openInEditorTooltip));
-			dom.append(messageEl, openInEditorButton.element);
+			// const openInEditorTooltip = appendKeyBindingLabel(
+			// 	nls.localize('openInEditor.tooltip', "Copy current search results to an editor"),
+			// 	this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.OpenInEditorCommandId));
+			// const openInEditorButton = this.messageDisposables.add(new SearchLinkButton(
+			// 	nls.localize('openInEditor.message', "Open in editor"),
+			// 	() => this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors()), this.hoverService,
+			// 	openInEditorTooltip));
+			// dom.append(messageEl, openInEditorButton.element);
 
-			dom.append(messageEl, ' - ');
-			this.appendSearchWithAIButton(messageEl);
+			// dom.append(messageEl, ' - ');
+			// this.appendSearchWithAIButton(messageEl);
+			// [Gitbbon] 'Open in editor', 'Search with AI' 링크 숨김 끝
 
 			this.reLayout();
 		} else if (!msgWasHidden) {
