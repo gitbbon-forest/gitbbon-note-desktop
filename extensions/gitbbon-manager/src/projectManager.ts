@@ -350,7 +350,8 @@ export class ProjectManager {
 					'**/.gitignore': true,
 					'**/.gitbbon': true,
 					'.vscode': true
-				}
+				},
+				'breadcrumbs.enabled': false
 			};
 			await fs.promises.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
 			console.log(`[gitbbon-manager][projectManager] .vscode/settings.json created`);
