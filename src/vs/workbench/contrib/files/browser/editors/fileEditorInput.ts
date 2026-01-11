@@ -146,9 +146,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		}
 	}
 
-	// [Gitbbon] YAML frontmatter에서 추출한 title 캐시
-	private cachedTitle: string | undefined = undefined;
-
 	private registerModelListeners(model: ITextFileEditorModel): void {
 
 		// Clear any old
@@ -168,50 +165,9 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			this.modelListeners.clear();
 			this.model = undefined;
 		}));
-
-		// [Gitbbon] 마크다운 파일인 경우 YAML title 추출하여 탭 제목에 사용
-		this.resolveYamlTitle(model);
-	}
-
-	/**
-	 * [Gitbbon] 마크다운 파일의 YAML frontmatter에서 title 추출
-	 */
-	private resolveYamlTitle(model: ITextFileEditorModel): void {
-		if (!this.resource.path.toLowerCase().endsWith('.md')) {
-			return;
-		}
-
-		try {
-			const textModel = model.textEditorModel;
-			if (!textModel) {
-				return;
-			}
-
-			// 파일의 첫 20줄만 검사 (frontmatter는 보통 상단에 위치)
-			const lineCount = Math.min(textModel.getLineCount(), 20);
-			let content = '';
-			for (let i = 1; i <= lineCount; i++) {
-				content += textModel.getLineContent(i) + '\n';
-			}
-
-			const match = content.match(/^---\r?\n[\s\S]*?title:\s*(.+?)\r?\n[\s\S]*?---/);
-			if (match && match[1]) {
-				const newTitle = match[1].trim().replace(/^['\"](.*)['\"]$/, '$1');
-				if (this.cachedTitle !== newTitle) {
-					this.cachedTitle = newTitle;
-					this._onDidChangeLabel.fire();
-				}
-			}
-		} catch {
-			// title 추출 실패 시 무시
-		}
 	}
 
 	override getName(): string {
-		// [Gitbbon] YAML title이 있으면 사용
-		if (this.cachedTitle) {
-			return this.cachedTitle;
-		}
 		return this.preferredName || super.getName();
 	}
 

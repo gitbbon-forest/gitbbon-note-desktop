@@ -272,6 +272,11 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		const { frontmatter, content } = FrontmatterParser.parse(document.getText());
 		let lastCommittedText = document.getText(); // 스마트 오토 커밋을 위한 기준 텍스트
 
+		// [Gitbbon] YAML frontmatter의 title이 있으면 탭 제목으로 설정
+		if (frontmatter.title && typeof frontmatter.title === 'string') {
+			webviewPanel.title = frontmatter.title;
+		}
+
 		// Webview로 초기 데이터 전송
 		webviewPanel.webview.postMessage({
 			type: 'init',
