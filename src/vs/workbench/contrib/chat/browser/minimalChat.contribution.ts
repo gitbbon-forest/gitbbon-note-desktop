@@ -58,7 +58,22 @@ class MockChatAgentService extends Disposable implements IChatAgentService {
 	getFollowups(id: string, request: any, result: any, history: any, token: any): Promise<any[]> { return Promise.resolve([]); }
 	getChatTitle(id: string, history: any, token: any): Promise<string | undefined> { return Promise.resolve(undefined); }
 	getChatSummary(id: string, history: any, token: any): Promise<string | undefined> { return Promise.resolve(undefined); }
-	getAgent(id: string, includeDisabled?: boolean): IChatAgentData | undefined { return undefined; }
+	getAgent(id: string, includeDisabled?: boolean): IChatAgentData | undefined {
+		// [Gitbbon Customization] Return a mock agent to satisfy MainThreadChatAgents2 validation and silence "chatParticipant must be declared" errors.
+		return {
+			id: id,
+			name: id,
+			extensionId: { value: 'mock-extension', id: 'mock-extension' } as any,
+			extensionPublisherId: 'mock-publisher',
+			extensionDisplayName: 'Mock Extension',
+			extensionVersion: '0.0.0',
+			metadata: {},
+			slashCommands: [],
+			locations: [],
+			modes: [],
+			disambiguation: []
+		} as any;
+	}
 	getAgentByFullyQualifiedId(id: string): IChatAgentData | undefined { return undefined; }
 	getAgents(): IChatAgentData[] { return []; }
 	getActivatedAgents(): Array<IChatAgent> { return []; }
