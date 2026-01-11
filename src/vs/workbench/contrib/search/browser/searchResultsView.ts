@@ -12,7 +12,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import * as paths from '../../../../base/common/path.js';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { FileKind } from '../../../../platform/files/common/files.js';
+import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ISearchConfigurationProperties } from '../../../services/search/common/search.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -33,7 +33,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, ITextSearchHeading, ISearchTreeFolderMatch, ISearchTreeFileMatch, isSearchTreeFileMatch, isSearchTreeFolderMatch, isTextSearchHeading, ISearchModel, isSearchTreeFolderMatchWorkspaceRoot, isSearchTreeFolderMatchNoRoot, isPlainTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
-import { isSearchTreeAIFileMatch } from './AISearch/aiSearchModelBase.js';
+import { isSearchTreeAIFileMatch, ISearchTreeAIFileMatch } from './AISearch/aiSearchModelBase.js';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -299,6 +299,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 	}
@@ -351,7 +352,18 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		templateData.el.setAttribute('data-resource', fileMatch.resource.toString());
 
 		const decorationConfig = this.configurationService.getValue<ISearchConfigurationProperties>('search').decorations;
-		templateData.label.setFile(fileMatch.resource, { range: isSearchTreeAIFileMatch(fileMatch) ? fileMatch.getFullRange() : undefined, hidePath: this.searchView.isTreeLayoutViewVisible && !(isSearchTreeFolderMatchNoRoot(fileMatch.parent())), hideIcon: false, fileDecorations: { colors: decorationConfig.colors, badges: decorationConfig.badges } });
+
+		// [Gitbbon] AI 검색 결과이고 마크다운 파일인 경우 YAML title 표시
+		const isAIResult = isSearchTreeAIFileMatch(fileMatch);
+		const isMarkdown = fileMatch.resource.path.toLowerCase().endsWith('.md');
+
+		if (isAIResult && isMarkdown) {
+			// 비동기로 title 추출하여 레이블 업데이트
+			this.resolveAndSetTitle(fileMatch, templateData, decorationConfig);
+		} else {
+			templateData.label.setFile(fileMatch.resource, { range: isAIResult ? fileMatch.getFullRange() : undefined, hidePath: this.searchView.isTreeLayoutViewVisible && !(isSearchTreeFolderMatchNoRoot(fileMatch.parent())), hideIcon: false, fileDecorations: { colors: decorationConfig.colors, badges: decorationConfig.badges } });
+		}
+
 		const count = fileMatch.count();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
@@ -369,6 +381,43 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		// eslint-disable-next-line no-restricted-syntax
 		const twistieContainer = templateData.el.parentElement?.parentElement?.querySelector('.monaco-tl-twistie');
 		twistieContainer?.classList.add('force-twistie');
+	}
+
+	/**
+	 * [Gitbbon] AI 검색 결과의 마크다운 파일에서 YAML title 추출하여 레이블 설정
+	 */
+	private async resolveAndSetTitle(
+		fileMatch: ISearchTreeAIFileMatch,
+		templateData: IFileMatchTemplate,
+		decorationConfig: { colors: boolean; badges: boolean }
+	): Promise<void> {
+		try {
+			// 파일의 첫 500바이트만 읽어서 frontmatter 확인
+			const content = await this.fileService.readFile(fileMatch.resource, { length: 500 });
+			const text = content.value.toString();
+			const match = text.match(/^---\r?\n[\s\S]*?title:\s*(.+?)\r?\n[\s\S]*?---/);
+
+			if (match && match[1]) {
+				const title = match[1].trim().replace(/^['"](.*)['"]$/, '$1');
+
+				// [Gitbbon] AI 검색 결과는 title만 표시, 경로는 숨김
+				templateData.label.setLabel(title, '', {
+					matches: [],
+					extraClasses: ['search-result-ai-title'],
+				});
+				return;
+			}
+		} catch {
+			// title 추출 실패 시 기본 파일명 표시로 fallback
+		}
+
+		// fallback: 기본 파일명 표시
+		templateData.label.setFile(fileMatch.resource, {
+			range: fileMatch.getFullRange(),
+			hidePath: this.searchView.isTreeLayoutViewVisible && !(isSearchTreeFolderMatchNoRoot(fileMatch.parent())),
+			hideIcon: false,
+			fileDecorations: { colors: decorationConfig.colors, badges: decorationConfig.badges }
+		});
 	}
 
 	disposeElement(element: ITreeNode<RenderableMatch, any>, index: number, templateData: IFileMatchTemplate): void {
