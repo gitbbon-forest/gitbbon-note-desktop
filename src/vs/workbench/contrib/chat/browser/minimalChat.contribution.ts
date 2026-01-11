@@ -29,6 +29,7 @@ import { IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ILanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { IMcpRegistry } from '../../mcp/common/mcpRegistryTypes.js';
+import { IMcpService } from '../../mcp/common/mcpTypes.js';
 
 // Create Decorators for services where we don't have the explicit definition file handy or want to be generic
 // Note: We are importing most real decorators now to ensure type safety and correct DI IDs.
@@ -273,6 +274,20 @@ class MockMcpRegistry {
 	resolveConnection(opts: any) { return Promise.resolve(undefined); }
 }
 
+// Mock IMcpService (New - Fixes SlashCommandCompletions crash)
+class MockMcpService implements IMcpService {
+	_serviceBrand: undefined;
+	readonly servers = observableValue('servers', []);
+	readonly lazyCollectionState = observableValue('lazyCollectionState', { state: 2 /* AllKnown */, collections: [] });
+
+	resetCaches() { }
+	resetTrust() { }
+	autostart(token: any) { return observableValue('autostart', { working: false, starting: [], serversRequiringInteraction: [] }); }
+	cancelAutostart() { }
+	activateCollections() { return Promise.resolve(); }
+	dispose() { }
+}
+
 // Mock ILanguageModelIgnoredFilesService (New)
 class MockLanguageModelIgnoredFilesService implements ILanguageModelIgnoredFilesService {
 	_serviceBrand: undefined;
@@ -335,6 +350,7 @@ registerSingleton(IChatOutputRendererService, MockGenericService, InstantiationT
 registerSingleton(ILanguageModelIgnoredFilesService, MockLanguageModelIgnoredFilesService, InstantiationType.Delayed); // NEW
 registerSingleton(IPromptsService, MockPromptsService, InstantiationType.Delayed); // NEW
 registerSingleton(IMcpRegistry, MockMcpRegistry, InstantiationType.Delayed); // UPDATED
+registerSingleton(IMcpService, MockMcpService, InstantiationType.Delayed); // NEW - Fixes runtime error
 
 registerSingleton(IChatSlashCommandService, MockGenericService, InstantiationType.Delayed);
 registerSingleton(IChatAgentNameService, MockGenericService, InstantiationType.Delayed);
