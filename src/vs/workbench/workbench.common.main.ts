@@ -205,11 +205,13 @@ import './contrib/notebook/browser/notebook.contribution.js';
 import './contrib/speech/browser/speech.contribution.js';
 
 // Chat
-import './contrib/chat/browser/chat.contribution.js';
-import './contrib/inlineChat/browser/inlineChat.contribution.js';
-import './contrib/mcp/browser/mcp.contribution.js';
-import './contrib/chat/browser/chatSessions.contribution.js';
-import './contrib/chat/browser/chatContext.contribution.js';
+// [Gitbbon Customization] Replaced default chat with minimal mock to prioritize gitbbon-chat.
+// import './contrib/chat/browser/chat.contribution.js';
+import './contrib/chat/browser/minimalChat.contribution.js';
+// import './contrib/inlineChat/browser/inlineChat.contribution.js';
+// import './contrib/mcp/browser/mcp.contribution.js';
+// import './contrib/chat/browser/chatSessions.contribution.js';
+// import './contrib/chat/browser/chatContext.contribution.js';
 
 // Interactive
 import './contrib/interactive/browser/interactive.contribution.js';
