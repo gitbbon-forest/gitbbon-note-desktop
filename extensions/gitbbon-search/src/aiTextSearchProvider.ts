@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { searchService } from './services/searchService.js';
+import { extractTitle } from './services/titleExtractor.js';
 
 // Proposed API 타입 정의 (vscode.proposed.aiTextSearchProvider.d.ts에서 발췌)
 // VS Code 커스텀 빌드에서만 사용 가능
@@ -88,49 +89,73 @@ export class GitbbonAITextSearchProvider {
 				const filePath = hit.document.filePath as string;
 				const range = hit.document.range as [number, number];
 
-				// 스니펫 가져오기
-				const snippet = await searchService.getSnippet(filePath, range);
+				const fileUri = vscode.Uri.file(filePath);
 
-				if (snippet) {
-					const fileUri = vscode.Uri.file(filePath);
+				try {
+					const content = await vscode.workspace.fs.readFile(fileUri);
+					const text = Buffer.from(content).toString('utf-8');
 
-					// 파일 내용 읽어서 라인 번호 계산
-					try {
-						const content = await vscode.workspace.fs.readFile(fileUri);
-						const text = Buffer.from(content).toString('utf-8');
+					// [Gitbbon] YAML frontmatter의 title 추출 (마크다운 파일인 경우)
+					// title이 있으면 스니펫으로 사용, 없으면 기존 청크 스니펫 사용
+					const isMarkdown = filePath.endsWith('.md');
+					let previewText: string;
+					const highlightRanges: vscode.Range[] = [];
 
-						// 문자 오프셋을 라인/컬럼으로 변환
-						const beforeRange = text.substring(0, range[0]);
-						const startLine = beforeRange.split('\n').length - 1;
-						const lastNewline = beforeRange.lastIndexOf('\n');
-						const startCol = range[0] - lastNewline - 1;
+					if (isMarkdown) {
+						const title = extractTitle(text, filePath);
+						previewText = title;
 
-						const textInRange = text.substring(range[0], range[1]);
-						const lines = textInRange.split('\n');
-						const endLine = startLine + lines.length - 1;
-						const endCol = lines.length === 1
-							? startCol + textInRange.length
-							: lines[lines.length - 1].length;
+						// 검색어가 title에 포함되어 있으면 하이라이트 범위 계산 (대소문자 무시)
+						const lowerTitle = title.toLowerCase();
+						const lowerQuery = query.toLowerCase();
+						const matchIndex = lowerTitle.indexOf(lowerQuery);
 
-						// TextSearchMatch2 클래스 인스턴스 생성
-						// 시맨틱 검색은 의미적 일치 위치를 알 수 없으므로 하이라이트 없음
-						const sourceRange = new vscode.Range(startLine, startCol, endLine, endCol);
-						const previewRange = new vscode.Range(0, 0, 0, 0);  // 빈 범위 = 하이라이트 없음
-
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any
-						const TextSearchMatch2 = (vscode as any).TextSearchMatch2;
-						if (TextSearchMatch2) {
-							const match = new TextSearchMatch2(
-								fileUri,
-								[{ sourceRange, previewRange }],
-								snippet
-							);
-
-							progress.report(match);
+						if (matchIndex !== -1) {
+							// 검색어 위치에 하이라이트 표시
+							highlightRanges.push(new vscode.Range(0, matchIndex, 0, matchIndex + query.length));
 						}
-					} catch (e) {
-						console.warn(`[gitbbon-search][aiTextSearchProvider] Failed to read file ${filePath}:`, e);
+					} else {
+						// 마크다운이 아닌 경우 기존 스니펫 사용
+						previewText = await searchService.getSnippet(filePath, range);
 					}
+
+					if (!previewText) {
+						continue;
+					}
+
+					// 문자 오프셋을 라인/컬럼으로 변환
+					const beforeRange = text.substring(0, range[0]);
+					const startLine = beforeRange.split('\n').length - 1;
+					const lastNewline = beforeRange.lastIndexOf('\n');
+					const startCol = range[0] - lastNewline - 1;
+
+					const textInRange = text.substring(range[0], range[1]);
+					const lines = textInRange.split('\n');
+					const endLine = startLine + lines.length - 1;
+					const endCol = lines.length === 1
+						? startCol + textInRange.length
+						: lines[lines.length - 1].length;
+
+					const sourceRange = new vscode.Range(startLine, startCol, endLine, endCol);
+
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					const TextSearchMatch2 = (vscode as any).TextSearchMatch2;
+					if (TextSearchMatch2) {
+						// 하이라이트가 있으면 사용, 없으면 빈 범위 (하이라이트 없음)
+						const previewRange = highlightRanges.length > 0
+							? highlightRanges[0]
+							: new vscode.Range(0, 0, 0, 0);
+
+						const match = new TextSearchMatch2(
+							fileUri,
+							[{ sourceRange, previewRange }],
+							previewText
+						);
+
+						progress.report(match);
+					}
+				} catch (e) {
+					console.warn(`[gitbbon-search][aiTextSearchProvider] Failed to read file ${filePath}:`, e);
 				}
 			}
 
@@ -146,3 +171,4 @@ export class GitbbonAITextSearchProvider {
 
 // 싱글톤 인스턴스
 export const aiTextSearchProvider = new GitbbonAITextSearchProvider();
+
