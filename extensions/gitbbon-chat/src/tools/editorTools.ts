@@ -119,13 +119,13 @@ ${detail.after}
 		get_chat_history: createHistoryTool(messages),
 
 		search_in_workspace: tool({
-			description: 'Search for keywords or patterns across the entire project (using ripgrep).',
+			description: 'Search for code or notes using natural language (Semantic Search) or keywords (Regex/Ripgrep). Use this for "find code about X" or "where is logic for Y".',
 			inputSchema: z.object({
-				query: z.string().describe('Keyword or regex to search for'),
-				isRegex: z.boolean().optional().describe('Whether to use regex (default: false)'),
-				filePattern: z.string().optional().describe('File path pattern (e.g., src/**/*.ts)'),
+				query: z.string().describe('Natural language query (for semantic search) or specific pattern (for exact match)'),
+				isRegex: z.boolean().optional().describe('Set to true ONLY if you need strict regex matching (bypasses semantic search)'),
+				filePattern: z.string().optional().describe('File path pattern (e.g., src/**/*.ts) - mostly for regex mode'),
 				context: z.number().min(0).max(500).optional().describe('Characters of context around match (default: 100)'),
-				maxResults: z.number().min(1).max(30).optional().describe('Maximum number of results (default: 3)'),
+				maxResults: z.number().min(1).max(30).optional().describe('Maximum number of results (default: 5)'),
 			}),
 			execute: async (args) => {
 				return withProgress('search_in_workspace', { query: args.query }, emitter, () => executeSearch(args));

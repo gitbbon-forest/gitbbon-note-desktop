@@ -29,6 +29,17 @@ const pendingSearchRequests = new Map<string, vscode.WebviewView>();
 // AI 검색 쿼리 임베딩 대기 맵
 const pendingQueryEmbeddings = new Map<string, (vector: number[]) => void>();
 
+export interface SearchResult {
+	filePath: string;
+	range: [number, number]; // [startOffset, endOffset]
+	score: number;
+	snippet: string;
+}
+
+export interface GitbbonSearchAPI {
+	search(query: string, limit?: number): Promise<SearchResult[]>;
+}
+
 /**
  * 검색 뷰 프로바이더
  */
@@ -356,7 +367,7 @@ function getNonce(): string {
 /**
  * 확장 활성화
  */
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+export async function activate(context: vscode.ExtensionContext): Promise<GitbbonSearchAPI> {
 	console.log('[gitbbon-search] Extension activating...');
 
 	// 검색 엔진 초기화 (모델은 Webview Worker에서 로딩)
@@ -447,26 +458,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					}
 
 					// AITextSearchProvider 설정 및 등록
-					aiTextSearchProvider.setEmbedQueryFn(async (query: string): Promise<number[]> => {
-						return new Promise((resolve, reject) => {
-							const requestId = `ai-search-${Date.now()}`;
-							pendingQueryEmbeddings.set(requestId, resolve);
-
-							// 타임아웃 설정 (10초)
-							setTimeout(() => {
-								if (pendingQueryEmbeddings.has(requestId)) {
-									pendingQueryEmbeddings.delete(requestId);
-									reject(new Error('Query embedding timeout'));
-								}
-							}, 10000);
-
-							hiddenWebview?.postMessage({
-								type: 'embedQuery',
-								query,
-								requestId,
-							});
-						});
-					});
+					aiTextSearchProvider.setEmbedQueryFn(embedQuery);
 
 					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					const registerFn = (vscode.workspace as any).registerAITextSearchProvider;
@@ -559,6 +551,76 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	);
 
 	console.log('[gitbbon-search] Extension activated!');
+
+	return {
+		search: (query: string, limit?: number) => executeSemanticSearch(query, limit)
+	};
+}
+
+/**
+ * 쿼리 임베딩 요청 헬퍼
+ */
+async function embedQuery(query: string): Promise<number[]> {
+	if (!hiddenWebview || !modelReady) {
+		throw new Error('Search model is not ready');
+	}
+
+	return new Promise<number[]>((resolve, reject) => {
+		// 고유 ID 생성
+		const requestId = `api-query-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+		pendingQueryEmbeddings.set(requestId, resolve);
+
+		// 타임아웃 설정 (10초)
+		const timeout = setTimeout(() => {
+			if (pendingQueryEmbeddings.has(requestId)) {
+				pendingQueryEmbeddings.delete(requestId);
+				reject(new Error('Query embedding timeout'));
+			}
+		}, 10000);
+
+		try {
+			hiddenWebview!.postMessage({
+				type: 'embedQuery',
+				query,
+				requestId,
+			});
+		} catch (e) {
+			clearTimeout(timeout);
+			pendingQueryEmbeddings.delete(requestId);
+			reject(e);
+		}
+	});
+}
+
+/**
+ * 시멘틱 검색 실행
+ */
+async function executeSemanticSearch(query: string, limit: number = 5): Promise<SearchResult[]> {
+	try {
+		console.log(`[gitbbon-search] Executing semantic search for: "${query}"`);
+		const vector = await embedQuery(query);
+
+		const results = await searchService.vectorSearch(vector, limit);
+
+		const searchResults: SearchResult[] = await Promise.all(
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			results.hits.map(async (hit: any) => {
+				const doc = hit.document;
+				const snippet = await searchService.getSnippet(doc.filePath, doc.range);
+				return {
+					filePath: doc.filePath,
+					range: doc.range,
+					score: hit.score,
+					snippet,
+				};
+			})
+		);
+
+		return searchResults;
+	} catch (e) {
+		console.error('[gitbbon-search] Semantic search failed:', e);
+		return [];
+	}
 }
 
 /**

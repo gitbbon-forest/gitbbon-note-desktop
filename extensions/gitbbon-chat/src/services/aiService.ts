@@ -75,8 +75,10 @@ export class AIService {
 	 */
 	public async *streamAgentChat(messages: ModelMessage[]): AsyncGenerator<StreamEvent, void, unknown> {
 		if (!this.apiKey) throw new Error('No API Key');
+
 		const lastMessage = messages[messages.length - 1];
 		const userInput = typeof lastMessage.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage.content);
+		console.log('[gitbbon-chat][aiService] User Input:', userInput);
 
 		const channel = new EventChannel();
 
@@ -137,6 +139,8 @@ export class AIService {
 		}
 
 		const instructions = SYSTEM_PROMPT + '\n\n' + contextParts.join('\n');
+
+		console.log('[gitbbon-chat][System Prompt]', instructions);
 		console.log(`[gitbbon-chat][aiService] Starting agent: ${modelName}`);
 
 		// Run agent with phase indicators
@@ -152,6 +156,7 @@ export class AIService {
 					toolName: 'Thinking...',
 					timestamp: thinkingStart,
 				});
+				console.log('[gitbbon-chat][Phase] Thinking...');
 
 				let hasToolCalls = false;
 
@@ -161,18 +166,31 @@ export class AIService {
 					tools,
 					onStepFinish: (event) => {
 						// Tool calls detected - update thinking status
-						if (event.toolCalls?.length && !hasToolCalls) {
-							hasToolCalls = true;
-							channel.push({
-								type: 'tool-end',
-								id: thinkingId,
-								toolName: 'Thinking...',
-								duration: Date.now() - thinkingStart,
-								success: true,
-							});
-						}
+						if (event.toolCalls?.length) {
+							if (!hasToolCalls) {
+								hasToolCalls = true;
+								channel.push({
+									type: 'tool-end',
+									id: thinkingId,
+									toolName: 'Thinking...',
+									duration: Date.now() - thinkingStart,
+									success: true,
+								});
+								console.log('[gitbbon-chat][Phase] Tool Execution Started');
+							}
 
-						// Step 로그 제거 (과도한 출력 방지)
+							// Log tool calls
+							event.toolCalls.forEach(call => {
+								console.log(`[gitbbon-chat][Tool Call] ${call.toolName}`, (call as any).args);
+							});
+
+							// Log tool results
+							if (event.toolResults) {
+								event.toolResults.forEach(result => {
+									console.log(`[gitbbon-chat][Tool Result] ${result.toolName}`, (result as any).result);
+								});
+							}
+						}
 					}
 				});
 
@@ -187,6 +205,7 @@ export class AIService {
 						duration: Date.now() - thinkingStart,
 						success: true,
 					});
+					console.log('[gitbbon-chat][Phase] Thinking Complete (No Tools Used)');
 				}
 
 				// Phase 2: Writing response (if we had tool calls)
@@ -198,6 +217,7 @@ export class AIService {
 						toolName: 'Writing response...',
 						timestamp: Date.now(),
 					});
+					console.log('[gitbbon-chat][Phase] Writing Response');
 					// Small delay to show the phase
 					await new Promise(r => setTimeout(r, 100));
 					channel.push({
@@ -210,6 +230,7 @@ export class AIService {
 				}
 
 				if (result.text) {
+					console.log('[gitbbon-chat][AI Response]', result.text.slice(0, 200) + '...');
 					channel.push({ type: 'text', content: result.text });
 				}
 			} catch (error) {

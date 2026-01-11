@@ -21,11 +21,58 @@ interface SearchArgs {
 	maxResults?: number;
 }
 
+// Interface for Gitbbon Search API (Duck typing)
+interface SearchResult {
+	filePath: string;
+	range: [number, number];
+	score: number;
+	snippet: string;
+}
+
+interface GitbbonSearchAPI {
+	search(query: string, limit?: number): Promise<SearchResult[]>;
+}
+
 /**
  * Execute search logic - extracted for reuse with progress tracking
  */
 export async function executeSearch({ query, isRegex, filePattern, context, maxResults }: SearchArgs): Promise<string> {
 	console.log('[gitbbon-chat][searchTool] Executing search:', query);
+
+	const MAX_RESULTS = maxResults ?? 5; // Default increased for semantic search capability
+
+	// 1. Try Semantic Search (if not regex)
+	if (!isRegex) {
+		try {
+			const extension = vscode.extensions.getExtension<GitbbonSearchAPI>('gitbbon.gitbbon-search');
+			if (extension) {
+				if (!extension.isActive) {
+					await extension.activate();
+				}
+
+				const api = extension.exports;
+				if (api && typeof api.search === 'function') {
+					console.log('[gitbbon-chat][searchTool] Using Semantic Search...');
+					const results = await api.search(query, MAX_RESULTS);
+
+					if (results && results.length > 0) {
+						return `Found ${results.length} semantic matches:\n\n` +
+							results.map(r => {
+								const relativePath = vscode.workspace.asRelativePath(r.filePath);
+								// Add score indication for debugging/transparency if needed, effectively optional
+								return `[${relativePath}] (Score: ${r.score.toFixed(2)})\n${r.snippet}`;
+							}).join('\n\n');
+					}
+					console.log('[gitbbon-chat][searchTool] Semantic search returned no results, falling back to ripgrep.');
+				}
+			}
+		} catch (e) {
+			console.warn('[gitbbon-chat][searchTool] Semantic search failed, falling back:', e);
+		}
+	}
+
+	// 2. Fallback to Ripgrep (findTextInFiles)
+	console.log('[gitbbon-chat][searchTool] Using Ripgrep fallback...');
 
 	const workspaceFolders = vscode.workspace.workspaceFolders;
 	if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -33,7 +80,6 @@ export async function executeSearch({ query, isRegex, filePattern, context, maxR
 	}
 
 	const matches: string[] = [];
-	const MAX_RESULTS = maxResults ?? 3;
 	const CONTEXT_LENGTH = context ?? 100;
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -102,5 +148,5 @@ export async function executeSearch({ query, isRegex, filePattern, context, maxR
 		return `No results found for "${query}".`;
 	}
 
-	return `Found ${matches.length} files with matches:\n\n` + matches.join('\n\n');
+	return `Found ${matches.length} files with matches (Exact/grep):\n\n` + matches.join('\n\n');
 }

@@ -26,14 +26,16 @@ export class ContextService {
 	 * Helper to get relative path or label for the active editor
 	 */
 	public static getActiveFileName(): string {
+		let fileName = 'None';
 		const activeEditor = vscode.window.activeTextEditor;
 		if (activeEditor) {
-			return vscode.workspace.asRelativePath(activeEditor.document.uri);
+			fileName = vscode.workspace.asRelativePath(activeEditor.document.uri);
 		} else if (this.isGitbbonEditor()) {
 			const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
-			return activeTab?.label || 'Milkdown Doc';
+			fileName = activeTab?.label || 'Milkdown Doc';
 		}
-		return 'None';
+		console.log('[gitbbon-chat][Context] Active File Name:', fileName);
+		return fileName;
 	}
 
 	/**
@@ -60,7 +62,9 @@ export class ContextService {
 			const afterRange = new vscode.Range(selection.end, afterEndPos);
 			const after = doc.getText(afterRange);
 
-			return { text, before, after };
+			const result = { text, before, after };
+			console.log('[gitbbon-chat][Context] Selection:', JSON.stringify(result));
+			return result;
 		}
 
 		// 2. Milkdown Editor
@@ -71,19 +75,22 @@ export class ContextService {
 				const detail = await vscode.commands.executeCommand<SelectionDetail | null>('gitbbon.editor.getSelectionDetail');
 
 				if (detail && detail.text) {
+					console.log('[gitbbon-chat][Context] Selection (Milkdown):', JSON.stringify(detail));
 					return detail;
 				}
 
 				// Fallback to old getSelection if detail fails (backwards compatibility)
 				const selection = await vscode.commands.executeCommand<string | null>('gitbbon.editor.getSelection');
 				if (selection && selection.length > 0) {
+					console.log('[gitbbon-chat][Context] Selection (Milkdown Fallback):', selection);
 					return { text: selection, before: '', after: '' };
 				}
 			} catch (e) {
-				console.warn('[ContextService] Failed to get selection from milkdown:', e);
+				console.warn('[gitbbon-chat][Context] Failed to get selection from milkdown:', e);
 			}
 		}
 
+		console.log('[gitbbon-chat][Context] Selection: None');
 		return null;
 	}
 
@@ -105,7 +112,7 @@ export class ContextService {
 					return content;
 				}
 			} catch (e) {
-				console.warn('[ContextService] Failed to get content from milkdown:', e);
+				console.warn('[gitbbon-chat][Context] Failed to get content from milkdown:', e);
 			}
 		}
 
@@ -122,20 +129,24 @@ export class ContextService {
 			const startLine = Math.max(0, cursorLine - 5);
 			const endLine = Math.min(editor.document.lineCount - 1, cursorLine + 5);
 			const range = new vscode.Range(startLine, 0, endLine, Number.MAX_SAFE_INTEGER);
-			return editor.document.getText(range);
+			const context = editor.document.getText(range);
+			console.log('[gitbbon-chat][Context] Cursor Context:', context);
+			return context;
 		}
 
 		if (this.isGitbbonEditor()) {
 			try {
 				const context = await vscode.commands.executeCommand<string | null>('gitbbon.editor.getCursorContext');
 				if (context && context.length > 0) {
+					console.log('[gitbbon-chat][Context] Cursor Context (Milkdown):', context);
 					return context;
 				}
 			} catch (e) {
-				console.warn('[ContextService] Failed to get cursor context from milkdown:', e);
+				console.warn('[gitbbon-chat][Context] Failed to get cursor context from milkdown:', e);
 			}
 		}
 
+		console.log('[gitbbon-chat][Context] Cursor Context: None');
 		return null;
 	}
 
@@ -143,9 +154,11 @@ export class ContextService {
 	 * Get list of open tabs
 	 */
 	public static getOpenTabs(): string[] {
-		return vscode.window.tabGroups.all
+		const tabs = vscode.window.tabGroups.all
 			.flatMap(group => group.tabs)
 			.map(tab => tab.label);
+		console.log('[gitbbon-chat][Context] Open Tabs:', tabs.join(', '));
+		return tabs;
 	}
 
 	/**
@@ -164,7 +177,9 @@ export class ContextService {
 		}
 
 		const readData = await vscode.workspace.fs.readFile(fileUri);
-		return Buffer.from(readData).toString('utf-8');
+		const content = Buffer.from(readData).toString('utf-8');
+		console.log(`[gitbbon-chat][Context] Read File: ${filePath}`, content.slice(0, 500) + (content.length > 500 ? '...' : ''));
+		return content;
 	}
 
 	/**
