@@ -440,17 +440,17 @@
 			let displayName = normalizedRef;
 			let icon = '';
 
-			// Rule 3: auto-save/main -> 임시 저장 (Draft)
+			// Rule 3: auto-save/main -> Draft
 			if (normalizedRef === 'auto-save/main') {
-				displayName = '임시 저장';
+				displayName = 'Draft';
 				className += ' draft';
-				icon = '🕒 ';
+				icon = '';
 			}
-			// Rule 4: main -> 세이브 포인트 (Save Point)
+			// Rule 4: main -> Save Point
 			else if (normalizedRef === 'main') {
-				displayName = '세이브 포인트';
+				displayName = 'Save Point';
 				className += ' savepoint';
-				icon = '🚩 ';
+				icon = '';
 			}
 			// Handle tags
 			else if (normalizedRef.startsWith('tag:')) {

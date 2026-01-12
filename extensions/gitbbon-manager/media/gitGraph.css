@@ -133,21 +133,20 @@ body {
 
 /* User Design: Draft (Temporary Save) */
 .ref-label.draft {
-	background-color: transparent;
-	color: var(--vscode-descriptionForeground);
-	font-style: italic;
-	border: 1px dashed var(--vscode-descriptionForeground);
+	background-color: color-mix(in srgb, var(--vscode-foreground), transparent 70%);
+	color: var(--vscode-foreground);
+	border-radius: 4px;
 	padding: 1px 6px;
+	font-style: normal;
 }
 
 /* User Design: Save Point (Main) */
 .ref-label.savepoint {
-	background-color: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
+	background-color: color-mix(in srgb, var(--vscode-foreground), transparent 70%);
+	color: var(--vscode-foreground);
 	font-weight: bold;
 	border-radius: 4px;
 	padding: 2px 8px;
-	box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
 /* 더 로드하기 버튼 */
