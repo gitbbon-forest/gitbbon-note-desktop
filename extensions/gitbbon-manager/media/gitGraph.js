@@ -15,12 +15,9 @@
 	const CIRCLE_STROKE_WIDTH = 2;
 
 	// Color palette (VS Code style)
+	// Color palette (Monochrome using theme foreground)
 	const colorRegistry = [
-		'#FFB000', // scmGraph.foreground1
-		'#DC267F', // scmGraph.foreground2
-		'#994F00', // scmGraph.foreground3
-		'#40B0A6', // scmGraph.foreground4
-		'#B66DFF', // scmGraph.foreground5
+		'var(--vscode-foreground)',
 	];
 
 	// State
