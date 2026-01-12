@@ -475,7 +475,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 					await startBackgroundIndexing();
 					break;
 				case 'modelProgress':
-					console.log(`[Extension] Model loading: ${message.progress}% - ${message.message}`);
 					// UI Webview에 진행률 전달
 					if (searchProvider) {
 						searchProvider.sendModelStatus('loading', message.progress);

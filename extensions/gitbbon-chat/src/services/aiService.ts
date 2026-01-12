@@ -165,6 +165,12 @@ export class AIService {
 					instructions,
 					tools,
 					onStepFinish: (event) => {
+						// Log every step change
+						console.log('[gitbbon-chat][Agent Step] Step Finished', {
+							text: event.text ? event.text.slice(0, 100) + '...' : undefined,
+							tools: event.toolCalls?.map(t => t.toolName).join(', ') || 'None'
+						});
+
 						// Tool calls detected - update thinking status
 						if (event.toolCalls?.length) {
 							if (!hasToolCalls) {

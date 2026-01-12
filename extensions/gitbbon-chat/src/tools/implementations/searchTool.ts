@@ -37,14 +37,16 @@ interface GitbbonSearchAPI {
  * Execute search logic - extracted for reuse with progress tracking
  */
 export async function executeSearch({ query, isRegex, filePattern, context, maxResults }: SearchArgs): Promise<string> {
-	console.log('[gitbbon-chat][searchTool] Executing search:', query);
+	console.log('[gitbbon-chat][searchTool] Executing search:', query, { isRegex, filePattern });
 
-	const MAX_RESULTS = maxResults ?? 5; // Default increased for semantic search capability
+	const MAX_RESULTS = maxResults ?? 5;
 
-	// 1. Try Semantic Search (if not regex)
+	// 1. Try Semantic Search (Orama) (if not regex)
 	if (!isRegex) {
 		try {
 			const extension = vscode.extensions.getExtension<GitbbonSearchAPI>('gitbbon.gitbbon-search');
+			console.log('[gitbbon-chat][searchTool] Searching for extension "gitbbon.gitbbon-search". Found:', !!extension);
+
 			if (extension) {
 				if (!extension.isActive) {
 					await extension.activate();
@@ -52,7 +54,7 @@ export async function executeSearch({ query, isRegex, filePattern, context, maxR
 
 				const api = extension.exports;
 				if (api && typeof api.search === 'function') {
-					console.log('[gitbbon-chat][searchTool] Using Semantic Search...');
+					console.log('[gitbbon-chat][searchTool] Using Semantic Search (Orama)...');
 					const results = await api.search(query, MAX_RESULTS);
 
 					if (results && results.length > 0) {
@@ -63,11 +65,15 @@ export async function executeSearch({ query, isRegex, filePattern, context, maxR
 								return `[${relativePath}] (Score: ${r.score.toFixed(2)})\n${r.snippet}`;
 							}).join('\n\n');
 					}
-					console.log('[gitbbon-chat][searchTool] Semantic search returned no results, falling back to ripgrep.');
+					console.log('[gitbbon-chat][searchTool] Semantic search (Orama) returned no results, falling back to ripgrep.');
+				} else {
+					console.log('[gitbbon-chat][searchTool] Gitbbon Search API not found, skipping Orama.');
 				}
+			} else {
+				console.log('[gitbbon-chat][searchTool] Gitbbon Search extension not found, skipping Orama.');
 			}
 		} catch (e) {
-			console.warn('[gitbbon-chat][searchTool] Semantic search failed, falling back:', e);
+			console.warn('[gitbbon-chat][searchTool] Semantic search (Orama) failed, falling back:', e);
 		}
 	}
 
