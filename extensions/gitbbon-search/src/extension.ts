@@ -371,26 +371,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 	console.log('[gitbbon-search] Extension activating...');
 
 	// 검색 엔진 초기화 (모델은 Webview Worker에서 로딩)
-	await vscode.window.withProgress({
-		location: vscode.ProgressLocation.Notification,
-		title: 'Gitbbon Search',
-		cancellable: false
-	}, async (progress) => {
-		try {
-			// 1. 검색 엔진 초기화
-			progress.report({ message: 'Initializing search engine...', increment: 0 });
-			await searchService.init(context);
+	try {
+		// 1. 검색 엔진 초기화
+		await searchService.init(context);
 
-			// 2. 저장된 인덱스 복원 시도
-			progress.report({ message: 'Loading index...', increment: 50 });
-			await searchService.loadFromStorage();
-
-			progress.report({ message: 'Ready!', increment: 100 });
-		} catch (error) {
-			vscode.window.showErrorMessage(`Gitbbon Search 초기화 실패: ${error}`);
-			throw error;
-		}
-	});
+		// 2. 저장된 인덱스 복원 시도
+		await searchService.loadFromStorage();
+	} catch (error) {
+		vscode.window.showErrorMessage(`Gitbbon Search 초기화 실패: ${error}`);
+		throw error;
+	}
 
 	// FileSystemWatcher 등록
 	fileWatcher = new FileWatcher(async (uri) => {
