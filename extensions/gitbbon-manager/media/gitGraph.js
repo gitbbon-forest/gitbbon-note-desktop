@@ -605,7 +605,7 @@
 			const mainRow = container.querySelector(`.commit-row[data-hash^="${hash}"]`);
 			if (mainRow) {
 				mainRow.classList.add('highlighted');
-				replaceNodeWithArrow(mainRow, 'right', '#ffc800');
+				replaceNodeWithArrow(mainRow, 'right', 'var(--vscode-gitDecoration-addedResourceForeground)');
 				// Scroll into view if not visible
 				mainRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 			}
@@ -616,7 +616,7 @@
 			const compareRow = container.querySelector(`.commit-row[data-hash^="${compareHash}"]`);
 			if (compareRow) {
 				compareRow.classList.add('highlighted-compare');
-				replaceNodeWithArrow(compareRow, 'left', '#ffc800');
+				replaceNodeWithArrow(compareRow, 'left', 'var(--vscode-gitDecoration-deletedResourceForeground)');
 			}
 		}
 	}

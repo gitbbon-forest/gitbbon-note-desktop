@@ -132,21 +132,12 @@ body {
 }
 
 /* User Design: Draft (Temporary Save) */
-.ref-label.draft {
-	background-color: color-mix(in srgb, var(--vscode-foreground), transparent 70%);
+.ref-label.draft, .ref-label.savepoint {
+	background-color: color-mix(in srgb, var(--vscode-foreground), transparent 85%);
 	color: var(--vscode-foreground);
 	border-radius: 4px;
-	padding: 1px 6px;
+	padding: 2px 6px;
 	font-style: normal;
-}
-
-/* User Design: Save Point (Main) */
-.ref-label.savepoint {
-	background-color: color-mix(in srgb, var(--vscode-foreground), transparent 70%);
-	color: var(--vscode-foreground);
-	font-weight: bold;
-	border-radius: 4px;
-	padding: 2px 8px;
 }
 
 /* 더 로드하기 버튼 */
@@ -207,7 +198,7 @@ body {
 
 /* Highlighted Commits (Current/Right - newer version) */
 .commit-row.highlighted {
-	background-color: rgba(255, 200, 0, 0.15);
+	background-color: var(--vscode-diffEditor-insertedLineBackground);
 	position: relative;
 }
 
@@ -224,12 +215,12 @@ body {
 .commit-row.highlighted .highlight-indicator svg {
 	width: 18px;
 	height: 18px;
-	stroke: #ffc800;
+	stroke: var(--vscode-gitDecoration-addedResourceForeground);
 }
 
 /* Highlighted Commits (Compare Target/Left - older version) */
 .commit-row.highlighted-compare {
-	background-color: rgba(0, 180, 255, 0.1);
+	background-color: var(--vscode-diffEditor-removedLineBackground);
 	position: relative;
 }
 
@@ -246,7 +237,7 @@ body {
 .commit-row.highlighted-compare .highlight-indicator svg {
 	width: 18px;
 	height: 18px;
-	stroke: #00b4ff;
+	stroke: var(--vscode-gitDecoration-deletedResourceForeground);
 }
 
 /* Default hidden state for indicator */
