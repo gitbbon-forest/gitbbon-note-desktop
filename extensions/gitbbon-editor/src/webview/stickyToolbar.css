@@ -8,8 +8,7 @@
     top: 0;
     z-index: 1000;
     background-color: var(--vscode-editor-background);
-    border-bottom: 1px solid var(--vscode-editorWidget-border);
-    padding: 4px 8px;
+    padding: 4px;
     display: flex;
     gap: 4px;
     align-items: center;
