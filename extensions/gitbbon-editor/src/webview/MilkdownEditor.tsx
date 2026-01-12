@@ -1,5 +1,6 @@
 import React, { forwardRef, useImperativeHandle } from 'react';
 import { MilkdownProvider, useEditor, Milkdown } from '@milkdown/react';
+import { StickyToolbar } from './StickyToolbar';
 import { Crepe } from '@milkdown/crepe';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { editorViewCtx, parserCtx } from '@milkdown/core';
@@ -14,6 +15,7 @@ import './suggestion.css';
 // gitbbon custom: Search functionality
 import { search, SearchQuery, setSearchState, findNext, findPrev, getSearchState, getMatchHighlights, replaceNext, replaceAll } from 'prosemirror-search';
 import './SearchBar.css';
+import './stickyToolbar.css';
 
 // gitbbon custom: Hide metadata comments
 import { hideGitbbonMetadataPlugin } from './hideMetadataPlugin';
@@ -378,6 +380,7 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 export const MilkdownEditor = forwardRef<MilkdownEditorRef, MilkdownEditorProps>((props, ref) => {
 	return (
 		<MilkdownProvider>
+			<StickyToolbar />
 			<EditorComponent {...props} ref={ref} />
 		</MilkdownProvider>
 	);

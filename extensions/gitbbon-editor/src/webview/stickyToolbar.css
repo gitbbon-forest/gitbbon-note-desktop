@@ -1,0 +1,47 @@
+/*
+ * Gitbbon Editor Sticky Toolbar
+ * Styles for the custom persistent toolbar
+ */
+
+.gitbbon-sticky-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background-color: var(--vscode-editor-background);
+    border-bottom: 1px solid var(--vscode-editorWidget-border);
+    padding: 4px 8px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    flex-wrap: wrap;
+    /* Ensure it sits above everything else in the editor flow */
+}
+
+.gitbbon-sticky-toolbar button {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.gitbbon-sticky-toolbar button:hover {
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.gitbbon-sticky-toolbar button:active {
+    background-color: var(--vscode-toolbar-activeBackground, rgba(90, 93, 94, 0.31));
+}
+
+.gitbbon-sticky-toolbar .separator {
+    width: 1px;
+    height: 16px;
+    background-color: var(--vscode-editorWidget-border);
+    margin: 0 4px;
+}
