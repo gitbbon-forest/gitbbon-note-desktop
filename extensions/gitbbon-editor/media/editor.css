@@ -181,3 +181,8 @@ body {
 .milkdown .milkdown-list-item-block li {
 	gap: 5px !important;
 }
+
+/* Fix: Ensure Milkdown toolbar (context menu) appears above sticky toolbar (z-index: 1000) */
+.milkdown .milkdown-toolbar {
+	z-index: 2000 !important;
+}

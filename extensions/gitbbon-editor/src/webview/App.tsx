@@ -235,6 +235,12 @@ export const App = () => {
 						setEditorContent(remoteContent);
 						lastSentContentRef.current = remoteContent;
 					}
+
+					// [New] Handle initial status (e.g. if draft exists)
+					if (message.type === 'init' && message.initialStatus) {
+						console.log(`[gitbbon-editor][App] Setting initial status: ${message.initialStatus}`);
+						setSaveStatus(message.initialStatus as SaveStatus);
+					}
 					break;
 				case 'statusUpdate':
 					// Extension can send status updates

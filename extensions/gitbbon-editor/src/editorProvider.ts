@@ -277,11 +277,20 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			webviewPanel.title = frontmatter.title;
 		}
 
+		// Check for pending auto-save (Draft)
+		let hasDraft = false;
+		try {
+			hasDraft = await vscode.commands.executeCommand('gitbbon.manager.hasPendingAutoSave') as boolean;
+		} catch (e) {
+			console.warn('[GitbbonEditorProvider] Failed to check pending auto-save:', e);
+		}
+
 		// Webview로 초기 데이터 전송
 		webviewPanel.webview.postMessage({
 			type: 'init',
 			frontmatter,
-			content
+			content,
+			initialStatus: hasDraft ? 'unsaved' : 'committed'
 		});
 
 		// =====================================================
@@ -380,10 +389,19 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 						const initialText = document.getText();
 						lastWebviewText = initialText;
 						const { frontmatter: initFm, content: initContent } = FrontmatterParser.parse(initialText);
+						// Check for pending auto-save (Draft)
+						let hasDraftReady = false;
+						try {
+							hasDraftReady = await vscode.commands.executeCommand('gitbbon.manager.hasPendingAutoSave') as boolean;
+						} catch (e) {
+							console.warn('[GitbbonEditorProvider] Failed to check pending auto-save (ready):', e);
+						}
+
 						webviewPanel.webview.postMessage({
 							type: 'init',
 							frontmatter: initFm,
-							content: initContent
+							content: initContent,
+							initialStatus: hasDraftReady ? 'unsaved' : 'committed'
 						});
 						break;
 					case 'reallyFinal':
