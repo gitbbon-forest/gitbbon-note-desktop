@@ -14,7 +14,7 @@ import { IDisposable, DisposableStore, MutableDisposable } from '../../../../bas
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
 import { IThemeService, IColorTheme, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER } from '../../../common/theme.js';
-import { activeContrastBorder, contrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { activeContrastBorder, contrastBorder, focusBorder, buttonBackground, buttonForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { addDisposableListener, append, EventType, isAncestor, $, clearNode } from '../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
@@ -723,13 +723,29 @@ class ProjectBar extends DisposableStore {
 
 			this.projects = [];
 			for (const child of stat.children) {
-				if (!child.isDirectory) continue;
+				if (!child.isDirectory) {
+					continue;
+				}
 				if (await this.fileService.exists(URI.joinPath(child.resource, '.git'))) {
+					let title = child.name;
+					const gitbbonJsonUri = URI.joinPath(child.resource, '.gitbbon.json');
+					try {
+						if (await this.fileService.exists(gitbbonJsonUri)) {
+							const content = await this.fileService.readFile(gitbbonJsonUri);
+							const json = JSON.parse(content.value.toString());
+							if (json.title) {
+								title = json.title;
+							}
+						}
+					} catch (e) {
+						// ignore error
+					}
+
 					this.projects.push({
 						name: child.name,
-						title: child.name,
+						title: title,
 						path: child.resource.fsPath,
-						initials: child.name.substring(0, 1).toUpperCase()
+						initials: title.substring(0, 1).toUpperCase()
 					});
 				}
 			}
@@ -740,31 +756,38 @@ class ProjectBar extends DisposableStore {
 	}
 
 	private render(): void {
-		if (!this.element) return;
+		if (!this.element) {
+			return;
+		}
 		clearNode(this.element);
 
 		const currentPath = this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
+
+		const theme = this.themeService.getColorTheme();
+		const btnBg = theme.getColor(buttonBackground)?.toString() || '#444444';
+		const btnFg = theme.getColor(buttonForeground)?.toString() || '#ffffff';
+		const activeBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BORDER)?.toString() || '#ffffff';
 
 		this.projects.forEach(project => {
 			const item = append(this.element!, $('.project-item'));
 			item.style.width = '36px';
 			item.style.height = '36px';
 			item.style.marginBottom = '8px';
-			item.style.borderRadius = '25%'; // similar to Discord rounded squares
+			item.style.borderRadius = '50%'; // Circle
 			item.style.display = 'flex';
 			item.style.alignItems = 'center';
 			item.style.justifyContent = 'center';
 			item.style.cursor = 'pointer';
 			item.style.fontSize = '14px';
 			item.style.fontWeight = 'bold';
-			item.style.color = '#ffffff'; // Default text color
-			item.style.backgroundColor = '#444444'; // Default bg
+			item.style.color = btnFg;
+			item.style.backgroundColor = btnBg;
 			item.title = project.title;
 
 			// Highlight current project
 			if (currentPath && (project.path === currentPath)) {
-				item.style.border = '2px solid' + this.themeService.getColorTheme().getColor(ACTIVITY_BAR_ACTIVE_BORDER);
-				item.style.backgroundColor = '#666666'; // Active bg
+				item.style.border = `3px solid ${activeBorderColor}`; // Bold border
+				item.style.boxSizing = 'border-box';
 			}
 
 			item.textContent = project.initials;
