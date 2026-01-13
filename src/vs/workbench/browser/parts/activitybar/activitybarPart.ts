@@ -794,7 +794,7 @@ class ProjectBar extends DisposableStore {
 
 			item.onclick = () => {
 				if (currentPath !== project.path) {
-					this.hostService.openWindow([{ folderUri: URI.file(project.path) }], { forceNewWindow: true });
+					this.hostService.openWindow([{ folderUri: URI.file(project.path) }], { forceReuseWindow: true });
 				}
 			};
 		});
