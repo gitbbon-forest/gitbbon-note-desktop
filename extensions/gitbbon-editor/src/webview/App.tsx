@@ -3,6 +3,7 @@ import { MilkdownEditor, MilkdownEditorRef } from './MilkdownEditor';
 import { SaveStatus } from './ReallyFinalButton';
 import { SearchBar } from './SearchBar';
 import { Loader } from './Loader';
+import { SimilarArticles, SimilarArticle } from './SimilarArticles';
 
 declare const acquireVsCodeApi: () => {
 	postMessage(message: any): void;
@@ -41,6 +42,9 @@ export const App = () => {
 	const [searchQuery, setSearchQuery] = useState('');
 	const [replaceText, setReplaceText] = useState('');
 	const [searchInfo, setSearchInfo] = useState({ matchCount: 0, currentMatch: 0 });
+
+	// gitbbon custom: Similar Articles state
+	const [similarArticles, setSimilarArticles] = useState<SimilarArticle[]>([]);
 
 	// Keep titleRef in sync for callbacks
 	useEffect(() => {
@@ -179,6 +183,13 @@ export const App = () => {
 		setSearchInfo({ matchCount: 0, currentMatch: 0 });
 	}, []);
 
+	const handleOpenSimilarArticle = useCallback((path: string) => {
+		vscode.postMessage({
+			type: 'openSimilarArticle',
+			path,
+		});
+	}, []);
+
 	// Cmd+L / Ctrl+L 단축키 처리 (AI) + Cmd+F / Ctrl+F 처리 (검색)
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
@@ -286,6 +297,11 @@ export const App = () => {
 						editorRef.current?.directApply(message.changes);
 					}
 					break;
+				case 'similarArticles':
+					if (message.articles) {
+						setSimilarArticles(message.articles);
+					}
+					break;
 			}
 		};
 
@@ -334,6 +350,7 @@ export const App = () => {
 					onAskAI={handleAskAI}
 				/>
 			</div>
+			<SimilarArticles articles={similarArticles} onArticleClick={handleOpenSimilarArticle} />
 		</div>
 	);
 };

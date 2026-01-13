@@ -33,7 +33,7 @@ export interface SearchResult {
 }
 
 export interface GitbbonSearchAPI {
-	search(query: string, limit?: number): Promise<SearchResult[]>;
+	search(query: string, limit?: number, options?: { filePathPrefix?: string }): Promise<SearchResult[]>;
 }
 
 
@@ -193,7 +193,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 	console.log('[gitbbon-search] Extension activated!');
 
 	return {
-		search: (query: string, limit?: number) => executeSemanticSearch(query, limit)
+		search: (query: string, limit?: number, options?: { filePathPrefix?: string }) => executeSemanticSearch(query, limit, options)
 	};
 }
 
@@ -235,12 +235,12 @@ async function embedQuery(query: string): Promise<number[]> {
 /**
  * 시멘틱 검색 실행
  */
-async function executeSemanticSearch(query: string, limit: number = 5): Promise<SearchResult[]> {
+async function executeSemanticSearch(query: string, limit: number = 5, options?: { filePathPrefix?: string }): Promise<SearchResult[]> {
 	try {
-		console.log(`[gitbbon-search] Executing semantic search for: "${query}"`);
+		console.log(`[gitbbon-search] Executing semantic search for: "${query}" (prefix: ${options?.filePathPrefix ?? 'none'})`);
 		const vector = await embedQuery(query);
 
-		const results = await searchService.vectorSearch(vector, limit);
+		const results = await searchService.vectorSearch(vector, limit, options?.filePathPrefix);
 
 		const searchResults: SearchResult[] = await Promise.all(
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any

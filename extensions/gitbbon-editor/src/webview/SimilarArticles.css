@@ -1,0 +1,51 @@
+.similar-articles {
+	padding: 16px 32px;
+	border-top: 1px solid var(--vscode-widget-border);
+	background-color: var(--vscode-editor-background);
+	user-select: none;
+	margin-top: auto; /* Push to bottom if parent is flex column */
+}
+
+.similar-articles-header {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 8px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.similar-articles-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.similar-article-item {
+	display: flex;
+	align-items: center;
+	padding: 4px 0;
+	cursor: pointer;
+	font-size: 13px;
+	color: var(--vscode-foreground);
+	transition: color 0.1s ease;
+}
+
+.similar-article-item:hover .article-title {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.article-title {
+	margin-right: 8px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 80%;
+}
+
+.article-score {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.6;
+}

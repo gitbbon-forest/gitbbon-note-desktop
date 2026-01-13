@@ -74,9 +74,9 @@ export class SearchService {
 		}
 
 		try {
-			const data = this.context.globalState.get<string>('orama-index');
-			const files = this.context.globalState.get<string[]>('indexed-files');
-			const chunkIdsData = this.context.globalState.get<[string, string[]][]>('file-chunk-ids');
+			const data = this.context.workspaceState.get<string>('orama-index');
+			const files = this.context.workspaceState.get<string[]>('indexed-files');
+			const chunkIdsData = this.context.workspaceState.get<[string, string[]][]>('file-chunk-ids');
 
 			console.log('[gitbbon-search][searchService] loadFromStorage - data exists:', !!data);
 			console.log('[gitbbon-search][searchService] loadFromStorage - indexed files stored:', files?.length ?? 0);
@@ -120,9 +120,9 @@ export class SearchService {
 			const dataStr = JSON.stringify(data);
 			console.log('[gitbbon-search][searchService] saveToStorage - serialized data size:', dataStr.length, 'bytes');
 
-			await this.context.globalState.update('orama-index', dataStr);
-			await this.context.globalState.update('indexed-files', Array.from(this.indexedFiles));
-			await this.context.globalState.update('file-chunk-ids', Array.from(this.fileChunkIds.entries()));
+			await this.context.workspaceState.update('orama-index', dataStr);
+			await this.context.workspaceState.update('indexed-files', Array.from(this.indexedFiles));
+			await this.context.workspaceState.update('file-chunk-ids', Array.from(this.fileChunkIds.entries()));
 			console.log('[gitbbon-search][searchService] Index saved to storage');
 		} catch (error) {
 			console.error('[gitbbon-search][searchService] Failed to save index:', error);
@@ -228,7 +228,7 @@ export class SearchService {
 	 * 벡터 검색
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	async vectorSearch(queryVector: number[], limit = 10): Promise<any> {
+	async vectorSearch(queryVector: number[], limit = 10, filePathPrefix?: string): Promise<any> {
 		if (!this.db) {
 			console.error('[gitbbon-search][searchService] vectorSearch called but DB not initialized');
 			throw new Error('Search engine not initialized');
@@ -237,15 +237,31 @@ export class SearchService {
 		const dbDocCount = await count(this.db);
 		console.log('[gitbbon-search][searchService] vectorSearch - docs:', dbDocCount, 'results will be returned');
 
+		// 필터링이 있는 경우 더 많은 결과를 가져와서 JS에서 필터링 (Orama 무료 버전 한계 극복)
+		const searchLimit = filePathPrefix ? Math.max(limit * 10, 50) : limit;
+
 		const result = await search(this.db, {
 			mode: 'vector',
 			vector: {
 				value: queryVector,
 				property: 'vector',
 			},
-			limit,
-			similarity: 0.5,  // 관련성 낮은 결과 필터링 (0.0~1.0, 높을수록 엄격)
+			limit: searchLimit,
+			similarity: 0.8,  // 관련성 낮은 결과 필터링 (0.0~1.0, 높을수록 엄격)
 		} as SearchParams<OramaDB, 'vector'>);
+
+		// Project 범위 필터링
+		if (filePathPrefix) {
+			const originalCount = result.hits.length;
+			result.hits = result.hits.filter((hit: any) => hit.document.filePath.startsWith(filePathPrefix));
+			console.log(`[gitbbon-search][searchService] Filtered results by prefix: ${originalCount} -> ${result.hits.length}`);
+
+			// 요청된 limit만큼 자르기
+			if (result.hits.length > limit) {
+				result.hits = result.hits.slice(0, limit);
+			}
+			result.count = result.hits.length;
+		}
 
 		console.log('[gitbbon-search][searchService] Search completed, results:', result.count);
 		return result;
@@ -278,9 +294,9 @@ export class SearchService {
 	 */
 	async clearIndex(): Promise<void> {
 		if (this.context) {
-			await this.context.globalState.update('orama-index', undefined);
-			await this.context.globalState.update('indexed-files', undefined);
-			await this.context.globalState.update('file-chunk-ids', undefined);
+			await this.context.workspaceState.update('orama-index', undefined);
+			await this.context.workspaceState.update('indexed-files', undefined);
+			await this.context.workspaceState.update('file-chunk-ids', undefined);
 		}
 		this.indexedFiles.clear();
 		this.fileChunkIds.clear();

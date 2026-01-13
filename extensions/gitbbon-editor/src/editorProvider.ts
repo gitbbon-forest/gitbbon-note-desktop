@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { FrontmatterParser } from './frontmatterParser';
 import { getNonce } from './util';
 
@@ -11,6 +12,13 @@ import { getNonce } from './util';
  * Gitbbon Custom Editor Provider
  * VS Code의 CustomEditorProvider를 구현하여 .md 파일을 Milkdown으로 편집
  */
+// Similar Article Interface
+interface SimilarArticle {
+	title: string;
+	path: string;
+	score: number;
+}
+
 export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 
 	// 활성 webviewPanel 추적 (선택 텍스트/콘텐츠 요청을 위해)
@@ -233,6 +241,88 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		}
 	}
 
+
+
+	/**
+	 * 유사한 글 검색 및 업데이트
+	 */
+	private async updateSimilarArticles(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel): Promise<void> {
+		try {
+			const searchExtension = vscode.extensions.getExtension('gitbbon.gitbbon-search');
+			if (!searchExtension) {
+				console.log('[GitbbonEditor] gitbbon-search extension not found');
+				return;
+			}
+
+			if (!searchExtension.isActive) {
+				await searchExtension.activate();
+			}
+
+			const api = searchExtension.exports;
+			if (!api || typeof api.search !== 'function') {
+				console.log('[GitbbonEditor] gitbbon-search API not available');
+				return;
+			}
+
+			const text = document.getText();
+			const parsed = FrontmatterParser.parse(text);
+			const query = parsed.frontmatter.title || text.substring(0, 100).replace(/\n/g, ' ');
+
+			if (!query) {
+				return;
+			}
+
+			console.log(`[GitbbonEditor] Searching for similar articles for: "${query}"`);
+
+			// Current document's workspace folder path
+			const wsFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+			const filePathPrefix = wsFolder ? wsFolder.uri.fsPath : undefined;
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const results = await api.search(query, 6, { filePathPrefix }); // Top 6 (assuming user's doc might be 1)
+
+			const currentPath = document.uri.fsPath;
+			const articles = await Promise.all(
+				results
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					.filter((r: any) => r.filePath !== currentPath)
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					.map(async (r: any) => {
+						let title = path.basename(r.filePath);
+						try {
+							const uri = vscode.Uri.file(r.filePath);
+							const contentUint8 = await vscode.workspace.fs.readFile(uri);
+							const content = new TextDecoder().decode(contentUint8);
+							const fm = FrontmatterParser.parse(content);
+							if (fm.frontmatter.title) {
+								title = fm.frontmatter.title;
+							}
+						} catch (e) {
+							// Ignore file read error
+						}
+						return {
+							title,
+							path: r.filePath,
+							score: r.score
+						};
+					})
+			);
+
+			// Sort by score desc just in case
+			articles.sort((a, b) => b.score - a.score);
+
+			// Take top 5
+			const topArticles = articles.slice(0, 5);
+
+			webviewPanel.webview.postMessage({
+				type: 'similarArticles',
+				articles: topArticles
+			});
+		} catch (error) {
+			console.error('[GitbbonEditor] Failed to update similar articles:', error);
+		}
+	}
+
 	/**
 	 * Custom Editor 생성 시 호출
 	 */
@@ -403,6 +493,9 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 							content: initContent,
 							initialStatus: hasDraftReady ? 'unsaved' : 'committed'
 						});
+
+						// Update similar articles
+						this.updateSimilarArticles(document, webviewPanel);
 						break;
 					case 'reallyFinal':
 						// 진짜최종 버튼 클릭 시
@@ -432,6 +525,9 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 									status: 'committed'
 								});
 								// 플로팅 위젯 업데이트는 saveStatusChanged 핸들러에서 처리
+
+								// Update similar articles (content might have changed significantly)
+								this.updateSimilarArticles(document, webviewPanel);
 							}
 						} catch (error) {
 							console.error('Really Final failed:', error);
@@ -484,6 +580,12 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 							});
 						}
 						// autoSaved 상태에서는 위젯 상태를 변경하지 않음
+						break;
+					case 'openSimilarArticle':
+						if (message.path) {
+							const uri = vscode.Uri.file(message.path);
+							vscode.commands.executeCommand('vscode.open', uri);
+						}
 						break;
 				}
 			}
