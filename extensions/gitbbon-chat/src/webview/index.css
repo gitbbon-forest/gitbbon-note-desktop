@@ -59,13 +59,13 @@ body {
 	padding: 10px 14px;
 	border-radius: 12px;
 	word-wrap: break-word;
-	white-space: pre-wrap;
 }
 
 .message-bubble.user {
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 	border-bottom-right-radius: 4px;
+	white-space: pre-wrap;
 }
 
 .message-bubble.assistant {
@@ -84,6 +84,114 @@ body {
 
 .message-content {
 	line-height: 1.5;
+}
+
+/* Markdown Styles for Assistant Messages */
+.message-bubble.assistant .message-content h1,
+.message-bubble.assistant .message-content h2,
+.message-bubble.assistant .message-content h3,
+.message-bubble.assistant .message-content h4,
+.message-bubble.assistant .message-content h5,
+.message-bubble.assistant .message-content h6 {
+	margin-top: 16px;
+	margin-bottom: 8px;
+	font-weight: 600;
+	line-height: 1.25;
+}
+
+.message-bubble.assistant .message-content h1:first-child,
+.message-bubble.assistant .message-content h2:first-child,
+.message-bubble.assistant .message-content h3:first-child {
+	margin-top: 0;
+}
+
+.message-bubble.assistant .message-content p {
+	margin-top: 0;
+	margin-bottom: 12px;
+}
+
+.message-bubble.assistant .message-content p:last-child {
+	margin-bottom: 0;
+}
+
+.message-bubble.assistant .message-content ul,
+.message-bubble.assistant .message-content ol {
+	margin-top: 0;
+	margin-bottom: 12px;
+	padding-left: 20px;
+}
+
+.message-bubble.assistant .message-content li {
+	margin-bottom: 4px;
+}
+
+.message-bubble.assistant .message-content blockquote {
+	margin: 0 0 12px 0;
+	padding: 0 1em;
+	color: var(--vscode-descriptionForeground);
+	border-left: 4px solid var(--vscode-textBlockQuote-border);
+	background: var(--vscode-textBlockQuote-background);
+}
+
+.message-bubble.assistant .message-content pre {
+	padding: 12px;
+	overflow: auto;
+	line-height: 1.45;
+	background-color: var(--vscode-textCodeBlock-background);
+	border-radius: 6px;
+	margin-top: 0;
+	margin-bottom: 12px;
+}
+
+.message-bubble.assistant .message-content code {
+	font-family: var(--vscode-editor-font-family);
+	font-size: 0.9em;
+	padding: 0.2em 0.4em;
+	margin: 0;
+	border-radius: 4px;
+	background-color: var(--vscode-textCodeBlock-background);
+}
+
+.message-bubble.assistant .message-content pre code {
+	background-color: transparent;
+	padding: 0;
+	margin: 0;
+	border-radius: 0;
+	font-size: 100%;
+}
+
+.message-bubble.assistant .message-content a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.message-bubble.assistant .message-content a:hover {
+	text-decoration: underline;
+}
+
+.message-bubble.assistant .message-content table {
+	border-spacing: 0;
+	border-collapse: collapse;
+	margin-bottom: 12px;
+	width: 100%;
+}
+
+.message-bubble.assistant .message-content table th,
+.message-bubble.assistant .message-content table td {
+	padding: 6px 13px;
+	border: 1px solid var(--vscode-widget-border);
+}
+
+.message-bubble.assistant .message-content table tr:nth-child(2n) {
+	background-color: var(--vscode-keybindingTable-rowsBackground);
+}
+
+.message-bubble.assistant .message-content hr {
+	height: 1px;
+	padding: 0;
+	margin: 16px 0;
+	background-color: var(--vscode-widget-border);
+	border: 0;
 }
 
 /* Loading indicator */
@@ -223,4 +331,3 @@ body {
 	font-family: var(--vscode-editor-font-family, monospace);
 	opacity: 0.85;
 }
-

@@ -1,4 +1,6 @@
 import React, { useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export interface ChatMessage {
 	id: string;
@@ -35,7 +37,15 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading }) => {
 					<div key={m.id} className={`message-wrapper ${m.role === 'user' ? 'user' : 'assistant'}`}>
 						<div className={`message-bubble ${m.role === 'user' ? 'user' : 'assistant'}`}>
 							<strong>{m.role === 'user' ? 'You' : 'AI'}:</strong>
-							<div className="message-content">{m.content}</div>
+							<div className="message-content">
+								{m.role === 'assistant' ? (
+									<ReactMarkdown remarkPlugins={[remarkGfm]}>
+										{m.content}
+									</ReactMarkdown>
+								) : (
+									m.content
+								)}
+							</div>
 						</div>
 					</div>
 				);
