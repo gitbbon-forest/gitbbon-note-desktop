@@ -3,13 +3,11 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
-	plugins: [react()],
 	build: {
 		outDir: 'out/webview',
 		emptyOutDir: true,
 		rollupOptions: {
 			input: {
-				index: 'src/webview/index.tsx',
 				modelHost: 'src/modelHost.ts',
 			},
 			output: {
@@ -20,10 +18,6 @@ export default defineConfig({
 			},
 		},
 		sourcemap: true,
-	},
-	worker: {
-		format: 'iife',
-		plugins: () => [react()],
 	},
 	resolve: {
 		alias: {

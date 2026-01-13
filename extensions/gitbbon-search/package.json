@@ -29,24 +29,6 @@
     }
   },
   "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "gitbbon-search",
-          "title": "Gitbbon Search",
-          "icon": "$(search)"
-        }
-      ]
-    },
-    "views": {
-      "gitbbon-search": [
-        {
-          "id": "gitbbon-search.searchView",
-          "name": "Semantic Search",
-          "type": "webview"
-        }
-      ]
-    },
     "commands": [
       {
         "command": "gitbbon-search.reindex",
@@ -57,26 +39,20 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "npm run build:webview && tsc -p ./",
+    "compile": "npm run build:modelHost && tsc -p ./",
     "package": "npm run compile",
     "watch": "tsc -watch -p ./ & vite build --watch",
     "watch:tsc": "tsc -watch -p ./",
-    "watch:webview": "vite build --watch",
-    "build:webview": "vite build"
+    "build:modelHost": "vite build"
   },
   "devDependencies": {
     "@types/node": "22.x",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
     "@types/vscode": "^1.70.0",
-    "@vitejs/plugin-react": "^5.1.2",
     "typescript": "^5.9.3",
     "vite": "^7.3.0"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
-    "@orama/orama": "^3.1.18",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "@orama/orama": "^3.1.18"
   }
 }
