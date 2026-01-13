@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { MilkdownEditor, MilkdownEditorRef } from './MilkdownEditor';
 import { SaveStatus } from './ReallyFinalButton';
 import { SearchBar } from './SearchBar';
+import { Loader } from './Loader';
 
 declare const acquireVsCodeApi: () => {
 	postMessage(message: any): void;
@@ -295,7 +296,7 @@ export const App = () => {
 	}, []);
 
 	if (editorContent === null) {
-		return <div className="loading">Loading...</div>;
+		return <Loader />;
 	}
 
 	return (

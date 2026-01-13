@@ -1,0 +1,23 @@
+/* Loader.css */
+.loader-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100vw;
+    background-color: transparent; /* Or match editor background */
+}
+
+.loader {
+    width: 48px;
+    height: 48px;
+    border: 5px solid rgba(128, 128, 128, 0.2); /* Light grey track */
+    border-top: 5px solid var(--vscode-progressBar-background, #007acc); /* VS Code theme color or default blue */
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
