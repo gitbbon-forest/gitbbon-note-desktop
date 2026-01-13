@@ -31,6 +31,7 @@ import { GlobalCompositeBar } from '../globalCompositeBar.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -671,9 +672,11 @@ class ProjectBar extends DisposableStore {
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 		this.loadProjects();
+		this.add(this.themeService.onDidColorThemeChange(() => this.render()));
 		this.registerListeners();
 	}
 
@@ -699,11 +702,21 @@ class ProjectBar extends DisposableStore {
 		this.element.style.alignItems = 'center';
 		this.element.style.paddingTop = '10px';
 		this.element.style.width = '100%';
+		this.element.style.height = '100%';
+		this.element.style.overflowY = 'auto'; // Enable vertical scrolling
+		this.element.style.overflowX = 'hidden';
+
+		// Hide scrollbar
+		this.element.style.scrollbarWidth = 'none'; // Firefox
+		// @ts-ignore
+		this.element.style.msOverflowStyle = 'none'; // IE and Edge
 		this.render();
 	}
 
 	layout(width: number, height: number): void {
-		// Responsive layout if needed
+		if (this.element) {
+			this.element.style.height = `${height}px`;
+		}
 	}
 
 	override clear(): void {
@@ -751,7 +764,7 @@ class ProjectBar extends DisposableStore {
 						name: child.name,
 						title: title,
 						path: child.resource.fsPath,
-						initials: title.substring(0, 1).toUpperCase()
+						initials: title.substring(0, 3).toUpperCase()
 					});
 				}
 			}
@@ -775,20 +788,26 @@ class ProjectBar extends DisposableStore {
 		const activeBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BORDER)?.toString() || '#ffffff';
 
 		this.projects.forEach(project => {
-			const item = append(this.element!, $('.project-item'));
+			const container = append(this.element!, $('.project-container'));
+			container.style.display = 'flex';
+			container.style.flexDirection = 'column';
+			container.style.alignItems = 'center';
+			container.style.marginBottom = '16px';
+			container.style.cursor = 'pointer';
+			container.title = project.title;
+
+			const item = append(container, $('.project-item'));
 			item.style.width = '36px';
 			item.style.height = '36px';
-			item.style.marginBottom = '8px';
 			item.style.borderRadius = '50%'; // Circle
 			item.style.display = 'flex';
 			item.style.alignItems = 'center';
 			item.style.justifyContent = 'center';
-			item.style.cursor = 'pointer';
-			item.style.fontSize = '14px';
+			item.style.fontSize = '11px'; // Smaller font for 3 chars
 			item.style.fontWeight = 'bold';
 			item.style.color = btnFg;
 			item.style.backgroundColor = btnBg;
-			item.title = project.title;
+			item.style.flexShrink = '0'; // Prevent circle from shrinking
 
 			// Highlight current project
 			if (currentPath && (project.path === currentPath)) {
@@ -798,26 +817,26 @@ class ProjectBar extends DisposableStore {
 
 			item.textContent = project.initials;
 
-			item.onclick = (e) => {
+			const openProject = (forceNewWindow: boolean) => {
+				if (currentPath !== project.path || forceNewWindow) {
+					this.hostService.openWindow([{ folderUri: URI.file(project.path) }], { forceReuseWindow: !forceNewWindow, forceNewWindow: forceNewWindow });
+				}
+			};
+
+			container.onclick = (e) => {
 				e.preventDefault();
 				this.contextMenuService.showContextMenu({
-					getAnchor: () => item,
+					getAnchor: () => container,
 					getActions: () => [
 						toAction({
 							id: 'gitbbon.project.open',
 							label: 'Open Project',
-							run: () => {
-								if (currentPath !== project.path) {
-									this.hostService.openWindow([{ folderUri: URI.file(project.path) }], { forceReuseWindow: true });
-								}
-							}
+							run: () => openProject(false)
 						}),
 						toAction({
 							id: 'gitbbon.project.openNewWindow',
 							label: 'Open Project in New Window',
-							run: () => {
-								this.hostService.openWindow([{ folderUri: URI.file(project.path) }], { forceNewWindow: true });
-							}
+							run: () => openProject(true)
 						}),
 						new Separator(),
 						toAction({
@@ -848,7 +867,90 @@ class ProjectBar extends DisposableStore {
 						toAction({
 							id: 'gitbbon.project.delete',
 							label: 'Delete Project',
-							run: () => { /* TODO: Implement */ }
+							run: async () => {
+								const confirm = await this.dialogService.confirm({
+									message: `Are you sure you want to delete '${project.title}'?`,
+									detail: 'The folder will be moved to the trash.',
+									primaryButton: 'Delete',
+									type: 'warning'
+								});
+
+								if (confirm.confirmed) {
+									try {
+										await this.fileService.del(URI.file(project.path), { recursive: true, useTrash: true });
+									} catch (e) {
+										console.error('Failed to delete project', e);
+										this.dialogService.error(e);
+									}
+								}
+							}
+						})
+					]
+				});
+			};
+
+			container.oncontextmenu = (e) => {
+				e.preventDefault();
+				e.stopPropagation(); // Prevent default context menu
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => container,
+					getActions: () => [
+						toAction({
+							id: 'gitbbon.project.open',
+							label: 'Open Project',
+							run: () => openProject(false)
+						}),
+						toAction({
+							id: 'gitbbon.project.openNewWindow',
+							label: 'Open Project in New Window',
+							run: () => openProject(true)
+						}),
+						new Separator(),
+						toAction({
+							id: 'gitbbon.project.rename',
+							label: 'Rename Project',
+							run: async () => {
+								const newTitle = await this.quickInputService.input({
+									value: project.title,
+									prompt: 'Enter new project name',
+								});
+								if (newTitle) {
+									const gitbbonJsonUri = URI.joinPath(URI.file(project.path), '.gitbbon.json');
+									try {
+										let json: any = {};
+										if (await this.fileService.exists(gitbbonJsonUri)) {
+											const content = await this.fileService.readFile(gitbbonJsonUri);
+											json = JSON.parse(content.value.toString());
+										}
+										json.title = newTitle;
+										await this.fileService.writeFile(gitbbonJsonUri, VSBuffer.fromString(JSON.stringify(json, null, 2)));
+										// The file watcher will eventually trigger a reload
+									} catch (e) {
+										console.error('Failed to rename project', e);
+									}
+								}
+							}
+						}),
+						toAction({
+							id: 'gitbbon.project.delete',
+							label: 'Delete Project',
+							run: async () => {
+								const confirm = await this.dialogService.confirm({
+									message: `Are you sure you want to delete '${project.title}'?`,
+									detail: 'The folder will be moved to the trash.',
+									primaryButton: 'Delete',
+									type: 'warning'
+								});
+
+								if (confirm.confirmed) {
+									try {
+										await this.fileService.del(URI.file(project.path), { recursive: true, useTrash: true });
+									} catch (e) {
+										console.error('Failed to delete project', e);
+										this.dialogService.error(e);
+									}
+								}
+							}
 						})
 					]
 				});
@@ -866,6 +968,7 @@ class ProjectBar extends DisposableStore {
 		addBtn.style.color = '#888888';
 		addBtn.style.border = '1px dashed #888888';
 		addBtn.style.borderRadius = '50%';
+		addBtn.style.flexShrink = '0'; // Prevent circle from shrinking
 		addBtn.textContent = '+';
 		addBtn.title = 'Add New Project';
 
