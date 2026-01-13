@@ -31,6 +31,9 @@ export default tseslint.config(
 	{
 		languageOptions: {
 			parser: tseslint.parser,
+			parserOptions: {
+				tsconfigRootDir: import.meta.dirname,
+			},
 		},
 		plugins: {
 			'local': pluginLocal,
@@ -137,6 +140,9 @@ export default tseslint.config(
 		],
 		languageOptions: {
 			parser: tseslint.parser,
+			parserOptions: {
+				tsconfigRootDir: import.meta.dirname,
+			},
 		},
 		plugins: {
 			'@stylistic/ts': stylisticTs,
@@ -2093,6 +2099,7 @@ export default tseslint.config(
 		languageOptions: {
 			parser: tseslint.parser,
 			parserOptions: {
+				tsconfigRootDir: import.meta.dirname,
 				project: [
 					// Markdown
 					'extensions/markdown-language-features/tsconfig.json',

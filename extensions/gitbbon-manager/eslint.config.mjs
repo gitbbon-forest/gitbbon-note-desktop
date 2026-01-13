@@ -20,11 +20,13 @@ export default tseslint.config(
 		languageOptions: {
 			parser: tseslint.parser,
 			parserOptions: {
-				project: './tsconfig.json'
+				project: './tsconfig.json',
+				tsconfigRootDir: __dirname
 			}
 		},
 		rules: {
-			'header/header': 'off'
+			'@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+			'@typescript-eslint/no-explicit-any': 'warn'
 		}
 	}
 );

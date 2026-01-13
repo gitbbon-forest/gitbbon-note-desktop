@@ -10,7 +10,7 @@ import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/action
 import { Part } from '../../part.js';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
 import { IThemeService, IColorTheme, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER } from '../../../common/theme.js';
@@ -649,6 +649,10 @@ class ProjectBar extends DisposableStore {
 	private element: HTMLElement | undefined;
 	private projects: IProject[] = [];
 
+	protected _register<T extends IDisposable>(o: T): T {
+		return this.add(o);
+	}
+
 	constructor(
 		private readonly options: {
 			orientation: ActionsOrientation;
@@ -664,6 +668,22 @@ class ProjectBar extends DisposableStore {
 	) {
 		super();
 		this.loadProjects();
+		this.registerListeners();
+	}
+
+	private async registerListeners(): Promise<void> {
+		const userHome = await this.pathService.userHome();
+		const gitbbonNotesUri = URI.joinPath(userHome, 'Documents', 'Gitbbon_Notes');
+
+		// Watch for changes in the directory
+		const watcher = this.fileService.watch(gitbbonNotesUri);
+		this._register(watcher);
+
+		this._register(this.fileService.onDidFilesChange(e => {
+			if (e.contains(gitbbonNotesUri)) {
+				this.loadProjects();
+			}
+		}));
 	}
 
 	create(parent: HTMLElement): void {
@@ -680,10 +700,11 @@ class ProjectBar extends DisposableStore {
 		// Responsive layout if needed
 	}
 
-	clear(): void {
+	override clear(): void {
 		if (this.element) {
 			clearNode(this.element);
 		}
+		super.clear();
 	}
 
 	private async loadProjects(): Promise<void> {

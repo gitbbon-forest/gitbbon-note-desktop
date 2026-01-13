@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { ProjectManager } from './projectManager';
 import { GitGraphViewProvider } from './gitGraphViewProvider';
 import { GitHubSyncManager } from './githubSyncManager';
+import * as cp from 'child_process';
 
 /**
  * Extension activation
@@ -66,7 +67,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					syncStatusBarItem.text = '$(sync) Sync';
 					syncStatusBarItem.tooltip = 'Sync with GitHub';
 				}, 3000);
-			} catch (e) {
+			} catch {
 				syncStatusBarItem.text = '$(error) Sync Failed';
 				setTimeout(() => {
 					syncStatusBarItem.text = '$(sync) Sync';
@@ -194,16 +195,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// Register addProject command (called from SidebarPart project switcher)
 	const addProjectCommand = vscode.commands.registerCommand(
 		'gitbbon.manager.addProject',
-		async (args: { name: string }) => {
+		async (args?: { name: string }) => {
 			console.log('[Extension] Add project command triggered:', args);
 
-			if (!args.name) {
-				console.error('[Extension] No project name provided');
+			let projectName = args?.name;
+
+			if (!projectName) {
+				projectName = await vscode.window.showInputBox({
+					prompt: 'Enter new project name',
+					placeHolder: 'My New Project'
+				});
+			}
+
+			if (!projectName) {
 				return { success: false, message: 'No project name provided' };
 			}
 
 			try {
-				const result = await projectManager.addNewProject(args.name);
+				const result = await projectManager.addNewProject(projectName);
 				return result;
 			} catch (error) {
 				console.error('[Extension] Add project failed:', error);
@@ -274,11 +283,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			}
 
 			// git checkout {commitHash} -- {relativePath}
-			const { exec } = require('child_process');
+			const { exec } = cp;
 			const command = `git checkout ${commitHash} -- "${relativePath}"`;
 
 			await new Promise((resolve, reject) => {
-				exec(command, { cwd: workspaceFolder.uri.fsPath }, (error: any, stdout: any, stderr: any) => {
+				exec(command, { cwd: workspaceFolder.uri.fsPath }, (error: any, stdout: any) => {
 					if (error) {
 						reject(error);
 						return;
@@ -314,7 +323,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	};
 
 	// 탭 변경 감지 리스너 등록
-	const tabChangeListener = vscode.window.tabGroups.onDidChangeTabs((event) => {
+	const tabChangeListener = vscode.window.tabGroups.onDidChangeTabs(() => {
 		// 활성 탭 변경 감지
 		const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
 		if (!activeTab) {
@@ -377,7 +386,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				// Get current branch name dynamically
 				const getCurrentBranch = (): Promise<string> => {
 					return new Promise((resolve, reject) => {
-						const cp = require('child_process');
+
 						cp.exec('git rev-parse --abbrev-ref HEAD', { cwd: rootUri.fsPath }, (err: Error | null, stdout: string) => {
 							if (err) {
 								reject(err);
@@ -391,7 +400,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				// Resolve branch/ref name to commit hash
 				const resolveRefToCommitHash = (ref: string): Promise<string> => {
 					return new Promise((resolve, reject) => {
-						const cp = require('child_process');
+
 						cp.exec(`git rev-parse ${ref}`, { cwd: rootUri.fsPath }, (err: Error | null, stdout: string) => {
 							if (err) {
 								reject(err);
@@ -404,7 +413,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 				const getCommitMessage = (hash: string): Promise<string> => {
 					return new Promise((resolve) => {
-						const cp = require('child_process');
+
 						// Get subject only (%s)
 						cp.exec(`git log -1 --pretty=%s ${hash}`, { cwd: rootUri.fsPath }, (err: Error | null, stdout: string) => {
 							if (err) {
@@ -480,7 +489,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					// Custom 비교: git diff를 직접 실행하여 파일 목록 가져오기
 					const getChangedFiles = (): Promise<{ status: string, file: string, originalFile?: string }[]> => {
 						return new Promise((resolve, reject) => {
-							const cp = require('child_process');
+
 							// Use leftRef..rightRef to match the diff direction
 							cp.exec(
 								`git diff --name-status ${leftRef}..${rightRef}`,

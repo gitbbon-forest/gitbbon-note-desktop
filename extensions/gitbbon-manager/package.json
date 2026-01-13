@@ -39,6 +39,11 @@
         "command": "gitbbon.manager.initialize",
         "title": "Initialize Gitbbon Notes",
         "category": "Gitbbon"
+      },
+      {
+        "command": "gitbbon.manager.addProject",
+        "title": "Add New Project",
+        "category": "Gitbbon"
       }
     ],
     "configuration": {
