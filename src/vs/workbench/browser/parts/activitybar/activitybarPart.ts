@@ -30,6 +30,7 @@ import { IPaneCompositeBarOptions, PaneCompositeBar } from '../paneCompositeBar.
 import { GlobalCompositeBar } from '../globalCompositeBar.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -95,6 +96,7 @@ export class ActivitybarPart extends Part {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		// gitbbon custom end
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
@@ -665,6 +667,7 @@ class ProjectBar extends DisposableStore {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 		this.loadProjects();
@@ -792,10 +795,40 @@ class ProjectBar extends DisposableStore {
 
 			item.textContent = project.initials;
 
-			item.onclick = () => {
-				if (currentPath !== project.path) {
-					this.hostService.openWindow([{ folderUri: URI.file(project.path) }], { forceReuseWindow: true });
-				}
+			item.onclick = (e) => {
+				e.preventDefault();
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => item,
+					getActions: () => [
+						toAction({
+							id: 'gitbbon.project.open',
+							label: 'Open Project',
+							run: () => {
+								if (currentPath !== project.path) {
+									this.hostService.openWindow([{ folderUri: URI.file(project.path) }], { forceReuseWindow: true });
+								}
+							}
+						}),
+						toAction({
+							id: 'gitbbon.project.openNewWindow',
+							label: 'Open Project in New Window',
+							run: () => {
+								this.hostService.openWindow([{ folderUri: URI.file(project.path) }], { forceNewWindow: true });
+							}
+						}),
+						new Separator(),
+						toAction({
+							id: 'gitbbon.project.rename',
+							label: 'Rename Project',
+							run: () => { /* TODO: Implement */ }
+						}),
+						toAction({
+							id: 'gitbbon.project.delete',
+							label: 'Delete Project',
+							run: () => { /* TODO: Implement */ }
+						})
+					]
+				});
 			};
 		});
 
