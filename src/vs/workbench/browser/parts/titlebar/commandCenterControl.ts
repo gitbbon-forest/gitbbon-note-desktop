@@ -22,6 +22,9 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { WindowTitle } from './windowTitle.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export class CommandCenterControl {
 
@@ -78,6 +81,10 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 
 	private readonly _hoverDelegate: IHoverDelegate;
 
+	private _customTitle: string | undefined;
+	private readonly _onDidChangeCustomTitle = this._store.add(new Emitter<void>());
+	readonly onDidChangeCustomTitle = this._onDidChangeCustomTitle.event;
+
 	constructor(
 		private readonly _submenu: SubmenuItemAction,
 		private readonly _windowTitle: WindowTitle,
@@ -86,9 +93,52 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
 		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
+		@IFileService private readonly _fileService: IFileService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
 		this._hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
+		this._loadCustomTitle();
+		this._registerCustomTitleListeners();
+	}
+
+	get customTitle() {
+		return this._customTitle;
+	}
+
+	private async _loadCustomTitle() {
+		const workspace = this._contextService.getWorkspace();
+		if (workspace.folders.length > 0) {
+			const root = workspace.folders[0].uri;
+			const gitbbonJsonUri = URI.joinPath(root, '.gitbbon.json');
+			try {
+				if (await this._fileService.exists(gitbbonJsonUri)) {
+					const content = await this._fileService.readFile(gitbbonJsonUri);
+					const json = JSON.parse(content.value.toString());
+					if (json.title) {
+						this._customTitle = json.title;
+						this._onDidChangeCustomTitle.fire();
+					}
+				}
+			} catch (e) {
+				// ignore
+			}
+		}
+	}
+
+	private _registerCustomTitleListeners() {
+		const workspace = this._contextService.getWorkspace();
+		if (workspace.folders.length > 0) {
+			const root = workspace.folders[0].uri;
+			const gitbbonJsonUri = URI.joinPath(root, '.gitbbon.json');
+			const watcher = this._fileService.watch(root);
+			this._store.add(watcher);
+			this._store.add(this._fileService.onDidFilesChange(e => {
+				if (e.contains(gitbbonJsonUri)) {
+					this._loadCustomTitle();
+				}
+			}));
+		}
 	}
 
 	override render(container: HTMLElement): void {
@@ -173,6 +223,12 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 									labelElement.textContent = this._getLabel();
 								}
 							}));
+
+							// update label when custom title changes
+							this._store.add(that.onDidChangeCustomTitle(() => {
+								hover.update(this.getTooltip());
+								labelElement.textContent = this._getLabel();
+							}));
 						}
 
 						protected override getTooltip() {
@@ -180,6 +236,9 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 						}
 
 						private _getLabel(): string {
+							if (that.customTitle) {
+								return that.customTitle;
+							}
 							const { prefix, suffix } = that._windowTitle.getTitleDecorations();
 							let label = that._windowTitle.workspaceName;
 							if (that._windowTitle.isCustomTitleFormat()) {
