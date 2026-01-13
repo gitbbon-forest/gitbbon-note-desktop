@@ -45,6 +45,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -666,8 +667,10 @@ class ProjectBar extends DisposableStore {
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ICommandService private readonly commandService: ICommandService,
+
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 		this.loadProjects();
@@ -820,7 +823,27 @@ class ProjectBar extends DisposableStore {
 						toAction({
 							id: 'gitbbon.project.rename',
 							label: 'Rename Project',
-							run: () => { /* TODO: Implement */ }
+							run: async () => {
+								const newTitle = await this.quickInputService.input({
+									value: project.title,
+									prompt: 'Enter new project name',
+								});
+								if (newTitle) {
+									const gitbbonJsonUri = URI.joinPath(URI.file(project.path), '.gitbbon.json');
+									try {
+										let json: any = {};
+										if (await this.fileService.exists(gitbbonJsonUri)) {
+											const content = await this.fileService.readFile(gitbbonJsonUri);
+											json = JSON.parse(content.value.toString());
+										}
+										json.title = newTitle;
+										await this.fileService.writeFile(gitbbonJsonUri, VSBuffer.fromString(JSON.stringify(json, null, 2)));
+										// The file watcher will eventually trigger a reload
+									} catch (e) {
+										console.error('Failed to rename project', e);
+									}
+								}
+							}
 						}),
 						toAction({
 							id: 'gitbbon.project.delete',
