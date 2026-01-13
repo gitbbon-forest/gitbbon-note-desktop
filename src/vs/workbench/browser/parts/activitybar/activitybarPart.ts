@@ -39,6 +39,24 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 
+// gitbbon custom: Project Bar imports
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+
+interface IProject {
+	name: string;
+	title: string;
+	path: string;
+	initials: string;
+}
+// gitbbon custom end
+
 export class ActivitybarPart extends Part {
 
 	static readonly ACTION_HEIGHT = 48;
@@ -56,7 +74,12 @@ export class ActivitybarPart extends Part {
 
 	//#endregion
 
-	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
+	//#endregion
+
+	// gitbbon custom: Replace CompositeBar with ProjectBar
+	// private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
+	private readonly projectBar = this._register(new MutableDisposable<ProjectBar>());
+	// gitbbon custom end
 	private content: HTMLElement | undefined;
 
 	constructor(
@@ -65,26 +88,22 @@ export class ActivitybarPart extends Part {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
+		// gitbbon custom: dependencies for project scanning
+		@IFileService private readonly fileService: IFileService,
+		@IPathService private readonly pathService: IPathService,
+		@IHostService private readonly hostService: IHostService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		// gitbbon custom end
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 	}
 
-	private createCompositeBar(): PaneCompositeBar {
-		return this.instantiationService.createInstance(ActivityBarCompositeBar, {
-			partContainerClass: 'activitybar',
-			pinnedViewContainersKey: ActivitybarPart.pinnedViewContainersKey,
-			placeholderViewContainersKey: ActivitybarPart.placeholderViewContainersKey,
-			viewContainersWorkspaceStateKey: ActivitybarPart.viewContainersWorkspaceStateKey,
+	// gitbbon custom: Create ProjectBar instead of CompositeBar
+	private createProjectBar(): ProjectBar {
+		return this.instantiationService.createInstance(ProjectBar, {
 			orientation: ActionsOrientation.VERTICAL,
-			icon: true,
-			iconSize: 24,
-			activityHoverOptions: {
-				position: () => this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT,
-			},
-			preventLoopNavigation: true,
-			recomputeSizes: false,
-			fillExtraContextMenuActions: (actions, e?: MouseEvent | GestureEvent) => { },
-			compositeSize: 52,
 			colors: (theme: IColorTheme) => ({
 				activeForegroundColor: theme.getColor(ACTIVITY_BAR_FOREGROUND),
 				inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND),
@@ -95,9 +114,12 @@ export class ActivitybarPart extends Part {
 				dragAndDropBorder: theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BORDER),
 				activeBackgroundColor: undefined, inactiveBackgroundColor: undefined, activeBorderBottomColor: undefined,
 			}),
-			overflowActionSize: ActivitybarPart.ACTION_HEIGHT,
-		}, Parts.ACTIVITYBAR_PART, this.paneCompositePart, true);
+			activityHoverOptions: {
+				position: () => this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT,
+			}
+		});
 	}
+	// gitbbon custom end
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
@@ -107,23 +129,28 @@ export class ActivitybarPart extends Part {
 			this.show();
 		}
 
+		// gitbbon custom: force show if not visible (though LayoutService controls this, we want to ensure content is built)
+		if (!this.projectBar.value) {
+			this.show();
+		}
+
 		return this.content;
 	}
 
 	getPinnedPaneCompositeIds(): string[] {
-		return this.compositeBar.value?.getPinnedPaneCompositeIds() ?? [];
+		return []; // gitbbon custom: No pinned viewlets in Activity Bar
 	}
 
 	getVisiblePaneCompositeIds(): string[] {
-		return this.compositeBar.value?.getVisiblePaneCompositeIds() ?? [];
+		return []; // gitbbon custom
 	}
 
 	getPaneCompositeIds(): string[] {
-		return this.compositeBar.value?.getPaneCompositeIds() ?? [];
+		return []; // gitbbon custom
 	}
 
 	focus(): void {
-		this.compositeBar.value?.focus();
+		// this.projectBar.value?.focus(); // TODO: Implement focus in ProjectBar
 	}
 
 	override updateStyles(): void {
@@ -143,9 +170,9 @@ export class ActivitybarPart extends Part {
 			return;
 		}
 
-		if (!this.compositeBar.value) {
-			this.compositeBar.value = this.createCompositeBar();
-			this.compositeBar.value.create(this.content);
+		if (!this.projectBar.value) {
+			this.projectBar.value = this.createProjectBar();
+			this.projectBar.value.create(this.content);
 
 			if (this.dimension) {
 				this.layout(this.dimension.width, this.dimension.height);
@@ -158,11 +185,11 @@ export class ActivitybarPart extends Part {
 	}
 
 	hide(): void {
-		if (!this.compositeBar.value) {
+		if (!this.projectBar.value) {
 			return;
 		}
 
-		this.compositeBar.clear();
+		this.projectBar.clear();
 
 		if (this.content) {
 			clearNode(this.content);
@@ -172,7 +199,7 @@ export class ActivitybarPart extends Part {
 	override layout(width: number, height: number): void {
 		super.layout(width, height, 0, 0);
 
-		if (!this.compositeBar.value) {
+		if (!this.projectBar.value) {
 			return;
 		}
 
@@ -180,7 +207,7 @@ export class ActivitybarPart extends Part {
 		const contentAreaSize = super.layoutContents(width, height).contentSize;
 
 		// Layout composite bar
-		this.compositeBar.value.layout(width, contentAreaSize.height);
+		this.projectBar.value.layout(width, contentAreaSize.height);
 	}
 
 	toJSON(): object {
@@ -616,3 +643,135 @@ registerThemingParticipant((theme, collector) => {
 		}
 	}
 });
+
+// gitbbon custom: New ProjectBar class
+class ProjectBar extends DisposableStore {
+	private element: HTMLElement | undefined;
+	private projects: IProject[] = [];
+
+	constructor(
+		private readonly options: {
+			orientation: ActionsOrientation;
+			colors: (theme: IColorTheme) => any;
+			activityHoverOptions: { position: () => HoverPosition };
+		},
+		@IFileService private readonly fileService: IFileService,
+		@IPathService private readonly pathService: IPathService,
+		@IHostService private readonly hostService: IHostService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IThemeService private readonly themeService: IThemeService,
+	) {
+		super();
+		this.loadProjects();
+	}
+
+	create(parent: HTMLElement): void {
+		this.element = append(parent, $('.project-bar'));
+		this.element.style.display = 'flex';
+		this.element.style.flexDirection = 'column';
+		this.element.style.alignItems = 'center';
+		this.element.style.paddingTop = '10px';
+		this.element.style.width = '100%';
+		this.render();
+	}
+
+	layout(width: number, height: number): void {
+		// Responsive layout if needed
+	}
+
+	clear(): void {
+		if (this.element) {
+			clearNode(this.element);
+		}
+	}
+
+	private async loadProjects(): Promise<void> {
+		try {
+			const userHome = await this.pathService.userHome();
+			const gitbbonNotesUri = URI.joinPath(userHome, 'Documents', 'Gitbbon_Notes');
+
+			if (!(await this.fileService.exists(gitbbonNotesUri))) {
+				return;
+			}
+
+			const stat = await this.fileService.resolve(gitbbonNotesUri);
+			if (!stat.children) {
+				return;
+			}
+
+			this.projects = [];
+			for (const child of stat.children) {
+				if (!child.isDirectory) continue;
+				if (await this.fileService.exists(URI.joinPath(child.resource, '.git'))) {
+					this.projects.push({
+						name: child.name,
+						title: child.name,
+						path: child.resource.fsPath,
+						initials: child.name.substring(0, 1).toUpperCase()
+					});
+				}
+			}
+			this.render();
+		} catch (e) {
+			console.error('Failed to load projects', e);
+		}
+	}
+
+	private render(): void {
+		if (!this.element) return;
+		clearNode(this.element);
+
+		const currentPath = this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
+
+		this.projects.forEach(project => {
+			const item = append(this.element!, $('.project-item'));
+			item.style.width = '36px';
+			item.style.height = '36px';
+			item.style.marginBottom = '8px';
+			item.style.borderRadius = '25%'; // similar to Discord rounded squares
+			item.style.display = 'flex';
+			item.style.alignItems = 'center';
+			item.style.justifyContent = 'center';
+			item.style.cursor = 'pointer';
+			item.style.fontSize = '14px';
+			item.style.fontWeight = 'bold';
+			item.style.color = '#ffffff'; // Default text color
+			item.style.backgroundColor = '#444444'; // Default bg
+			item.title = project.title;
+
+			// Highlight current project
+			if (currentPath && (project.path === currentPath)) {
+				item.style.border = '2px solid' + this.themeService.getColorTheme().getColor(ACTIVITY_BAR_ACTIVE_BORDER);
+				item.style.backgroundColor = '#666666'; // Active bg
+			}
+
+			item.textContent = project.initials;
+
+			item.onclick = () => {
+				if (currentPath !== project.path) {
+					this.hostService.openWindow([{ folderUri: URI.file(project.path) }], { forceNewWindow: true });
+				}
+			};
+		});
+
+		// Add '+' button for new project
+		const addBtn = append(this.element, $('.project-item.add-btn'));
+		addBtn.style.width = '36px';
+		addBtn.style.height = '36px';
+		addBtn.style.display = 'flex';
+		addBtn.style.alignItems = 'center';
+		addBtn.style.justifyContent = 'center';
+		addBtn.style.cursor = 'pointer';
+		addBtn.style.color = '#888888';
+		addBtn.style.border = '1px dashed #888888';
+		addBtn.style.borderRadius = '50%';
+		addBtn.textContent = '+';
+		addBtn.title = 'Add New Project';
+
+		addBtn.onclick = () => {
+			this.commandService.executeCommand('gitbbon.manager.addProject');
+		};
+	}
+}
+// gitbbon custom end
