@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { logService } from './logService.js';
 
 /**
  * 벡터 청크 정보
@@ -60,7 +61,7 @@ export class VectorStorageService {
 		const relativePath = path.relative(root.fsPath, mdUri.fsPath);
 		if (relativePath.startsWith('..')) {
 			// 워크스페이스 외부 파일
-			console.warn('[gitbbon-search][vectorStorage] File is outside workspace:', mdUri.fsPath);
+			logService.warn('File is outside workspace:', mdUri.fsPath);
 			return null;
 		}
 
@@ -88,7 +89,7 @@ export class VectorStorageService {
 	async saveVectorData(mdUri: vscode.Uri, data: VectorData): Promise<void> {
 		const vectorUri = this.getVectorFilePath(mdUri);
 		if (!vectorUri) {
-			console.error('[gitbbon-search][vectorStorage] Cannot get vector file path for:', mdUri.fsPath);
+			logService.error('Cannot get vector file path for:', mdUri.fsPath);
 			return;
 		}
 
@@ -104,7 +105,7 @@ export class VectorStorageService {
 		const encoder = new TextEncoder();
 		const content = JSON.stringify(data, null, 2);
 		await vscode.workspace.fs.writeFile(vectorUri, encoder.encode(content));
-		console.log(`[gitbbon-search][vectorStorage] Saved: ${vectorUri.fsPath}`);
+		logService.info(`Saved: ${vectorUri.fsPath}`);
 	}
 
 	/**
@@ -141,7 +142,7 @@ export class VectorStorageService {
 
 		try {
 			await vscode.workspace.fs.delete(vectorUri);
-			console.log(`[gitbbon-search][vectorStorage] Deleted: ${vectorUri.fsPath}`);
+			logService.info(`Deleted: ${vectorUri.fsPath}`);
 		} catch {
 			// 파일이 없으면 무시
 		}
@@ -162,13 +163,13 @@ export class VectorStorageService {
 
 		// 모델이 다르면 재임베딩 필요
 		if (data.model !== model) {
-			console.log('[gitbbon-search][vectorStorage] Model mismatch, re-embedding needed');
+			logService.info('Model mismatch, re-embedding needed');
 			return false;
 		}
 
 		// 콘텐츠가 변경되었으면 재임베딩 필요
 		if (data.contentHash !== contentHash) {
-			console.log('[gitbbon-search][vectorStorage] Content changed, re-embedding needed');
+			logService.info('Content changed, re-embedding needed');
 			return false;
 		}
 
@@ -187,10 +188,10 @@ export class VectorStorageService {
 		const vectorsDir = vscode.Uri.file(path.join(root.fsPath, '.gitbbon', 'vectors'));
 		try {
 			await vscode.workspace.fs.delete(vectorsDir, { recursive: true });
-			console.log('[gitbbon-search][vectorStorage] Cleared all vectors:', vectorsDir.fsPath);
+			logService.info(`Cleared all vectors: ${vectorsDir.fsPath}`);
 		} catch {
 			// 폴더가 없으면 무시
-			console.log('[gitbbon-search][vectorStorage] No vectors folder to clear');
+			logService.info('No vectors folder to clear');
 		}
 	}
 }

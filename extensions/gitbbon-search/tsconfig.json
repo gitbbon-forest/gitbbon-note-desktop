@@ -2,7 +2,7 @@
   "compilerOptions": {
     "module": "ESNext",
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "sourceMap": true,
     "rootDir": "src",
     "outDir": "out",
@@ -18,8 +18,9 @@
         "../../src/vscode-dts/vscode.proposed.aiTextSearchProvider.d.ts",
         "../../src/vscode-dts/vscode.proposed.textSearchProvider2.d.ts"
       ]
-    }
+    },
+    "types": ["@webgpu/types"]
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "src/webview/**/*", "src/modelHost.ts"]
+  "exclude": ["node_modules", "src/webview/**/*"]
 }

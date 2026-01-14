@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { searchService } from '../services/searchService.js';
 import { vectorStorageService } from '../services/vectorStorageService.js';
+import { logService } from '../services/logService.js';
 
 /**
  * 파일 감시자
@@ -24,7 +25,7 @@ export class FileWatcher implements vscode.Disposable {
 		this.watcher.onDidCreate(this.handleFileChange.bind(this));
 		this.watcher.onDidDelete(this.handleDelete.bind(this));
 
-		console.log('[gitbbon-search][fileWatcher] Watching **/*.md files');
+		logService.info('Watching **/*.md files');
 	}
 
 	/**
@@ -45,7 +46,7 @@ export class FileWatcher implements vscode.Disposable {
 			this.pendingUris.delete(uri.fsPath);
 		}
 
-		console.log(`[gitbbon-search][fileWatcher] File deleted: ${uri.fsPath}`);
+		logService.info(`File deleted: ${uri.fsPath}`);
 		searchService.removeFile(uri).then(() => {
 			vectorStorageService.deleteVectorData(uri);
 			searchService.debouncedSave();
@@ -77,7 +78,7 @@ export class FileWatcher implements vscode.Disposable {
 		this.pendingUris.clear();
 		this.debounceTimer = null;
 
-		console.log(`[gitbbon-search][fileWatcher] Batch processing ${uris.length} files`);
+		logService.info(`Batch processing ${uris.length} files`);
 		this.onIndexUpdate(uris);
 	}
 
@@ -105,7 +106,7 @@ export class GitWatcher implements vscode.Disposable {
 		// Git 확장 API 가져오기
 		const gitExtension = vscode.extensions.getExtension('vscode.git');
 		if (!gitExtension) {
-			console.log('[gitbbon-search][gitWatcher] Git extension not found');
+			logService.info('Git extension not found');
 			return;
 		}
 
@@ -128,17 +129,17 @@ export class GitWatcher implements vscode.Disposable {
 				api.onDidOpenRepository(repo => this.watchRepository(repo))
 			);
 
-			console.log(`[gitbbon-search][gitWatcher] Watching ${api.repositories.length} repositories`);
+			logService.info(`Watching ${api.repositories.length} repositories`);
 		} catch (error) {
-			console.error('[gitbbon-search][gitWatcher] Failed to setup:', error);
+			logService.error('Failed to setup:', error);
 		}
 	}
 
 	private watchRepository(repo: GitRepository): void {
 		// git status 변경 감지 (pull/checkout/merge 등)
 		const disposable = repo.state.onDidChange(() => {
-			console.log('[gitbbon-search][gitWatcher] Git state changed');
-			this.onGitChange().catch(console.error);
+			logService.info('Git state changed');
+			this.onGitChange().catch((e) => logService.error(e));
 		});
 		this.disposables.push(disposable);
 	}

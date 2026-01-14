@@ -3,7 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { pipeline, AutoTokenizer, type Pipeline, type PreTrainedTokenizer } from '@huggingface/transformers';
+import { pipeline, AutoTokenizer, env, type Pipeline, type PreTrainedTokenizer } from '@huggingface/transformers';
+
+// Transformers 환경 설정 추가
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+env.remoteHost = 'https://huggingface.co';
+env.remotePathTemplate = '{model}/resolve/{revision}/';
 
 const MODEL_NAME = 'Xenova/multilingual-e5-small';
 
@@ -110,16 +116,15 @@ class ModelHost {
 			const useWebGPU = await this.checkWebGPU();
 			console.log('[gitbbon-search][modelHost] Creating pipeline...');
 
-			// Note: Using 'unknown' intermediate cast to avoid TypeScript error:
-			// "Expression produces a union type that is too complex to represent"
-			this.extractor = await (pipeline as Function)('feature-extraction', MODEL_NAME, {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			this.extractor = await (pipeline as any)('feature-extraction', MODEL_NAME, {
 				device: useWebGPU ? 'webgpu' : 'wasm',
 				dtype: 'fp16',
 				progress_callback: (p: { progress?: number; status?: string; file?: string }) => {
-					console.log('[gitbbon-search][modelHost] Download progress:', p);
 					if (typeof p?.progress === 'number') {
 						const modelProgress = 30 + (p.progress * 0.7);
-						this.sendProgress(modelProgress, `Model loading: ${Math.round(p.progress)}%`);
+						const fileName = p.file || 'model';
+						this.sendProgress(modelProgress, `Loading ${fileName}: ${Math.round(p.progress)}%`);
 					} else if (p?.status) {
 						console.log('[gitbbon-search][modelHost] Status:', p.status, p.file || '');
 					}
@@ -263,15 +268,16 @@ window.addEventListener('gitbbon-message', async (event) => {
 				await modelHost.embedDocumentChunks(message.filePath, message.content, message.title);
 			}).catch(error => {
 				console.error('[gitbbon-search][modelHost] embedDocument error:', error);
-				(window as WindowWithGitbbonBridge).gitbbonBridge?.postMessage({
+				const errorData = {
 					type: 'embeddingError',
 					filePath: message.filePath,
 					error: (error as Error).message
-				}) || window.parent.postMessage({
-					type: 'embeddingError',
-					filePath: message.filePath,
-					error: (error as Error).message
-				}, '*');
+				};
+				if ((window as WindowWithGitbbonBridge).gitbbonBridge) {
+					(window as WindowWithGitbbonBridge).gitbbonBridge!.postMessage(errorData);
+				} else {
+					window.parent.postMessage(errorData, '*');
+				}
 			});
 			break;
 		case 'embedQuery':
@@ -284,11 +290,16 @@ window.addEventListener('gitbbon-message', async (event) => {
 				});
 			}, 10000, 'high').catch(error => {
 				console.error('[gitbbon-search][modelHost] embedQuery error:', error);
-				((window as WindowWithGitbbonBridge).gitbbonBridge?.postMessage || ((data: Record<string, unknown>) => window.parent.postMessage(data, '*')))({
+				const errorData = {
 					type: 'queryEmbeddingError',
 					error: (error as Error).message,
 					requestId: message.requestId
-				});
+				};
+				if ((window as WindowWithGitbbonBridge).gitbbonBridge) {
+					(window as WindowWithGitbbonBridge).gitbbonBridge!.postMessage(errorData);
+				} else {
+					window.parent.postMessage(errorData, '*');
+				}
 			});
 			break;
 	}
@@ -303,11 +314,3 @@ window.addEventListener('message', (event) => {
 });
 
 console.log('[gitbbon-search][modelHost] Initialized and listening for messages');
-
-// AUTO-INITIALIZE: Start loading model immediately
-console.log('[gitbbon-search][modelHost] Starting auto-initialization...');
-modelHost.init().then(() => {
-	console.log('[gitbbon-search][modelHost] Auto-initialization completed');
-}).catch(err => {
-	console.error('[gitbbon-search][modelHost] Auto-initialization failed:', err);
-});

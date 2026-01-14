@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { pipeline, AutoTokenizer, type FeatureExtractionPipeline, type PreTrainedTokenizer } from '@huggingface/transformers';
+import { logService } from './logService.js';
 
 const MODEL_NAME = 'Xenova/multilingual-e5-small';
 const CHUNK_SIZE = 512;
@@ -31,7 +32,8 @@ export class ModelService {
 			this.tokenizer = await AutoTokenizer.from_pretrained(MODEL_NAME);
 
 			progressCallback?.(30, 'Loading E5-Small model...');
-			this.extractor = await pipeline('feature-extraction', MODEL_NAME, {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			this.extractor = await (pipeline as any)('feature-extraction', MODEL_NAME, {
 				device: 'cpu',  // Node.js 환경에서는 cpu만 지원
 				dtype: 'fp16',
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,9 +47,9 @@ export class ModelService {
 
 			this.initialized = true;
 			progressCallback?.(100, 'Model ready');
-			console.log('[gitbbon-search][modelService] E5-Small model initialized');
+			logService.info('E5-Small model initialized');
 		} catch (error) {
-			console.error('[gitbbon-search][modelService] Initialization failed:', error);
+			logService.error('Initialization failed:', error);
 			throw error;
 		}
 	}

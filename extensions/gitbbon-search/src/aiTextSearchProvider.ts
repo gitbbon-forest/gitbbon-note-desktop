@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { searchService } from './services/searchService.js';
 import { extractTitle } from './services/titleExtractor.js';
+import { logService } from './services/logService.js';
 
 // Proposed API 타입 정의 (vscode.proposed.aiTextSearchProvider.d.ts에서 발췌)
 // VS Code 커스텀 빌드에서만 사용 가능
@@ -41,29 +42,27 @@ export class GitbbonAITextSearchProvider {
 	 * @param progress 결과 보고 콜백
 	 * @param token 취소 토큰
 	 */
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async provideAITextSearchResults(
 		query: string,
 		options: unknown,
 		progress: { report: (match: unknown) => void },
 		token: vscode.CancellationToken
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	): Promise<{ limitHit: boolean }> {
-		console.log('[gitbbon-search][aiTextSearchProvider] Query received:', query);
+		logService.info('Query received:', query);
 
 		if (!this.embedQuery) {
-			console.warn('[gitbbon-search][aiTextSearchProvider] embedQuery function not set');
+			logService.warn('embedQuery function not set');
 			return { limitHit: false };
 		}
 
 		if (!searchService.isReady()) {
-			console.warn('[gitbbon-search][aiTextSearchProvider] Search service not ready');
+			logService.warn('Search service not ready');
 			return { limitHit: false };
 		}
 
 		try {
 			// 1. 쿼리를 벡터로 변환
-			console.log('[gitbbon-search][aiTextSearchProvider] Embedding query...');
+			logService.info('Embedding query...');
 			const queryVector = await this.embedQuery(query);
 
 			if (token.isCancellationRequested) {
@@ -71,7 +70,7 @@ export class GitbbonAITextSearchProvider {
 			}
 
 			// 2. 벡터 검색 수행
-			console.log('[gitbbon-search][aiTextSearchProvider] Performing vector search...');
+			logService.info('Performing vector search...');
 			const results = await searchService.vectorSearch(queryVector, 20);
 
 			if (token.isCancellationRequested) {
@@ -79,7 +78,7 @@ export class GitbbonAITextSearchProvider {
 			}
 
 			// 3. 결과를 TextSearchMatch2로 변환하여 보고
-			console.log(`[gitbbon-search][aiTextSearchProvider] Found ${results.count} results`);
+			logService.info(`Found ${results.count} results`);
 
 			for (const hit of results.hits) {
 				if (token.isCancellationRequested) {
@@ -155,7 +154,7 @@ export class GitbbonAITextSearchProvider {
 						progress.report(match);
 					}
 				} catch (e) {
-					console.warn(`[gitbbon-search][aiTextSearchProvider] Failed to read file ${filePath}:`, e);
+					logService.warn(`Failed to read file ${filePath}:`, e);
 				}
 			}
 
@@ -163,7 +162,7 @@ export class GitbbonAITextSearchProvider {
 				limitHit: results.count > 20,
 			};
 		} catch (error) {
-			console.error('[gitbbon-search][aiTextSearchProvider] Search failed:', error);
+			logService.error('Search failed:', error);
 			return { limitHit: false };
 		}
 	}

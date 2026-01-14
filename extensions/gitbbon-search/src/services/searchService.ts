@@ -9,6 +9,7 @@ import type { Orama, SearchParams } from '@orama/orama';
 import type { IndexedDocument } from '../types.js';
 import { vectorStorageService } from './vectorStorageService.js';
 import { cleanMarkdown } from './titleExtractor.js';
+import { logService } from './logService.js';
 
 const VECTOR_SIZE = 384;
 
@@ -62,7 +63,7 @@ export class SearchService {
 				tokenizer: createIntlSegmenterTokenizer(),
 			},
 		});
-		console.log('[gitbbon-search][searchService] Orama DB initialized');
+		logService.info('Orama DB initialized');
 	}
 
 	/**
@@ -81,7 +82,7 @@ export class SearchService {
 				try {
 					const content = await vscode.workspace.fs.readFile(indexUri);
 					dataStr = new TextDecoder().decode(content);
-					console.log('[gitbbon-search][searchService] Loaded index from file storage');
+					logService.info('Loaded index from file storage');
 				} catch {
 					// 파일 없으면 무시하고 workspaceState 확인
 				}
@@ -91,7 +92,7 @@ export class SearchService {
 			if (!dataStr) {
 				dataStr = this.context.workspaceState.get<string>('orama-index');
 				if (dataStr) {
-					console.log('[gitbbon-search][searchService] Loaded index from workspaceState (migration)');
+					logService.info('Loaded index from workspaceState (migration)');
 					// 마이그레이션: 로드 성공했으므로 즉시 파일로 저장하여 마이그레이션 수행
 					// (비동기로 수행하여 현재 로드 프로세스 방해 금지)
 					setTimeout(() => this.saveToStorage(), 0);
@@ -105,8 +106,8 @@ export class SearchService {
 			const files = this.context.workspaceState.get<string[]>('indexed-files');
 			const chunkIdsData = this.context.workspaceState.get<[string, string[]][]>('file-chunk-ids');
 
-			console.log('[gitbbon-search][searchService] loadFromStorage - data exists: true');
-			console.log('[gitbbon-search][searchService] loadFromStorage - indexed files stored:', files?.length ?? 0);
+			logService.debug('loadFromStorage - data exists: true');
+			logService.debug(`loadFromStorage - indexed files stored: ${files?.length ?? 0}`);
 
 			await load(this.db, JSON.parse(dataStr));
 			this.indexedFiles = new Set(files || []);
@@ -114,12 +115,12 @@ export class SearchService {
 
 			// 복원 후 DB 문서 수 확인
 			const dbCount = await count(this.db);
-			console.log('[gitbbon-search][searchService] loadFromStorage - DB document count after restore:', dbCount);
+			logService.debug(`loadFromStorage - DB document count after restore: ${dbCount}`);
 
-			console.log('[gitbbon-search][searchService] Index restored from storage');
+			logService.info('Index restored from storage');
 			return true;
 		} catch (error) {
-			console.error('[gitbbon-search][searchService] Failed to load index:', error);
+			logService.error('Failed to load index:', error);
 			return false;
 		}
 	}
@@ -135,13 +136,13 @@ export class SearchService {
 		try {
 			// 저장 전 DB 문서 수 확인
 			const dbCount = await count(this.db);
-			console.log('[gitbbon-search][searchService] saveToStorage - DB document count before save:', dbCount);
+			logService.debug(`saveToStorage - DB document count before save: ${dbCount}`);
 
 			const data = await save(this.db);
 			const dataStr = JSON.stringify(data);
 
 			// 저장 데이터 크기 확인
-			console.log('[gitbbon-search][searchService] saveToStorage - serialized data size:', dataStr.length, 'bytes');
+			logService.debug(`saveToStorage - serialized data size: ${dataStr.length} bytes`);
 
 			// 1. 파일 스토리지에 저장 (storageUri 사용)
 			if (this.context.storageUri) {
@@ -150,26 +151,25 @@ export class SearchService {
 					const indexUri = vscode.Uri.joinPath(this.context.storageUri, 'orama-index.json');
 					const encoder = new TextEncoder();
 					await vscode.workspace.fs.writeFile(indexUri, encoder.encode(dataStr));
-					console.log('[gitbbon-search][searchService] Index saved to file storage:', indexUri.fsPath);
+					logService.debug(`Index saved to file storage: ${indexUri.fsPath}`);
 
 					// 2. workspaceState의 기존 데이터 삭제 (마이그레이션 완료 후 공간 확보)
 					await this.context.workspaceState.update('orama-index', undefined);
 				} catch (fileError) {
-					console.error('[gitbbon-search][searchService] Failed to save to file:', fileError);
+					logService.error('Failed to save to file:', fileError);
 					// 파일 저장 실패 시 fallback으로 workspaceState 사용 (안전장치)
 					await this.context.workspaceState.update('orama-index', dataStr);
 				}
 			} else {
 				// storageUri가 없는 경우 (거의 없겠지만) workspaceState 사용
-				console.warn('[gitbbon-search][searchService] No storageUri available, falling back to workspaceState');
+				logService.warn('No storageUri available, falling back to workspaceState');
 				await this.context.workspaceState.update('orama-index', dataStr);
 			}
 
-			// 메타데이터는 크기가 작으므로 workspaceState 유지
 			await this.context.workspaceState.update('indexed-files', Array.from(this.indexedFiles));
 			await this.context.workspaceState.update('file-chunk-ids', Array.from(this.fileChunkIds.entries()));
 		} catch (error) {
-			console.error('[gitbbon-search][searchService] Failed to save index:', error);
+			logService.error('Failed to save index:', error);
 		}
 	}
 
@@ -213,7 +213,7 @@ export class SearchService {
 
 			// 벡터 값 확인 (첫 번째 문서의 첫 5개 값)
 			if (docs.length > 0 && docs[0].vector.length > 0) {
-				console.log('[gitbbon-search][searchService] indexFileWithEmbeddings - first doc vector[0:5]:', docs[0].vector.slice(0, 5));
+				logService.debug(`indexFileWithEmbeddings - first doc vector[0:5]: ${docs[0].vector.slice(0, 5)}`);
 			}
 
 			if (docs.length > 0) {
@@ -224,12 +224,12 @@ export class SearchService {
 
 				// 삽입 후 DB 문서 수 확인
 				const dbCount = await count(this.db);
-				console.log('[gitbbon-search][searchService] indexFileWithEmbeddings - DB document count after insert:', dbCount);
+				logService.debug(`indexFileWithEmbeddings - DB document count after insert: ${dbCount}`);
 			}
 
-			console.log(`[gitbbon-search][searchService] Indexed ${filePath} (${docs.length} chunks)`);
+			logService.info(`Indexed ${filePath} (${docs.length} chunks)`);
 		} catch (error) {
-			console.error(`[gitbbon-search][searchService] Failed to index ${filePath}:`, error);
+			logService.error(`Failed to index ${filePath}:`, error);
 		}
 	}
 
@@ -262,9 +262,9 @@ export class SearchService {
 
 			this.fileChunkIds.delete(filePath);
 			this.indexedFiles.delete(filePath);
-			console.log(`[gitbbon-search][searchService] Removed ${chunkIds.length} chunks for ${filePath}`);
+			logService.info(`Removed ${chunkIds.length} chunks for ${filePath}`);
 		} catch (error) {
-			console.error(`[gitbbon-search][searchService] Failed to remove ${filePath}:`, error);
+			logService.error(`Failed to remove ${filePath}:`, error);
 		}
 	}
 
@@ -274,12 +274,12 @@ export class SearchService {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async vectorSearch(queryVector: number[], limit = 10, filePathPrefix?: string): Promise<any> {
 		if (!this.db) {
-			console.error('[gitbbon-search][searchService] vectorSearch called but DB not initialized');
+			logService.error('vectorSearch called but DB not initialized');
 			throw new Error('Search engine not initialized');
 		}
 
 		const dbDocCount = await count(this.db);
-		console.log('[gitbbon-search][searchService] vectorSearch - docs:', dbDocCount, 'results will be returned');
+		logService.debug(`vectorSearch - docs: ${dbDocCount}, results will be returned`);
 
 		// 필터링이 있는 경우 더 많은 결과를 가져와서 JS에서 필터링 (Orama 무료 버전 한계 극복)
 		const searchLimit = filePathPrefix ? Math.max(limit * 10, 50) : limit;
@@ -298,7 +298,7 @@ export class SearchService {
 		if (filePathPrefix) {
 			const originalCount = result.hits.length;
 			result.hits = result.hits.filter((hit) => hit.document.filePath.startsWith(filePathPrefix));
-			console.log(`[gitbbon-search][searchService] Filtered results by prefix: ${originalCount} -> ${result.hits.length}`);
+			logService.debug(`Filtered results by prefix: ${originalCount} -> ${result.hits.length}`);
 
 			// 요청된 limit만큼 자르기
 			if (result.hits.length > limit) {
@@ -307,7 +307,7 @@ export class SearchService {
 			result.count = result.hits.length;
 		}
 
-		console.log('[gitbbon-search][searchService] Search completed, results:', result.count);
+		logService.info(`Search completed, results: ${result.count}`);
 		return result;
 	}
 
@@ -348,7 +348,7 @@ export class SearchService {
 				try {
 					const indexUri = vscode.Uri.joinPath(this.context.storageUri, 'orama-index.json');
 					await vscode.workspace.fs.delete(indexUri);
-					console.log('[gitbbon-search][searchService] Removed index file from storage');
+					logService.info('Removed index file from storage');
 				} catch {
 					// 파일 없으면 무시
 				}
@@ -367,7 +367,7 @@ export class SearchService {
 				tokenizer: createIntlSegmenterTokenizer(),
 			},
 		});
-		console.log('[gitbbon-search][searchService] Index cleared');
+		logService.info('Index cleared');
 	}
 
 	/**
