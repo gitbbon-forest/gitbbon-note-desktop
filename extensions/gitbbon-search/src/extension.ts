@@ -145,13 +145,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 		const modelHostScriptUri = vscode.Uri.joinPath(context.extensionUri, 'out', 'webview', 'modelHost.js');
 		const modelHostScriptContent = await vscode.workspace.fs.readFile(modelHostScriptUri);
 		const scriptCode = Buffer.from(modelHostScriptContent).toString('utf-8');
+
+		// WASM/JS 자산 디렉토리의 Webview URI 생성
+		// HiddenWebview가 asWebviewUri를 지원하지 않을 수 있으므로 manual construction 시도
+		const assetsPath = vscode.Uri.joinPath(context.extensionUri, 'out', 'webview', 'assets').fsPath;
+		const assetsUri = `vscode-file://vscode-app${assetsPath}`;
+
 		hiddenWebview.html = `<!DOCTYPE html>
 <html lang="ko">
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Gitbbon Search - Model Host (Hidden)</title>
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; font-src https: data: vscode-resource:; connect-src https: data: vscode-resource:;">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' vscode-resource: vscode-file:; style-src 'unsafe-inline' vscode-resource: vscode-file:; font-src https: data: vscode-resource: vscode-file:; connect-src https: data: vscode-resource: vscode-file:;">
+	<script>
+		// 전역 설정 객체 주입
+		window.GITBBON_SEARCH_CONFIG = {
+			assetsUri: "${assetsUri.toString()}/"
+		};
+	</script>
 	<style>body { display: none; }</style>
 </head>
 <body>

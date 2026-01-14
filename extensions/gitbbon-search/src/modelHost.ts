@@ -13,6 +13,21 @@ env.remotePathTemplate = '{model}/resolve/{revision}/';
 
 const MODEL_NAME = 'Xenova/multilingual-e5-small';
 
+// 전역 설정 객체 타입 정의
+interface GitbbonSearchConfig {
+	assetsUri: string;
+}
+
+declare const GITBBON_SEARCH_CONFIG: GitbbonSearchConfig;
+
+// Transformers 환경 설정 추가
+if (typeof GITBBON_SEARCH_CONFIG !== 'undefined' && GITBBON_SEARCH_CONFIG.assetsUri) {
+	// ONNX Runtime WASM 경로 설정 (v3 기준)
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	(env.backends.onnx as any).wasm.wasmPaths = GITBBON_SEARCH_CONFIG.assetsUri;
+	console.log('[gitbbon-search][modelHost] Local WASM paths set to:', GITBBON_SEARCH_CONFIG.assetsUri);
+}
+
 class ModelHost {
 	private extractor: Pipeline | null = null;
 	private tokenizer: PreTrainedTokenizer | null = null;
