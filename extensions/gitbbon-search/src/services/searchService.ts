@@ -74,18 +74,41 @@ export class SearchService {
 		}
 
 		try {
-			const data = this.context.workspaceState.get<string>('orama-index');
-			const files = this.context.workspaceState.get<string[]>('indexed-files');
-			const chunkIdsData = this.context.workspaceState.get<[string, string[]][]>('file-chunk-ids');
+			// 1. 파일 스토리지에서 먼저 로드 시도
+			let dataStr: string | undefined;
+			if (this.context.storageUri) {
+				const indexUri = vscode.Uri.joinPath(this.context.storageUri, 'orama-index.json');
+				try {
+					const content = await vscode.workspace.fs.readFile(indexUri);
+					dataStr = new TextDecoder().decode(content);
+					console.log('[gitbbon-search][searchService] Loaded index from file storage');
+				} catch {
+					// 파일 없으면 무시하고 workspaceState 확인
+				}
+			}
 
-			console.log('[gitbbon-search][searchService] loadFromStorage - data exists:', !!data);
-			console.log('[gitbbon-search][searchService] loadFromStorage - indexed files stored:', files?.length ?? 0);
+			// 2. 파일 없으면 workspaceState 확인 (마이그레이션)
+			if (!dataStr) {
+				dataStr = this.context.workspaceState.get<string>('orama-index');
+				if (dataStr) {
+					console.log('[gitbbon-search][searchService] Loaded index from workspaceState (migration)');
+					// 마이그레이션: 로드 성공했으므로 즉시 파일로 저장하여 마이그레이션 수행
+					// (비동기로 수행하여 현재 로드 프로세스 방해 금지)
+					setTimeout(() => this.saveToStorage(), 0);
+				}
+			}
 
-			if (!data) {
+			if (!dataStr) {
 				return false;
 			}
 
-			await load(this.db, JSON.parse(data));
+			const files = this.context.workspaceState.get<string[]>('indexed-files');
+			const chunkIdsData = this.context.workspaceState.get<[string, string[]][]>('file-chunk-ids');
+
+			console.log('[gitbbon-search][searchService] loadFromStorage - data exists: true');
+			console.log('[gitbbon-search][searchService] loadFromStorage - indexed files stored:', files?.length ?? 0);
+
+			await load(this.db, JSON.parse(dataStr));
 			this.indexedFiles = new Set(files || []);
 			this.fileChunkIds = new Map(chunkIdsData || []);
 
@@ -115,15 +138,36 @@ export class SearchService {
 			console.log('[gitbbon-search][searchService] saveToStorage - DB document count before save:', dbCount);
 
 			const data = await save(this.db);
+			const dataStr = JSON.stringify(data);
 
 			// 저장 데이터 크기 확인
-			const dataStr = JSON.stringify(data);
 			console.log('[gitbbon-search][searchService] saveToStorage - serialized data size:', dataStr.length, 'bytes');
 
-			await this.context.workspaceState.update('orama-index', dataStr);
+			// 1. 파일 스토리지에 저장 (storageUri 사용)
+			if (this.context.storageUri) {
+				try {
+					await vscode.workspace.fs.createDirectory(this.context.storageUri);
+					const indexUri = vscode.Uri.joinPath(this.context.storageUri, 'orama-index.json');
+					const encoder = new TextEncoder();
+					await vscode.workspace.fs.writeFile(indexUri, encoder.encode(dataStr));
+					console.log('[gitbbon-search][searchService] Index saved to file storage:', indexUri.fsPath);
+
+					// 2. workspaceState의 기존 데이터 삭제 (마이그레이션 완료 후 공간 확보)
+					await this.context.workspaceState.update('orama-index', undefined);
+				} catch (fileError) {
+					console.error('[gitbbon-search][searchService] Failed to save to file:', fileError);
+					// 파일 저장 실패 시 fallback으로 workspaceState 사용 (안전장치)
+					await this.context.workspaceState.update('orama-index', dataStr);
+				}
+			} else {
+				// storageUri가 없는 경우 (거의 없겠지만) workspaceState 사용
+				console.warn('[gitbbon-search][searchService] No storageUri available, falling back to workspaceState');
+				await this.context.workspaceState.update('orama-index', dataStr);
+			}
+
+			// 메타데이터는 크기가 작으므로 workspaceState 유지
 			await this.context.workspaceState.update('indexed-files', Array.from(this.indexedFiles));
 			await this.context.workspaceState.update('file-chunk-ids', Array.from(this.fileChunkIds.entries()));
-			console.log('[gitbbon-search][searchService] Index saved to storage');
 		} catch (error) {
 			console.error('[gitbbon-search][searchService] Failed to save index:', error);
 		}
@@ -248,12 +292,12 @@ export class SearchService {
 			},
 			limit: searchLimit,
 			similarity: 0.8,  // 관련성 낮은 결과 필터링 (0.0~1.0, 높을수록 엄격)
-		} as SearchParams<OramaDB, 'vector'>);
+		} as SearchParams<OramaDB>);
 
 		// Project 범위 필터링
 		if (filePathPrefix) {
 			const originalCount = result.hits.length;
-			result.hits = result.hits.filter((hit: any) => hit.document.filePath.startsWith(filePathPrefix));
+			result.hits = result.hits.filter((hit) => hit.document.filePath.startsWith(filePathPrefix));
 			console.log(`[gitbbon-search][searchService] Filtered results by prefix: ${originalCount} -> ${result.hits.length}`);
 
 			// 요청된 limit만큼 자르기
@@ -294,9 +338,21 @@ export class SearchService {
 	 */
 	async clearIndex(): Promise<void> {
 		if (this.context) {
+			// workspaceState 정리
 			await this.context.workspaceState.update('orama-index', undefined);
 			await this.context.workspaceState.update('indexed-files', undefined);
 			await this.context.workspaceState.update('file-chunk-ids', undefined);
+
+			// 파일 스토리지 정리
+			if (this.context.storageUri) {
+				try {
+					const indexUri = vscode.Uri.joinPath(this.context.storageUri, 'orama-index.json');
+					await vscode.workspace.fs.delete(indexUri);
+					console.log('[gitbbon-search][searchService] Removed index file from storage');
+				} catch {
+					// 파일 없으면 무시
+				}
+			}
 		}
 		this.indexedFiles.clear();
 		this.fileChunkIds.clear();

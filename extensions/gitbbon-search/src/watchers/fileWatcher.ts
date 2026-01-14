@@ -13,82 +13,80 @@ import { vectorStorageService } from '../services/vectorStorageService.js';
  */
 export class FileWatcher implements vscode.Disposable {
 	private watcher: vscode.FileSystemWatcher;
-	private debounceTimers = new Map<string, NodeJS.Timeout>();
-	private readonly DEBOUNCE_MS = 500;
+	private pendingUris = new Set<string>();
+	private debounceTimer: NodeJS.Timeout | null = null;
+	private readonly DEBOUNCE_MS = 1000; // 배치 처리를 위해 시간 증가
 
-	constructor(private readonly onIndexUpdate: (uri?: vscode.Uri) => void) {
+	constructor(private readonly onIndexUpdate: (uris: vscode.Uri[]) => void) {
 		this.watcher = vscode.workspace.createFileSystemWatcher('**/*.md');
 
-		this.watcher.onDidChange(this.handleChange.bind(this));
-		this.watcher.onDidCreate(this.handleCreate.bind(this));
+		this.watcher.onDidChange(this.handleFileChange.bind(this));
+		this.watcher.onDidCreate(this.handleFileChange.bind(this));
 		this.watcher.onDidDelete(this.handleDelete.bind(this));
 
 		console.log('[gitbbon-search][fileWatcher] Watching **/*.md files');
 	}
 
 	/**
-	 * 파일 변경 처리 (debounce 적용)
-	 * NOTE: 인덱싱은 Webview에서 처리
+	 * 파일 변경/생성 처리 (배치 적용)
 	 */
-	private handleChange(uri: vscode.Uri): void {
-		this.debounce(uri, async () => {
-			const now = new Date().toISOString();
-			console.log(`[gitbbon-search][fileWatcher] ⚠️ File changed at ${now}: ${uri.fsPath}`);
-			// TODO: Webview에 인덱싱 요청 메시지 전송
-			this.onIndexUpdate(uri);
-		});
-	}
-
-	/**
-	 * 파일 생성 처리
-	 * NOTE: 인덱싱은 Webview에서 처리
-	 */
-	private handleCreate(uri: vscode.Uri): void {
-		this.debounce(uri, async () => {
-			console.log(`[gitbbon-search][fileWatcher] File created: ${uri.fsPath} - index needed`);
-			// TODO: Webview에 인덱싱 요청 메시지 전송
-			this.onIndexUpdate(uri);
-		});
+	private handleFileChange(uri: vscode.Uri): void {
+		this.pendingUris.add(uri.fsPath);
+		this.scheduleBatch();
 	}
 
 	/**
 	 * 파일 삭제 처리
 	 */
 	private handleDelete(uri: vscode.Uri): void {
-		this.debounce(uri, async () => {
-			console.log(`[gitbbon-search][fileWatcher] File deleted: ${uri.fsPath}`);
-			await searchService.removeFile(uri);
-			await vectorStorageService.deleteVectorData(uri);
-			searchService.debouncedSave(); // searchService의 debounce 사용
-			this.onIndexUpdate();
+		// 삭제는 즉시 처리하거나 별도로 처리 (지금은 기존 로직 유지하되 즉시 실행)
+		// 삭제된 파일이 pending에 있으면 제거
+		if (this.pendingUris.has(uri.fsPath)) {
+			this.pendingUris.delete(uri.fsPath);
+		}
+
+		console.log(`[gitbbon-search][fileWatcher] File deleted: ${uri.fsPath}`);
+		searchService.removeFile(uri).then(() => {
+			vectorStorageService.deleteVectorData(uri);
+			searchService.debouncedSave();
 		});
 	}
 
 	/**
-	 * Debounce 처리
+	 * 배치 처리 스케줄링
 	 */
-	private debounce(uri: vscode.Uri, action: () => Promise<void>): void {
-		const key = uri.fsPath;
-
-		// 기존 타이머 취소
-		const existing = this.debounceTimers.get(key);
-		if (existing) {
-			clearTimeout(existing);
+	private scheduleBatch(): void {
+		if (this.debounceTimer) {
+			clearTimeout(this.debounceTimer);
 		}
 
-		// 새 타이머 설정
-		const timer = setTimeout(() => {
-			this.debounceTimers.delete(key);
-			action().catch(console.error);
+		this.debounceTimer = setTimeout(() => {
+			this.processBatch();
 		}, this.DEBOUNCE_MS);
+	}
 
-		this.debounceTimers.set(key, timer);
+	/**
+	 * 배치 실행
+	 */
+	private processBatch(): void {
+		if (this.pendingUris.size === 0) {
+			return;
+		}
+
+		const uris = Array.from(this.pendingUris).map(fsPath => vscode.Uri.file(fsPath));
+		this.pendingUris.clear();
+		this.debounceTimer = null;
+
+		console.log(`[gitbbon-search][fileWatcher] Batch processing ${uris.length} files`);
+		this.onIndexUpdate(uris);
 	}
 
 	dispose(): void {
 		this.watcher.dispose();
-		this.debounceTimers.forEach(timer => clearTimeout(timer));
-		this.debounceTimers.clear();
+		if (this.debounceTimer) {
+			clearTimeout(this.debounceTimer);
+		}
+		this.pendingUris.clear();
 	}
 }
 

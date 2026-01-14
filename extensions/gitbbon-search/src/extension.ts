@@ -25,6 +25,60 @@ let hiddenWebview: vscode.HiddenWebview | null = null;
 let modelReady = false;
 const pendingQueryEmbeddings = new Map<string, (vector: number[]) => void>();
 
+/**
+ * 작업 큐 관리 클래스
+ * 동시 실행 수를 제한하여 UI 블로킹 방지
+ */
+class ProcessingQueue {
+	private queue: (() => Promise<void>)[] = [];
+	private activeCount = 0;
+	private readonly CONCURRENCY_LIMIT = 5; // 동시에 처리할 파일 수
+
+	constructor(private readonly onProgress?: (remaining: number) => void) { }
+
+	add(task: () => Promise<void>) {
+		this.queue.push(task);
+		this.processNext();
+	}
+
+	private async processNext() {
+		if (this.activeCount >= this.CONCURRENCY_LIMIT || this.queue.length === 0) {
+			return;
+		}
+
+		this.activeCount++;
+		const task = this.queue.shift();
+
+		if (task) {
+			try {
+				await task();
+			} catch (error) {
+				console.error('[gitbbon-search][queue] Task failed:', error);
+			} finally {
+				this.activeCount--;
+				if (this.onProgress) {
+					this.onProgress(this.queue.length + this.activeCount);
+				}
+				this.processNext();
+			}
+		}
+	}
+
+	clear() {
+		this.queue = [];
+	}
+
+	get pending() {
+		return this.queue.length + this.activeCount;
+	}
+}
+
+const processingQueue = new ProcessingQueue((remaining) => {
+	if (remaining % 10 === 0 && remaining > 0) {
+		console.log(`[gitbbon-search] Remaining indexing tasks: ${remaining}`);
+	}
+});
+
 export interface SearchResult {
 	filePath: string;
 	range: [number, number]; // [startOffset, endOffset]
@@ -60,20 +114,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 	}
 
 	// FileSystemWatcher 등록
-	fileWatcher = new FileWatcher(async (uri) => {
-		if (uri) {
-			console.log(`[Extension] File changed: ${uri.fsPath} - reindexing...`);
-			await indexFile(uri);
-		} else {
-			console.log('[Extension] Index updated (full scan needed?)');
-			// 필요 시 startBackgroundIndexing() 호출 가능하나 너무 무거울 수 있음
+	// FileSystemWatcher 등록
+	fileWatcher = new FileWatcher(async (uris) => {
+		if (uris && uris.length > 0) {
+			console.log(`[gitbbon-search] ${uris.length} files changed - queuing for reindexing...`);
+			for (const uri of uris) {
+				processingQueue.add(() => indexFile(uri));
+			}
 		}
 	});
 	context.subscriptions.push(fileWatcher);
 
 	// Git Watcher 등록 (TODO: Webview 인덱싱 구현 후 연결)
 	gitWatcher = new GitWatcher(async () => {
-		console.log('[Extension] Git state changed - reindex needed');
+		console.log('[gitbbon-search] Git state changed - reindex needed');
 	});
 	context.subscriptions.push(gitWatcher);
 
@@ -105,11 +159,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 		// Hidden Webview로부터 메시지 수신
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		hiddenWebview.onDidReceiveMessage(async (message: any) => {
-			console.log('[Extension] Hidden Webview message:', message.type);
+			console.log('[gitbbon-search] Hidden Webview message:', message.type);
 			switch (message.type) {
 				case 'modelReady':
 					modelReady = true;
-					console.log('[Extension] Model ready in hidden webview!');
+					console.log('[gitbbon-search] Model ready in hidden webview!');
 
 					// AITextSearchProvider 설정 및 등록
 					aiTextSearchProvider.setEmbedQueryFn(embedQuery);
@@ -120,9 +174,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 						context.subscriptions.push(
 							registerFn('file', aiTextSearchProvider)
 						);
-						console.log('[Extension] AITextSearchProvider registered for file scheme');
+						console.log('[gitbbon-search] AITextSearchProvider registered for file scheme');
 					} else {
-						console.warn('[Extension] registerAITextSearchProvider not available (proposed API)');
+						console.warn('[gitbbon-search] registerAITextSearchProvider not available (proposed API)');
 					}
 
 					// 모델이 준비되면 인덱싱 시작
@@ -130,21 +184,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 					break;
 				case 'modelProgress':
 					// 모델 로딩 진행률 (UI가 없으므로 로그만 출력)
-					console.log(`[Extension] Model loading progress: ${message.progress}%`);
+					console.log(`[gitbbon-search] Model loading progress: ${message.progress}%`);
 					break;
 				case 'modelError':
-					console.error('[Extension] Model error:', message.error);
+					console.error('[gitbbon-search] Model error:', message.error);
 					break;
 				case 'embeddingResult':
 					await handleEmbeddingResult(message);
 					break;
 				case 'embeddingError':
 					// 임베딩 실패 처리
-					console.error(`[Extension] Embedding failed for ${message.filePath}:`, message.error);
+					console.error(`[gitbbon-search] Embedding failed for ${message.filePath}:`, message.error);
 					break;
 				case 'queryEmbedding':
 					// 쿼리 임베딩 결과 수신 - 벡터 검색 수행
-					console.log('[Extension] Query embedding received, requestId:', message.requestId);
+					console.log('[gitbbon-search] Query embedding received, requestId:', message.requestId);
 
 					// AITextSearchProvider를 위한 콜백 처리
 					const aiSearchResolver = pendingQueryEmbeddings.get(message.requestId);
@@ -155,9 +209,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 					break;
 				case 'queryEmbeddingError':
 					// 쿼리 임베딩 오류
-					console.error('[Extension] Query embedding error:', message.error);
+					console.error('[gitbbon-search] Query embedding error:', message.error);
 					if (message.stack) {
-						console.error('[Extension] Error stack:', message.stack);
+						console.error('[gitbbon-search] Error stack:', message.stack);
 					}
 					// pending request 정리
 					if (pendingQueryEmbeddings.has(message.requestId)) {
@@ -169,11 +223,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 
 		// 모델 로딩 시작 요청
 		hiddenWebview.postMessage({ type: 'initModel' });
-		console.log('[Extension] Hidden Webview created, model loading started');
+		console.log('[gitbbon-search] Hidden Webview created, model loading started');
 
 		context.subscriptions.push(hiddenWebview);
 	} catch (error) {
-		console.error('[Extension] Failed to create hidden webview:', error);
+		console.error('[gitbbon-search] Failed to create hidden webview:', error);
 		// Hidden Webview 실패 시에도 기존 방식으로 동작 가능하도록 fallback
 	}
 
@@ -268,23 +322,28 @@ async function executeSemanticSearch(query: string, limit: number = 5, options?:
  */
 async function startBackgroundIndexing(): Promise<void> {
 	if (!hiddenWebview || !modelReady) {
-		console.log('[Extension] Skipping indexing - model not ready');
+		console.log('[gitbbon-search] Skipping indexing - model not ready');
 		return;
 	}
 
 	const workspaceFolders = vscode.workspace.workspaceFolders;
 	if (!workspaceFolders) {
-		console.log('[Extension] No workspace folder found');
+		console.log('[gitbbon-search] No workspace folder found');
 		return;
 	}
 
 	const mdFiles = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
-	console.log(`[Extension] Background indexing: ${mdFiles.length} markdown files`);
+	console.log(`[gitbbon-search] Background indexing: ${mdFiles.length} markdown files`);
 
+
+	// 큐 초기화 (이전 작업 취소 효과)
+	processingQueue.clear();
 
 	for (const fileUri of mdFiles) {
-		await indexFile(fileUri);
+		processingQueue.add(() => indexFile(fileUri));
 	}
+
+	console.log(`[gitbbon-search] Queued ${mdFiles.length} files for indexing`);
 }
 
 /**
@@ -292,7 +351,7 @@ async function startBackgroundIndexing(): Promise<void> {
  */
 async function indexFile(fileUri: vscode.Uri): Promise<void> {
 	if (!hiddenWebview || !modelReady) {
-		console.log(`[Extension] Skipping indexFile(${fileUri.fsPath}) - model not ready`);
+		console.log(`[gitbbon-search] Skipping indexFile(${fileUri.fsPath}) - model not ready`);
 		return;
 	}
 
@@ -309,7 +368,7 @@ async function indexFile(fileUri: vscode.Uri): Promise<void> {
 
 		// VectorStorageService로 캐시 확인
 		if (await vectorStorageService.hasValidCache(fileUri, contentHash, MODEL_NAME)) {
-			console.log(`[Extension] Using cached embedding for ${fileUri.fsPath}`);
+			console.log(`[gitbbon-search] Using cached embedding for ${fileUri.fsPath}`);
 			const vectorData = await vectorStorageService.loadVectorData(fileUri);
 			if (vectorData) {
 				const chunks = vectorData.chunks.map((chunk, i) => ({
@@ -325,7 +384,7 @@ async function indexFile(fileUri: vscode.Uri): Promise<void> {
 		// 캐시 없음 → 새로 임베딩 요청
 		const title = extractTitle(text, fileUri.fsPath);
 		const contentWithoutFrontmatter = stripFrontmatter(text);
-		console.log(`[Extension] Requesting embedding for ${fileUri.fsPath} (title: ${title})`);
+		console.log(`[gitbbon-search] Requesting embedding for ${fileUri.fsPath} (title: ${title})`);
 		hiddenWebview.postMessage({
 			type: 'embedDocument',
 			filePath: fileUri.fsPath,
@@ -333,7 +392,7 @@ async function indexFile(fileUri: vscode.Uri): Promise<void> {
 			title,
 		});
 	} catch (error) {
-		console.error(`[Extension] Failed to read ${fileUri.fsPath}:`, error);
+		console.error(`[gitbbon-search] Failed to read ${fileUri.fsPath}:`, error);
 	}
 }
 
@@ -351,7 +410,7 @@ async function handleEmbeddingResult(message: {
 			message.filePath,
 			message.chunks
 		);
-		console.log(`[Extension] Indexed ${message.chunks.length} chunks from ${message.filePath}`);
+		console.log(`[gitbbon-search] Indexed ${message.chunks.length} chunks from ${message.filePath}`);
 
 		// VectorData 객체 생성
 		const uri = vscode.Uri.file(message.filePath);
@@ -371,12 +430,12 @@ async function handleEmbeddingResult(message: {
 
 		// VectorStorageService로 저장
 		await vectorStorageService.saveVectorData(uri, vectorData);
-		console.log(`[Extension] Saved vector data to ${message.filePath}`);
+		console.log(`[gitbbon-search] Saved vector data to ${message.filePath}`);
 
 		// 인덱스 저장 (debounce 적용)
 		searchService.debouncedSave();
 	} catch (error) {
-		console.error(`[Extension] Failed to index ${message.filePath}:`, error);
+		console.error(`[gitbbon-search] Failed to index ${message.filePath}:`, error);
 	}
 }
 

@@ -409,7 +409,7 @@ export class QuickDiffModel extends Disposable {
 
 		// disable dirty diff when doing chat edits
 		const isBeingModifiedByChatEdits = this._chatEditingService.editingSessionsObs.get()
-			.some(session => session.getEntry(uri)?.state.get() === ModifiedFileEntryState.Modified);
+			.some(session => session.getEntry(uri)?.state?.get() === ModifiedFileEntryState.Modified);
 		if (isBeingModifiedByChatEdits) {
 			return Promise.resolve([]);
 		}

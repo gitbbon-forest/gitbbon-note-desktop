@@ -19,15 +19,17 @@ export const SimilarArticles: React.FC<SimilarArticlesProps> = ({ articles, onAr
 
 	return (
 		<div className="similar-articles">
-			<div className="similar-articles-header">Similar Articles</div>
-			<ul className="similar-articles-list">
-				{articles.map((article) => (
-					<li key={article.path} className="similar-article-item" onClick={() => onArticleClick(article.path)}>
-						<span className="article-title">{article.title}</span>
-						<span className="article-score">{Math.round(article.score * 100)}%</span>
-					</li>
-				))}
-			</ul>
+			<div className="similar-articles-inner">
+				<div className="similar-articles-header">Similar Articles</div>
+				<ul className="similar-articles-list">
+					{articles.map((article) => (
+						<li key={article.path} className="similar-article-item" onClick={() => onArticleClick(article.path)}>
+							<span className="article-title">{article.title}</span>
+							<span className="article-score">{Math.round(article.score * 100)}%</span>
+						</li>
+					))}
+				</ul>
+			</div>
 		</div>
 	);
 };
