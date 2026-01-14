@@ -149,6 +149,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Gitbbon Search - Model Host (Hidden)</title>
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; font-src https: data: vscode-resource:; connect-src https: data: vscode-resource:;">
 	<style>body { display: none; }</style>
 </head>
 <body>
