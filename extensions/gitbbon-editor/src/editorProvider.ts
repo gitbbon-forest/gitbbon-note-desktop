@@ -279,44 +279,58 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			const filePathPrefix = wsFolder ? wsFolder.uri.fsPath : undefined;
 
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const results = await api.search(query, 6, { filePathPrefix }); // Top 6 (assuming user's doc might be 1)
+			const results = await api.search(query, 20, { filePathPrefix }); // Increase limit for deduplication
 
-			const currentPath = document.uri.fsPath;
+			const currentUriStr = document.uri.toString();
+			const seenUris = new Set<string>();
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const uniqueResults: any[] = [];
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			for (const r of (results as any[])) {
+				const rUriStr = vscode.Uri.file(r.filePath).toString();
+
+				if (rUriStr === currentUriStr) {
+					continue;
+				}
+				if (seenUris.has(rUriStr)) {
+					continue;
+				}
+				seenUris.add(rUriStr);
+				uniqueResults.push(r);
+				if (uniqueResults.length >= 5) {
+					break;
+				}
+			}
+
 			const articles = await Promise.all(
-				results
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					.filter((r: any) => r.filePath !== currentPath)
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					.map(async (r: any) => {
-						let title = path.basename(r.filePath);
-						try {
-							const uri = vscode.Uri.file(r.filePath);
-							const contentUint8 = await vscode.workspace.fs.readFile(uri);
-							const content = new TextDecoder().decode(contentUint8);
-							const fm = FrontmatterParser.parse(content);
-							if (fm.frontmatter.title) {
-								title = fm.frontmatter.title;
-							}
-						} catch (e) {
-							// Ignore file read error
+				uniqueResults.map(async (r) => {
+					let title = path.basename(r.filePath);
+					try {
+						const uri = vscode.Uri.file(r.filePath);
+						const contentUint8 = await vscode.workspace.fs.readFile(uri);
+						const content = new TextDecoder().decode(contentUint8);
+						const fm = FrontmatterParser.parse(content);
+						if (fm.frontmatter.title) {
+							title = fm.frontmatter.title;
 						}
-						return {
-							title,
-							path: r.filePath,
-							score: r.score
-						};
-					})
+					} catch (e) {
+						// Ignore file read error
+					}
+					return {
+						title,
+						path: r.filePath,
+						score: r.score
+					};
+				})
 			);
 
 			// Sort by score desc just in case
 			articles.sort((a, b) => b.score - a.score);
 
-			// Take top 5
-			const topArticles = articles.slice(0, 5);
-
 			webviewPanel.webview.postMessage({
 				type: 'similarArticles',
-				articles: topArticles
+				articles: articles
 			});
 		} catch (error) {
 			console.error('[GitbbonEditor] Failed to update similar articles:', error);
@@ -362,46 +376,65 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			const filePathPrefix = wsFolder ? wsFolder.uri.fsPath : undefined;
 
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const results = await api.search(query, 4, { filePathPrefix }); // Top 4 (assuming user's doc might be 1)
+			const results = await api.search(query, 15, { filePathPrefix }); // Increase limit for deduplication
 
-			const currentPath = document.uri.fsPath;
+			const currentUriStr = document.uri.toString();
+			const seenUris = new Set<string>();
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const uniqueResults: any[] = [];
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			for (const r of (results as any[])) {
+				// 최소 30% 유사도 체크
+				if (r.score < 0.3) {
+					continue;
+				}
+
+				const rUriStr = vscode.Uri.file(r.filePath).toString();
+
+				if (rUriStr === currentUriStr) {
+					continue;
+				}
+				if (seenUris.has(rUriStr)) {
+					continue;
+				}
+				seenUris.add(rUriStr);
+				uniqueResults.push(r);
+				if (uniqueResults.length >= 3) {
+					break;
+				}
+			}
+
 			const articles = await Promise.all(
-				results
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					.filter((r: any) => r.filePath !== currentPath && r.score >= 0.3) // 최소 30% 유사도
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					.map(async (r: any) => {
-						let title = path.basename(r.filePath);
-						try {
-							const uri = vscode.Uri.file(r.filePath);
-							const contentUint8 = await vscode.workspace.fs.readFile(uri);
-							const content = new TextDecoder().decode(contentUint8);
-							const fm = FrontmatterParser.parse(content);
-							if (fm.frontmatter.title) {
-								title = fm.frontmatter.title;
-							}
-						} catch (e) {
-							// Ignore file read error
+				uniqueResults.map(async (r) => {
+					let title = path.basename(r.filePath);
+					try {
+						const uri = vscode.Uri.file(r.filePath);
+						const contentUint8 = await vscode.workspace.fs.readFile(uri);
+						const content = new TextDecoder().decode(contentUint8);
+						const fm = FrontmatterParser.parse(content);
+						if (fm.frontmatter.title) {
+							title = fm.frontmatter.title;
 						}
-						return {
-							title,
-							path: r.filePath,
-							score: r.score
-						};
-					})
+					} catch (e) {
+						// Ignore file read error
+					}
+					return {
+						title,
+						path: r.filePath,
+						score: r.score
+					};
+				})
 			);
 
 			// Sort by score desc
 			articles.sort((a, b) => b.score - a.score);
 
-			// Take top 3
-			const topArticles = articles.slice(0, 3);
-
-			console.log(`[GitbbonEditor][SelectionSimilar] Found ${topArticles.length} articles`);
+			console.log(`[GitbbonEditor][SelectionSimilar] Found ${articles.length} articles`);
 
 			webviewPanel.webview.postMessage({
 				type: 'selectionSimilarArticles',
-				articles: topArticles
+				articles: articles
 			});
 		} catch (error) {
 			console.error('[GitbbonEditor][SelectionSimilar] Failed to search similar articles:', error);
