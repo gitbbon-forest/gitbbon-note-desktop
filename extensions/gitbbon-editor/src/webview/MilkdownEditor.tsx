@@ -14,6 +14,7 @@ import './suggestion.css';
 
 // gitbbon custom: Search functionality
 import { search, SearchQuery, setSearchState, findNext, findPrev, getSearchState, getMatchHighlights, replaceNext, replaceAll } from 'prosemirror-search';
+import { Selection } from 'prosemirror-state';
 import './SearchBar.css';
 import './stickyToolbar.css';
 
@@ -167,7 +168,7 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 					const doc = parser(markdown);
 					if (!doc) return;
 					const { state } = view;
-					view.dispatch(state.tr.replaceWith(0, state.doc.content.size, doc));
+					view.dispatch(state.tr.replaceWith(0, state.doc.content.size, doc).setSelection(Selection.atStart(doc)));
 				});
 				// 플래그 해제 (동기적으로 즉시 해제)
 				setTimeout(() => {
