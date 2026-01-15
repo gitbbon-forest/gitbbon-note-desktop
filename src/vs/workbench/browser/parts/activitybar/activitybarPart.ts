@@ -700,6 +700,7 @@ class ProjectBar extends DisposableStore {
 	private element: HTMLElement | undefined;
 	private projects: IProject[] = [];
 	private loadProjectsTimer: ReturnType<typeof setTimeout> | undefined;
+	private isLoadingProjects = false;
 
 	protected _register<T extends IDisposable>(o: T): T {
 		return this.add(o);
@@ -786,11 +787,18 @@ class ProjectBar extends DisposableStore {
 	}
 
 	private async loadProjects(): Promise<void> {
+		if (this.isLoadingProjects) {
+			// 이미 실행 중이면 다시 스케줄링
+			this.scheduleLoadProjects();
+			return;
+		}
+		this.isLoadingProjects = true;
 		try {
 			const userHome = await this.pathService.userHome();
 			const gitbbonNotesUri = URI.joinPath(userHome, 'Documents', 'Gitbbon_Notes');
 
 			if (!(await this.fileService.exists(gitbbonNotesUri))) {
+				this.isLoadingProjects = false;
 				return;
 			}
 
@@ -852,6 +860,8 @@ class ProjectBar extends DisposableStore {
 			this.render();
 		} catch (e) {
 			console.error('Failed to load projects', e);
+		} finally {
+			this.isLoadingProjects = false;
 		}
 	}
 
