@@ -10,7 +10,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { OutputService } from './outputServices.js';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, OUTPUT_FILTER_FOCUS_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT, isSingleSourceOutputChannelDescriptor } from '../../../services/output/common/output.js';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, OUTPUT_FILTER_FOCUS_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT, isSingleSourceOutputChannelDescriptor, isMultiSourceOutputChannelDescriptor } from '../../../services/output/common/output.js';
 import { OutputViewPane } from './outputView.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -40,7 +40,8 @@ import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
 import { ViewAction } from '../../../browser/parts/views/viewPane.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { basename } from '../../../../base/common/resources.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { basename, dirname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
 
@@ -121,6 +122,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this.registerClearFilterActions();
 		this.registerExportLogsAction();
 		this.registerImportLogAction();
+		this.registerDeleteLogFileAction();
 	}
 
 	private registerSwitchOutputAction(): void {
@@ -819,6 +821,89 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 							: result.map(resource => ({ resource, name: basename(resource).split('.')[0] }))
 					});
 					outputService.showChannel(channelId);
+				}
+			}
+		}));
+	}
+
+	// gitbbon custom: 로그 파일 삭제 기능 추가 (아카이빙 로그 포함)
+	private registerDeleteLogFileAction(): void {
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.deleteActiveLogFile`,
+					title: nls.localize2('deleteLogFile', "Delete Log File"),
+					menu: [{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OUTPUT_VIEW_ID), CONTEXT_ACTIVE_LOG_FILE_OUTPUT),
+						group: 'navigation',
+						order: 7,
+						isHiddenByDefault: false
+					}],
+					icon: Codicon.trash,
+				});
+			}
+
+			private async deleteLogFilesInDirectory(fileService: IFileService, logFileUri: URI): Promise<number> {
+				const logDir = dirname(logFileUri);
+				const logFileName = basename(logFileUri);
+				// logFileName 예: "Gitbbon Editor.log"
+				// 삭제 대상: "Gitbbon Editor.log", "Gitbbon Editor.log.1", "Gitbbon Editor.log.2", ...
+				let deletedCount = 0;
+
+				try {
+					const dirContents = await fileService.resolve(logDir);
+					if (dirContents.children) {
+						for (const child of dirContents.children) {
+							if (!child.isDirectory) {
+								const childName = basename(child.resource);
+								// 메인 로그 파일 또는 아카이빙된 로그 파일인지 확인
+								if (childName === logFileName || childName.startsWith(logFileName + '.')) {
+									await fileService.del(child.resource);
+									deletedCount++;
+								}
+							}
+						}
+					}
+				} catch {
+					// 디렉토리 읽기 실패 시 메인 파일만 삭제 시도
+					try {
+						await fileService.del(logFileUri);
+						deletedCount = 1;
+					} catch {
+						// 메인 파일도 삭제 실패
+					}
+				}
+				return deletedCount;
+			}
+
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const outputService = accessor.get(IOutputService);
+				const fileService = accessor.get(IFileService);
+				const notificationService = accessor.get(INotificationService);
+				const channel = outputService.getActiveChannel();
+				if (channel) {
+					const descriptor = outputService.getChannelDescriptor(channel.id);
+					if (descriptor && isSingleSourceOutputChannelDescriptor(descriptor)) {
+						try {
+							const deletedCount = await this.deleteLogFilesInDirectory(fileService, descriptor.source.resource);
+							channel.clear();
+							notificationService.info(nls.localize('logFilesDeletedCount', "Deleted {0} log file(s): {1}", deletedCount, descriptor.label));
+						} catch (e) {
+							notificationService.error(nls.localize('logFileDeleteError', "Failed to delete log file: {0}", e.message));
+						}
+					} else if (descriptor && isMultiSourceOutputChannelDescriptor(descriptor)) {
+						try {
+							let totalDeleted = 0;
+							for (const source of descriptor.source) {
+								totalDeleted += await this.deleteLogFilesInDirectory(fileService, source.resource);
+							}
+							channel.clear();
+							notificationService.info(nls.localize('logFilesDeletedCount', "Deleted {0} log file(s): {1}", totalDeleted, descriptor.label));
+						} catch (e) {
+							notificationService.error(nls.localize('logFileDeleteError', "Failed to delete log file: {0}", e.message));
+						}
+					}
 				}
 			}
 		}));
