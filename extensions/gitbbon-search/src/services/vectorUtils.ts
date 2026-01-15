@@ -9,17 +9,18 @@
  * - 벡터 인코딩/디코딩 (Float32 Base64)
  */
 
+import * as crypto from 'crypto';
+
 /**
- * 간단한 해시 함수
+ * 간단한 해시 함수 (SHA-256 기반)
+ * modelHost.ts의 구현과 일치시켜야 함 (Web Crypto API vs Node Crypto)
  */
 export function simpleHash(text: string): string {
-	let hash = 0;
-	for (let i = 0; i < text.length; i++) {
-		const char = text.charCodeAt(i);
-		hash = ((hash << 5) - hash) + char;
-		hash = hash & hash; // Convert to 32bit integer
-	}
-	return Math.abs(hash).toString(16);
+	const hash = crypto.createHash('sha256').update(text).digest();
+	// 첫 8바이트만 사용하여 짧은 해시 생성 (modelHost.ts와 동일하게)
+	return Array.from(hash.subarray(0, 8))
+		.map(b => b.toString(16).padStart(2, '0'))
+		.join('');
 }
 
 /**

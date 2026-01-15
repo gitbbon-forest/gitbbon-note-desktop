@@ -52,21 +52,22 @@ export class VectorStorageService {
 	 * @returns 벡터 파일 경로 (예: {root}/.gitbbon/vectors/notes/hello.md.json)
 	 */
 	getVectorFilePath(mdUri: vscode.Uri): vscode.Uri | null {
-		const root = this.getWorkspaceRoot();
-		if (!root) {
-			return null;
-		}
-
-		// 워크스페이스 루트 기준 상대 경로 계산
-		const relativePath = path.relative(root.fsPath, mdUri.fsPath);
-		if (relativePath.startsWith('..')) {
-			// 워크스페이스 외부 파일
+		// 파일이 속한 워크스페이스 폴더 찾기
+		const folder = vscode.workspace.getWorkspaceFolder(mdUri);
+		if (!folder) {
 			logService.warn('File is outside workspace:', mdUri.fsPath);
 			return null;
 		}
 
+		// 워크스페이스 루트 기준 상대 경로 계산
+		const relativePath = path.relative(folder.uri.fsPath, mdUri.fsPath);
+		if (relativePath.startsWith('..')) {
+			// 워크스페이스 외부 파일 (getWorkspaceFolder가 리턴했으면 이럴 일은 거의 없음)
+			return null;
+		}
+
 		// .gitbbon/vectors/{relativePath}.json
-		const vectorPath = path.join(root.fsPath, '.gitbbon', 'vectors', `${relativePath}.json`);
+		const vectorPath = path.join(folder.uri.fsPath, '.gitbbon', 'vectors', `${relativePath}.json`);
 		return vscode.Uri.file(vectorPath);
 	}
 
@@ -158,18 +159,25 @@ export class VectorStorageService {
 	async hasValidCache(mdUri: vscode.Uri, contentHash: string, model: string): Promise<boolean> {
 		const data = await this.loadVectorData(mdUri);
 		if (!data) {
+			// 경로 확인을 위해 로그 출력
+			const vectorUri = this.getVectorFilePath(mdUri);
+			logService.info(`Cache miss (no data found) for ${mdUri.fsPath}`);
+			if (vectorUri) {
+				logService.info(`Expected vector path: ${vectorUri.fsPath}`);
+			}
 			return false;
 		}
 
 		// 모델이 다르면 재임베딩 필요
 		if (data.model !== model) {
-			logService.info('Model mismatch, re-embedding needed');
+			logService.info(`Model mismatch for ${mdUri.fsPath} (stored: ${data.model}, current: ${model})`);
 			return false;
 		}
 
 		// 콘텐츠가 변경되었으면 재임베딩 필요
 		if (data.contentHash !== contentHash) {
-			logService.info('Content changed, re-embedding needed');
+			logService.info(`Content changed for ${mdUri.fsPath}`);
+			logService.info(`Hash mismatch - Stored: ${data.contentHash}, Current: ${contentHash}`);
 			return false;
 		}
 

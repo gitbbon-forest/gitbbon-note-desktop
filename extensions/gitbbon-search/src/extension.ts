@@ -189,6 +189,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 		hiddenWebview.onDidReceiveMessage(async (message: any) => {
 			logService.info('[DEBUG] Received message from Hidden Webview: ' + message.type);
 			switch (message.type) {
+				case 'webviewReady':
+					// Webview가 준비되었으므로 이제 initModel 전송
+					logService.info('[DEBUG] Received webviewReady, sending initModel message...');
+					hiddenWebview!.postMessage({ type: 'initModel' });
+					break;
 				case 'modelReady':
 					modelReady = true;
 					logService.info('Model ready in hidden webview!');
@@ -259,11 +264,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 			}
 		});
 
-		// 모델 로딩 시작 요청
-		logService.info('[DEBUG] Sending initModel message to Hidden Webview...');
-		hiddenWebview.postMessage({ type: 'initModel' });
-		logService.info('[DEBUG] initModel message sent');
-		logService.info('Hidden Webview created, model loading started');
+		// 모델 로딩 시작 요청은 webviewReady 메시지를 받은 후에 수행
+		// (initModel을 즉시 보내면 Webview가 아직 리스너를 설정하지 않아 메시지가 손실될 수 있음)
+		logService.info('[DEBUG] Hidden Webview created, waiting for webviewReady message...');
 
 		context.subscriptions.push(hiddenWebview);
 	} catch (error) {
@@ -404,11 +407,21 @@ async function indexFile(fileUri: vscode.Uri): Promise<void> {
 			return;
 		}
 
-		// contentHash 계산
-		const contentHash = simpleHash(text);
+
+		// 캐시 없음 → 새로 임베딩 요청 (먼저 Frontmatter 제거 및 제목 추출)
+		const title = extractTitle(text, fileUri.fsPath);
+		const contentWithoutFrontmatter = stripFrontmatter(text);
+
+
+
+		// contentHash 계산 (Frontmatter가 제거된 본문 기준)
+		// modelHost.ts에서도 embedDocumentChunks에서 content(본문)에 대해서만 해시를 계산하므로 이를 맞춰야 함
+		const contentHash = simpleHash(contentWithoutFrontmatter);
+		logService.debug(`Checking cache for ${fileUri.fsPath} with hash ${contentHash}`);
 
 		// VectorStorageService로 캐시 확인
-		if (await vectorStorageService.hasValidCache(fileUri, contentHash, MODEL_NAME)) {
+		const isValid = await vectorStorageService.hasValidCache(fileUri, contentHash, MODEL_NAME);
+		if (isValid) {
 			logService.debug(`Using cached embedding for ${fileUri.fsPath}`);
 			const vectorData = await vectorStorageService.loadVectorData(fileUri);
 			if (vectorData) {
@@ -420,11 +433,10 @@ async function indexFile(fileUri: vscode.Uri): Promise<void> {
 				await searchService.indexFileWithEmbeddings(fileUri.fsPath, chunks);
 			}
 			return;
+		} else {
+			logService.info(`Cache invalid for ${fileUri.fsPath}, re-indexing...`);
 		}
 
-		// 캐시 없음 → 새로 임베딩 요청
-		const title = extractTitle(text, fileUri.fsPath);
-		const contentWithoutFrontmatter = stripFrontmatter(text);
 		logService.info(`Requesting embedding for ${fileUri.fsPath} (title: ${title})`);
 		hiddenWebview.postMessage({
 			type: 'embedDocument',

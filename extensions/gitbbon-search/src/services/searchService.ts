@@ -262,7 +262,7 @@ export class SearchService {
 
 			this.fileChunkIds.delete(filePath);
 			this.indexedFiles.delete(filePath);
-			logService.info(`Removed ${chunkIds.length} chunks for ${filePath}`);
+			logService.debug(`Replacing ${chunkIds.length} chunks in index for ${filePath}`);
 		} catch (error) {
 			logService.error(`Failed to remove ${filePath}:`, error);
 		}
