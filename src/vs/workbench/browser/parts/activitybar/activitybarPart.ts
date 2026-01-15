@@ -57,6 +57,7 @@ interface IProject {
 	title: string;
 	path: string;
 	initials: string;
+	ctime: number;
 }
 // gitbbon custom end
 
@@ -746,7 +747,7 @@ class ProjectBar extends DisposableStore {
 				return;
 			}
 
-			const stat = await this.fileService.resolve(gitbbonNotesUri);
+			const stat = await this.fileService.resolve(gitbbonNotesUri, { resolveMetadata: true });
 			if (!stat.children) {
 				return;
 			}
@@ -775,10 +776,15 @@ class ProjectBar extends DisposableStore {
 						name: child.name,
 						title: title,
 						path: child.resource.fsPath,
-						initials: title.substring(0, 3).toUpperCase()
+						initials: title.substring(0, 3).toUpperCase(),
+						ctime: child.ctime ?? 0
 					});
 				}
 			}
+
+			// Sort by creation time descending (newest first)
+			this.projects.sort((a, b) => b.ctime - a.ctime);
+
 			this.render();
 		} catch (e) {
 			console.error('Failed to load projects', e);
