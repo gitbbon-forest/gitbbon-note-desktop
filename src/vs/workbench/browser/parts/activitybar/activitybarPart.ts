@@ -652,6 +652,7 @@ registerThemingParticipant((theme, collector) => {
 class ProjectBar extends DisposableStore {
 	private element: HTMLElement | undefined;
 	private projects: IProject[] = [];
+	private loadProjectsTimer: ReturnType<typeof setTimeout> | undefined;
 
 	protected _register<T extends IDisposable>(o: T): T {
 		return this.add(o);
@@ -685,14 +686,24 @@ class ProjectBar extends DisposableStore {
 		const gitbbonNotesUri = URI.joinPath(userHome, 'Documents', 'Gitbbon_Notes');
 
 		// Watch for changes in the directory
-		const watcher = this.fileService.watch(gitbbonNotesUri);
+		const watcher = this.fileService.watch(gitbbonNotesUri, { recursive: true, excludes: [], includes: ['*/', '*/.gitbbon.json'] });
 		this._register(watcher);
 
 		this._register(this.fileService.onDidFilesChange(e => {
-			if (e.contains(gitbbonNotesUri)) {
-				this.loadProjects();
+			if (e.affects(gitbbonNotesUri)) {
+				this.scheduleLoadProjects();
 			}
 		}));
+	}
+
+	private scheduleLoadProjects(): void {
+		if (this.loadProjectsTimer) {
+			clearTimeout(this.loadProjectsTimer);
+		}
+		this.loadProjectsTimer = setTimeout(() => {
+			this.loadProjectsTimer = undefined;
+			this.loadProjects();
+		}, 100);
 	}
 
 	create(parent: HTMLElement): void {
