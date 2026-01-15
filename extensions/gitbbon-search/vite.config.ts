@@ -5,7 +5,7 @@ import path from 'path';
 export default defineConfig({
 	build: {
 		outDir: 'out/webview',
-		emptyOutDir: true,
+		emptyOutDir: false, // false: WASM 자산 파일을 보존하기 위해 비활성화
 		rollupOptions: {
 			input: {
 				modelHost: 'src/modelHost.ts',

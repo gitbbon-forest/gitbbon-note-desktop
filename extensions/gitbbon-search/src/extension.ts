@@ -134,12 +134,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 	context.subscriptions.push(gitWatcher);
 
 	// Hidden Webview 초기화 (배경에서 모델 로딩)
+	logService.info('[DEBUG] Starting Hidden Webview initialization...');
 	try {
+		logService.info('[DEBUG] Creating HiddenWebview...');
 		hiddenWebview = vscode.window.createHiddenWebview('gitbbon-search-model', {
 			webviewOptions: {
 				enableScripts: true
 			}
 		});
+		logService.info('[DEBUG] HiddenWebview created successfully');
 
 		// modelHost.js를 읽어서 인라인으로 삽입 (Hidden Webview에서 외부 ES 모듈 로드 불가)
 		const modelHostScriptUri = vscode.Uri.joinPath(context.extensionUri, 'out', 'webview', 'modelHost.js');
@@ -167,14 +170,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 	<style>body { display: none; }</style>
 </head>
 <body>
+	<script>
+		// Debug: 스크립트 로드 확인
+		console.log('[modelHost] Script loading...');
+		window.addEventListener('error', (e) => {
+			window.parent.postMessage({ type: 'consoleLog', level: 'error', message: '[modelHost SCRIPT ERROR] ' + e.message + ' at ' + e.filename + ':' + e.lineno }, '*');
+		});
+	</script>
 	<script type="module">${scriptCode}</script>
 </body>
 </html>`;
 
+		logService.info('[DEBUG] Hidden Webview HTML set, length: ' + hiddenWebview.html.length);
+
 		// Hidden Webview로부터 메시지 수신
+		logService.info('[DEBUG] Setting up message handler...');
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		hiddenWebview.onDidReceiveMessage(async (message: any) => {
-			logService.debug('Hidden Webview message:', message.type);
+			logService.info('[DEBUG] Received message from Hidden Webview: ' + message.type);
 			switch (message.type) {
 				case 'modelReady':
 					modelReady = true;
@@ -198,8 +211,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 					await startBackgroundIndexing();
 					break;
 				case 'modelProgress':
-					// 모델 로딩 진행률 (UI가 없으므로 로그만 출력)
-					logService.info(`Model loading progress: ${message.message}`);
+					// 모델 로딩 진행률은 로그 출력하지 않음 (과도한 로그 방지)
+					// 시작/완료 이벤트는 modelHost에서 별도 로그 출력
 					break;
 				case 'modelError':
 					logService.error('Model error:', message.error);
@@ -233,11 +246,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 						pendingQueryEmbeddings.delete(message.requestId);
 					}
 					break;
+				case 'consoleLog':
+					// 웹뷰 콘솔 로그를 확장 출력 채널로 전달
+					if (message.level === 'error') {
+						logService.error(message.message);
+					} else if (message.level === 'warn') {
+						logService.warn(message.message);
+					} else {
+						logService.info(message.message);
+					}
+					break;
 			}
 		});
 
 		// 모델 로딩 시작 요청
+		logService.info('[DEBUG] Sending initModel message to Hidden Webview...');
 		hiddenWebview.postMessage({ type: 'initModel' });
+		logService.info('[DEBUG] initModel message sent');
 		logService.info('Hidden Webview created, model loading started');
 
 		context.subscriptions.push(hiddenWebview);
@@ -271,6 +296,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
  */
 async function embedQuery(query: string): Promise<number[]> {
 	if (!hiddenWebview || !modelReady) {
+		logService.warn(`[DEBUG] embedQuery failed: hiddenWebview=${!!hiddenWebview}, modelReady=${modelReady}`);
 		throw new Error('Search model is not ready');
 	}
 

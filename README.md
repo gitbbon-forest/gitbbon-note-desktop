@@ -433,6 +433,39 @@ cd extensions/gitbbon-editor
 npm run watch
 ```
 
+### 🔍 gitbbon-search
+
+**위치:** `extensions/gitbbon-search`
+
+AI 기반 시맨틱 검색을 제공하는 확장 프로그램입니다.
+
+**주요 기능:**
+- **시맨틱 검색:** E5-Small 모델을 활용한 의미 기반 문서 검색
+- **벡터 인덱싱:** 마크다운 파일 자동 임베딩 및 캐싱
+- **WebGPU 가속:** 가능한 경우 GPU를 활용한 빠른 추론
+
+**로깅 구조:**
+웹뷰(modelHost)에서 발생하는 로그는 VS Code의 Output 채널로 직접 전달할 수 없습니다.
+따라서 중요 로그만 `sendLog()` 함수를 통해 익스텐션에 메시지로 전달하고,
+익스텐션이 이를 받아 `logService`(Output 채널)에 기록합니다.
+
+```typescript
+// modelHost.ts - 웹뷰에서 중요 로그만 익스텐션으로 전달
+sendLog('info', '[modelHost] Model initialized');
+sendLog('error', '[modelHost] Loading failed: ...');
+
+// extension.ts - 수신 후 Output 채널에 기록
+case 'consoleLog':
+  logService.info(message.message);
+  break;
+```
+
+**개발 명령어:**
+```bash
+cd extensions/gitbbon-search
+npm run watch
+```
+
 ---
 
 ### AI Agent 작업 지침

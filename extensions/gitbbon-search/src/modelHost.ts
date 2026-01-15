@@ -23,10 +23,34 @@ declare const GITBBON_SEARCH_CONFIG: GitbbonSearchConfig;
 // Transformers 환경 설정 추가
 if (typeof GITBBON_SEARCH_CONFIG !== 'undefined' && GITBBON_SEARCH_CONFIG.assetsUri) {
 	// ONNX Runtime WASM 경로 설정 (v3 기준)
+	// 기본적으로 워커 모드(proxy: true) 사용.
+	// 이전의 proxy: false 설정은 자산 파일 누락 문제를 우회하기 위한 임시책이었으나,
+	// 이제 자산 복사가 정상화되어 워커 모드를 사용합니다.
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	(env.backends.onnx as any).wasm.wasmPaths = GITBBON_SEARCH_CONFIG.assetsUri;
-	console.log('[gitbbon-search][modelHost] Local WASM paths set to:', GITBBON_SEARCH_CONFIG.assetsUri);
+	// 초기화 로그는 브라우저 개발자 도구용으로만 (sendLog 정의 전이라 직접 postMessage 불가)
 }
+
+// 익스텐션 Output 채널로 중요 로그만 전달하기 위한 인터페이스
+interface WindowWithGitbbonBridge extends Window {
+	gitbbonBridge?: {
+		postMessage: (data: Record<string, unknown>) => void;
+	};
+}
+
+/**
+ * 익스텐션 Output 채널로 로그 전달 (중요 로그만 사용)
+ * console.log는 브라우저 개발자 도구용으로만 사용
+ */
+function sendLog(level: 'info' | 'warn' | 'error', message: string): void {
+	if ((window as WindowWithGitbbonBridge).gitbbonBridge) {
+		(window as WindowWithGitbbonBridge).gitbbonBridge!.postMessage({ type: 'consoleLog', level, message });
+	} else {
+		window.parent.postMessage({ type: 'consoleLog', level, message }, '*');
+	}
+}
+
+
 
 class ModelHost {
 	private extractor: Pipeline | null = null;
@@ -90,76 +114,75 @@ class ModelHost {
 			if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
 				const adapter = await (navigator as Navigator & { gpu: GPU }).gpu.requestAdapter();
 				if (adapter) {
-					console.log('[gitbbon-search][modelHost] ✓ WebGPU available');
+					sendLog('info', '[modelHost] ✓ WebGPU available');
 					return true;
 				}
 			}
-		} catch (e) {
-			console.log('[gitbbon-search][modelHost] WebGPU check failed:', e);
+		} catch {
+			// WebGPU 체크 실패 - WASM으로 폴백
 		}
-		console.log('[gitbbon-search][modelHost] ✗ Falling back to WASM');
+		sendLog('info', '[modelHost] Using WASM backend');
 		return false;
 	}
 
 	async init(): Promise<void> {
+		sendLog('info', '[modelHost] init() called');
 		if (this.initialized) {
-			console.log('[gitbbon-search][modelHost] Already initialized');
+			sendLog('info', '[modelHost] Already initialized, skipping');
 			return;
 		}
 
 		if (this.initPromise) {
-			console.log('[gitbbon-search][modelHost] Already initializing, waiting...');
+			sendLog('info', '[modelHost] Init already in progress, waiting...');
 			return this.initPromise;
 		}
 
+		sendLog('info', '[modelHost] Starting new initialization...');
 		this.initPromise = this._init();
 		return this.initPromise;
 	}
 
 	private async _init(): Promise<void> {
-		console.log('[gitbbon-search][modelHost] Starting model initialization...');
+		sendLog('info', '[modelHost] _init() started');
+		sendLog('info', '[modelHost] Starting model initialization...');
 
 		try {
-			console.log('[gitbbon-search][modelHost] Loading tokenizer...');
-			this.sendProgress(0, 'Loading tokenizer...');
+			sendLog('info', '[modelHost] Loading tokenizer from: ' + MODEL_NAME);
 			this.tokenizer = await AutoTokenizer.from_pretrained(MODEL_NAME);
-			console.log('[gitbbon-search][modelHost] ✓ Tokenizer loaded');
-
-			console.log('[gitbbon-search][modelHost] Loading model with progress...');
-			this.sendProgress(30, 'Loading E5-Small model...');
+			sendLog('info', '[modelHost] ✓ Tokenizer loaded');
 
 			const useWebGPU = await this.checkWebGPU();
-			console.log('[gitbbon-search][modelHost] Creating pipeline...');
 
+			sendLog('info', '[modelHost] Starting pipeline creation with device: ' + (useWebGPU ? 'webgpu' : 'wasm'));
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			this.extractor = await (pipeline as any)('feature-extraction', MODEL_NAME, {
 				device: useWebGPU ? 'webgpu' : 'wasm',
 				dtype: 'fp16',
 				progress_callback: (p: { progress?: number; status?: string; file?: string }) => {
-					if (typeof p?.progress === 'number') {
-						const modelProgress = 30 + (p.progress * 0.7);
-						const fileName = p.file || 'model';
-						this.sendProgress(modelProgress, `Loading ${fileName}: ${Math.round(p.progress)}%`);
-					} else if (p?.status) {
-						console.log('[gitbbon-search][modelHost] Status:', p.status, p.file || '');
+					// 시작과 완료 이벤트만 Output 채널에 전달
+					if (p?.status === 'initiate') {
+						sendLog('info', `[modelHost] Loading started: ${p.file || 'model'}`);
+					} else if (p?.status === 'done') {
+						sendLog('info', `[modelHost] Loading completed: ${p.file || 'model'}`);
+					} else if (p?.status === 'progress') {
+						// 10% 단위로 진행률 로그 출력 (디버깅용)
+						const progress = p.progress ?? 0;
+						if (Math.floor(progress) % 25 === 0) {
+							sendLog('info', `[modelHost] Progress: ${p.file || 'model'} - ${Math.floor(progress)}%`);
+						}
 					}
 				},
 			}) as Pipeline;
+			sendLog('info', '[modelHost] Pipeline created successfully');
 
 			this.initialized = true;
-			this.sendProgress(100, 'Model ready');
-			console.log(`[gitbbon-search][modelHost] ✓ Model initialized with ${useWebGPU ? 'WebGPU 🚀' : 'WASM'}`);
+			sendLog('info', `[modelHost] ✓ Model initialized with ${useWebGPU ? 'WebGPU 🚀' : 'WASM'}`);
 
 			this.sendMessage({ type: 'modelReady' });
 		} catch (error) {
-			console.error('[gitbbon-search][modelHost] ✗ Initialization failed:', error);
+			sendLog('error', `[modelHost] ✗ Initialization failed: ${(error as Error).message}`);
 			this.sendMessage({ type: 'modelError', error: (error as Error).message });
 		}
-	}
-
-	private sendProgress(progress: number, message: string): void {
-		console.log(`[gitbbon-search][modelHost] Progress: ${progress}% - ${message}`);
-		this.sendMessage({ type: 'modelProgress', progress, message });
 	}
 
 	private sendMessage(data: Record<string, unknown>): void {
@@ -261,18 +284,17 @@ const processedMessages = new Set<string>();
 // Listen for messages from extension
 window.addEventListener('gitbbon-message', async (event) => {
 	const message = (event as CustomEvent).detail;
+	sendLog('info', '[modelHost] Received gitbbon-message: ' + message.type);
 
 	// 중복 메시지 체크 (requestId 또는 filePath 기반)
 	const messageId = message.requestId || message.filePath || `${message.type}-${Date.now()}`;
 	if (processedMessages.has(messageId)) {
-		console.log('[gitbbon-search][modelHost] Duplicate message ignored:', message.type, messageId);
+		sendLog('info', '[modelHost] Duplicate message ignored: ' + messageId);
 		return;
 	}
 	processedMessages.add(messageId);
 	// 오래된 메시지 ID 정리 (5초 후)
 	setTimeout(() => processedMessages.delete(messageId), 5000);
-
-	console.log('[gitbbon-search][modelHost] Received message:', message.type);
 
 	switch (message.type) {
 		case 'initModel':
@@ -325,7 +347,9 @@ window.addEventListener('message', (event) => {
 	if (event.source !== window.parent) {
 		return;
 	}
+	sendLog('info', '[modelHost] Received postMessage, dispatching as gitbbon-message: ' + (event.data?.type || 'unknown'));
 	window.dispatchEvent(new CustomEvent('gitbbon-message', { detail: event.data }));
 });
 
-console.log('[gitbbon-search][modelHost] Initialized and listening for messages');
+sendLog('info', '[modelHost] Initialized and listening for messages');
+sendLog('info', '[modelHost] Waiting for initModel message...');

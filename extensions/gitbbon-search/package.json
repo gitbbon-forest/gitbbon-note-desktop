@@ -39,12 +39,12 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "npm run build:modelHost && tsc -p ./ && npm run copy:wasm",
+    "compile": "npm run build:modelHost && npm run copy:wasm && tsc -p ./",
     "package": "npm run compile",
-    "watch": "tsc -watch -p ./ & vite build --watch",
+    "watch": "npm run build:modelHost && npm run copy:wasm && (tsc -watch -p ./ & vite build --watch)",
     "watch:tsc": "tsc -watch -p ./",
     "build:modelHost": "vite build",
-    "copy:wasm": "mkdir -p out/webview/assets && cp node_modules/@huggingface/transformers/dist/ort-wasm-simd-threaded.jsep.* out/webview/assets/"
+    "copy:wasm": "mkdir -p out/webview/assets && cp node_modules/@huggingface/transformers/dist/ort-wasm-simd-threaded.jsep.wasm out/webview/assets/ && cp node_modules/@huggingface/transformers/dist/ort-wasm-simd-threaded.jsep.mjs out/webview/assets/"
   },
   "devDependencies": {
     "@types/node": "22.x",
