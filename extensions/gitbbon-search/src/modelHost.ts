@@ -353,3 +353,7 @@ window.addEventListener('message', (event) => {
 
 sendLog('info', '[modelHost] Initialized and listening for messages');
 sendLog('info', '[modelHost] Waiting for initModel message...');
+
+// Webview가 준비되었음을 Extension에 알림
+// 이 메시지를 받으면 Extension이 initModel을 전송해야 함
+window.parent.postMessage({ type: 'webviewReady' }, '*');
