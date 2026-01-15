@@ -10,6 +10,7 @@ import * as os from 'os';
 import * as cp from 'child_process';
 import { DiffParser } from './diffParser';
 import { CommitMessageGenerator } from './commitMessageGenerator';
+import { logService } from './services/logService';
 
 
 interface Project {
@@ -49,7 +50,7 @@ export class ProjectManager {
 			return;
 		}
 
-		console.log(`[gitbbon-manager][projectManager] Starting self-destruct watcher for: ${currentWorkspacePath}`);
+		logService.info(`[gitbbon-manager][projectManager] Starting self-destruct watcher for: ${currentWorkspacePath}`);
 
 		// Watch for deletion of the workspace folder itself
 		// Note: FileSystemWatcher limit is usually per-file or recursive.
@@ -63,7 +64,7 @@ export class ProjectManager {
 
 		this.selfDestructWatcher.onDidDelete(async (uri) => {
 			if (uri.fsPath === currentWorkspacePath) { // Exact match check might be needed if pattern is too broad
-				console.warn(`[gitbbon-manager][projectManager] Workspace folder deleted! Initiating self-destruct...`);
+				logService.warn(`[gitbbon-manager][projectManager] Workspace folder deleted! Initiating self-destruct...`);
 				// Wait a moment to ensure it's not a rename or temporary glich
 				setTimeout(async () => {
 					if (!fs.existsSync(currentWorkspacePath)) {
@@ -80,13 +81,13 @@ export class ProjectManager {
 	 * Initialize the Project Manager and ensure a project is open
 	 */
 	public async startup(): Promise<void> {
-		console.log('[gitbbon-manager][projectManager] Startup initiated');
+		logService.info('[gitbbon-manager][projectManager] Startup initiated');
 
 		try {
 			// Ensure root directory exists
-			console.log(`[gitbbon-manager][projectManager] Checking root path: ${this.rootPath}, Exists: ${fs.existsSync(this.rootPath)}`);
+			logService.info(`[gitbbon-manager][projectManager] Checking root path: ${this.rootPath}, Exists: ${fs.existsSync(this.rootPath)}`);
 			if (!fs.existsSync(this.rootPath)) {
-				console.log('[gitbbon-manager][projectManager] Creating root directory...');
+				logService.info('[gitbbon-manager][projectManager] Creating root directory...');
 				await fs.promises.mkdir(this.rootPath, { recursive: true });
 			}
 
@@ -97,14 +98,14 @@ export class ProjectManager {
 
 			// Safe Startup: Check if the current workspace folder actually exists
 			if (currentFolder && !fs.existsSync(currentFolder)) {
-				console.warn(`[gitbbon-manager][projectManager] Current workspace folder does not exist: ${currentFolder}. Closing folder...`);
+				logService.warn(`[gitbbon-manager][projectManager] Current workspace folder does not exist: ${currentFolder}. Closing folder...`);
 				// The folder was likely deleted. Close it to prevent recreation.
 				await vscode.commands.executeCommand('workbench.action.closeFolder');
 				return;
 			}
 
 			if (currentFolder && currentFolder.startsWith(this.rootPath)) {
-				console.log(`[gitbbon-manager][projectManager] Already in Gitbbon project: ${currentFolder}`);
+				logService.info(`[gitbbon-manager][projectManager] Already in Gitbbon project: ${currentFolder}`);
 
 				// Ensure .gitbbon.json exists (for older projects or manually added folders)
 				const gitbbonConfigPath = path.join(currentFolder, '.gitbbon.json');
@@ -113,7 +114,7 @@ export class ProjectManager {
 					if (!folderName || folderName === '-') {
 						folderName = 'default';
 					}
-					console.log(`[gitbbon-manager][projectManager] Creating .gitbbon.json for existing project: ${folderName}`);
+					logService.info(`[gitbbon-manager][projectManager] Creating .gitbbon.json for existing project: ${folderName}`);
 					// .gitbbon.json: 공유 설정 (이름 등)
 					const config = {
 						title: folderName
@@ -121,24 +122,24 @@ export class ProjectManager {
 					await fs.promises.writeFile(gitbbonConfigPath, JSON.stringify(config, null, 2), 'utf-8');
 				}
 
-				console.log('[gitbbon-manager][projectManager] Startup completed - already in Gitbbon project');
+				logService.info('[gitbbon-manager][projectManager] Startup completed - already in Gitbbon project');
 				return;
 			}
 
 			// Scan for existing projects
 			const projects = await this.getProjects();
-			console.log(`[gitbbon-manager][projectManager] Found ${projects.length} projects`);
+			logService.info(`[gitbbon-manager][projectManager] Found ${projects.length} projects`);
 
 			let targetPath: string;
 
 			if (projects.length > 0) {
 				// Open first project
 				const firstProject = projects[0];
-				console.log(`[gitbbon-manager][projectManager] Opening project: ${firstProject.title} (${firstProject.path})`);
+				logService.info(`[gitbbon-manager][projectManager] Opening project: ${firstProject.title} (${firstProject.path})`);
 				targetPath = firstProject.path;
 			} else {
 				// No projects exist, create default
-				console.log('[gitbbon-manager][projectManager] No projects found, creating default...');
+				logService.info('[gitbbon-manager][projectManager] No projects found, creating default...');
 				const defaultDirName = 'gitbbon-note-default';
 				const defaultProjectName = 'default';
 				targetPath = path.join(this.rootPath, defaultDirName);
@@ -148,7 +149,7 @@ export class ProjectManager {
 			const uri = vscode.Uri.file(targetPath);
 			await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: false });
 		} catch (error) {
-			console.error('[gitbbon-manager][projectManager] Startup failed:', error);
+			logService.error('[gitbbon-manager][projectManager] Startup failed:', error);
 			vscode.window.showErrorMessage(`Gitbbon Project Manager Error: ${error}`);
 		}
 	}
@@ -187,7 +188,7 @@ export class ProjectManager {
 							projectTitle = config.title;
 						}
 					} catch (e) {
-						console.warn(`[gitbbon-manager][projectManager] Failed to read .gitbbon.json for ${entry.name}:`, e);
+						logService.warn(`[gitbbon-manager][projectManager] Failed to read .gitbbon.json for ${entry.name}:`, e);
 					}
 				}
 
@@ -211,7 +212,7 @@ export class ProjectManager {
 			const content = await fs.promises.readFile(configPath, 'utf-8');
 			return JSON.parse(content);
 		} catch (e) {
-			console.warn(`[gitbbon-manager][projectManager] Failed to read .gitbbon.json at ${projectPath}:`, e);
+			logService.warn(`[gitbbon-manager][projectManager] Failed to read .gitbbon.json at ${projectPath}:`, e);
 			return null;
 		}
 	}
@@ -222,7 +223,7 @@ export class ProjectManager {
 	public async writeProjectConfig(projectPath: string, config: { title: string }): Promise<void> {
 		const configPath = path.join(projectPath, '.gitbbon.json');
 		await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
-		console.log(`[gitbbon-manager][projectManager] Updated .gitbbon.json at ${projectPath}`);
+		logService.info(`[gitbbon-manager][projectManager] Updated .gitbbon.json at ${projectPath}`);
 	}
 
 	/**
@@ -245,7 +246,7 @@ export class ProjectManager {
 			const content = await fs.promises.readFile(configPath, 'utf-8');
 			return JSON.parse(content);
 		} catch (e) {
-			console.warn('[gitbbon-manager][projectManager] Failed to read .gitbbon-local.json:', e);
+			logService.warn('[gitbbon-manager][projectManager] Failed to read .gitbbon-local.json:', e);
 			return { projects: {} };
 		}
 	}
@@ -256,7 +257,7 @@ export class ProjectManager {
 	public async writeLocalConfig(config: { projects: Record<string, { syncedAt?: string | null; lastModified?: string }> }): Promise<void> {
 		const configPath = this.getLocalConfigPath();
 		await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
-		console.log('[gitbbon-manager][projectManager] Updated .gitbbon-local.json');
+		logService.info('[gitbbon-manager][projectManager] Updated .gitbbon-local.json');
 	}
 
 	/**
@@ -269,7 +270,7 @@ export class ProjectManager {
 		}
 		config.projects[repoName].syncedAt = new Date().toISOString();
 		await this.writeLocalConfig(config);
-		console.log(`[gitbbon-manager][projectManager] Updated syncedAt for ${repoName}`);
+		logService.info(`[gitbbon-manager][projectManager] Updated syncedAt for ${repoName}`);
 	}
 
 	/**
@@ -287,60 +288,60 @@ export class ProjectManager {
 		const config = await this.readLocalConfig();
 		delete config.projects[repoName];
 		await this.writeLocalConfig(config);
-		console.log(`[gitbbon-manager][projectManager] Removed ${repoName} from .gitbbon-local.json`);
+		logService.info(`[gitbbon-manager][projectManager] Removed ${repoName} from .gitbbon-local.json`);
 	}
 
 	private async initializeProject(projectPath: string, projectName: string): Promise<void> {
-		console.log(`[gitbbon-manager][projectManager] Initializing project: ${projectName} at ${projectPath}`);
+		logService.info(`[gitbbon-manager][projectManager] Initializing project: ${projectName} at ${projectPath}`);
 
 		// 1. Create Directory
 		if (!fs.existsSync(projectPath)) {
-			console.log(`[gitbbon-manager][projectManager] Creating project directory: ${projectPath}`);
+			logService.info(`[gitbbon-manager][projectManager] Creating project directory: ${projectPath}`);
 			await fs.promises.mkdir(projectPath, { recursive: true });
 		} else {
-			console.log(`[gitbbon-manager][projectManager] Project directory already exists: ${projectPath}`);
+			logService.info(`[gitbbon-manager][projectManager] Project directory already exists: ${projectPath}`);
 		}
 
 		// 2. Git Init
 		const gitPath = path.join(projectPath, '.git');
 		if (!fs.existsSync(gitPath)) {
-			console.log(`[gitbbon-manager][projectManager] Initializing git repository...`);
+			logService.info(`[gitbbon-manager][projectManager] Initializing git repository...`);
 			// Now that git is in PATH (injected by main process), we can just use simple exec
 			await new Promise<void>((resolve, reject) => {
 				cp.exec('git init', { cwd: projectPath }, (err, stdout, stderr) => {
 					if (err) {
-						console.error('[gitbbon-manager][projectManager] Git init failed:', err);
-						if (stderr) { console.error('[gitbbon-manager][projectManager] Git stderr:', stderr); }
+						logService.error('[gitbbon-manager][projectManager] Git init failed:', err);
+						if (stderr) { logService.error('[gitbbon-manager][projectManager] Git stderr:', stderr); }
 						// Non-fatal, continue
 					} else {
-						console.log('[gitbbon-manager][projectManager] Git repository initialized successfully');
-						if (stdout) { console.log('[gitbbon-manager][projectManager] Git stdout:', stdout); }
+						logService.info('[gitbbon-manager][projectManager] Git repository initialized successfully');
+						if (stdout) { logService.info('[gitbbon-manager][projectManager] Git stdout:', stdout); }
 					}
 					resolve();
 				});
 			});
 		} else {
-			console.log(`[gitbbon-manager][projectManager] Git repository already exists`);
+			logService.info(`[gitbbon-manager][projectManager] Git repository already exists`);
 		}
 
 		// 3. Create .gitbbon.json (공유용 프로젝트 설정 파일)
 		const gitbbonConfigPath = path.join(projectPath, '.gitbbon.json');
 		if (!fs.existsSync(gitbbonConfigPath)) {
-			console.log(`[gitbbon-manager][projectManager] Creating .gitbbon.json...`);
+			logService.info(`[gitbbon-manager][projectManager] Creating .gitbbon.json...`);
 			const config = {
 				title: projectName
 			};
 			await fs.promises.writeFile(gitbbonConfigPath, JSON.stringify(config, null, 2), 'utf-8');
-			console.log(`[gitbbon-manager][projectManager] .gitbbon.json created`);
+			logService.info(`[gitbbon-manager][projectManager] .gitbbon.json created`);
 		} else {
-			console.log(`[gitbbon-manager][projectManager] .gitbbon.json already exists`);
+			logService.info(`[gitbbon-manager][projectManager] .gitbbon.json already exists`);
 		}
 
 		// 3.5. Create .vscode/settings.json to hide .gitbbon.json from Explorer
 		const vscodePath = path.join(projectPath, '.vscode');
 		const settingsPath = path.join(vscodePath, 'settings.json');
 		if (!fs.existsSync(settingsPath)) {
-			console.log(`[gitbbon-manager][projectManager] Creating .vscode/settings.json...`);
+			logService.info(`[gitbbon-manager][projectManager] Creating .vscode/settings.json...`);
 			if (!fs.existsSync(vscodePath)) {
 				await fs.promises.mkdir(vscodePath, { recursive: true });
 			}
@@ -354,55 +355,55 @@ export class ProjectManager {
 				'breadcrumbs.enabled': false
 			};
 			await fs.promises.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
-			console.log(`[gitbbon-manager][projectManager] .vscode/settings.json created`);
+			logService.info(`[gitbbon-manager][projectManager] .vscode/settings.json created`);
 		} else {
-			console.log(`[gitbbon-manager][projectManager] .vscode/settings.json already exists`);
+			logService.info(`[gitbbon-manager][projectManager] .vscode/settings.json already exists`);
 		}
 
 		// 3.6. Create .gitignore (for vector cache)
 		const gitignorePath = path.join(projectPath, '.gitignore');
 		if (!fs.existsSync(gitignorePath)) {
-			console.log(`[gitbbon-manager][projectManager] Creating .gitignore...`);
+			logService.info(`[gitbbon-manager][projectManager] Creating .gitignore...`);
 			const gitignoreContent = `# Gitbbon vector cache (local only)
 .gitbbon/vectors/
 `;
 			await fs.promises.writeFile(gitignorePath, gitignoreContent, 'utf-8');
-			console.log(`[gitbbon-manager][projectManager] .gitignore created`);
+			logService.info(`[gitbbon-manager][projectManager] .gitignore created`);
 		} else {
 			// Check if .gitbbon/vectors/ pattern exists, if not, append it
 			const existingContent = await fs.promises.readFile(gitignorePath, 'utf-8');
 			if (!existingContent.includes('.gitbbon/vectors/')) {
-				console.log(`[gitbbon-manager][projectManager] Appending .gitbbon/vectors/ to existing .gitignore...`);
+				logService.info(`[gitbbon-manager][projectManager] Appending .gitbbon/vectors/ to existing .gitignore...`);
 				await fs.promises.appendFile(gitignorePath, `\n# Gitbbon vector cache (local only)\n.gitbbon/vectors/\n`);
-				console.log(`[gitbbon-manager][projectManager] .gitignore updated`);
+				logService.info(`[gitbbon-manager][projectManager] .gitignore updated`);
 			} else {
-				console.log(`[gitbbon-manager][projectManager] .gitignore already contains .gitbbon/vectors/`);
+				logService.info(`[gitbbon-manager][projectManager] .gitignore already contains .gitbbon/vectors/`);
 			}
 		}
 
 		// 4. Create README (Non-destructive)
 		const readmePath = path.join(projectPath, 'README.md');
 		if (!fs.existsSync(readmePath)) {
-			console.log(`[gitbbon-manager][projectManager] Creating README.md...`);
+			logService.info(`[gitbbon-manager][projectManager] Creating README.md...`);
 			const content = `# ${projectName}\n\nManaged by Gitbbon.\nCreated: ${new Date().toLocaleString()}\n`;
 			await fs.promises.writeFile(readmePath, content, 'utf-8');
-			console.log(`[gitbbon-manager][projectManager] README.md created`);
+			logService.info(`[gitbbon-manager][projectManager] README.md created`);
 
 			// 5. Create initial commit (including .gitbbon.json)
 			try {
-				console.log('[gitbbon-manager][projectManager] Creating initial commit...');
+				logService.info('[gitbbon-manager][projectManager] Creating initial commit...');
 				await this.execGit(['add', '.'], projectPath);
 				await this.execGit(['commit', '-m', 'Initial commit'], projectPath);
-				console.log('[gitbbon-manager][projectManager] ✅ Initial commit created');
+				logService.info('[gitbbon-manager][projectManager] ✅ Initial commit created');
 			} catch (e) {
-				console.warn('[gitbbon-manager][projectManager] Failed to create initial commit:', e);
+				logService.warn('[gitbbon-manager][projectManager] Failed to create initial commit:', e);
 				// Non-fatal, continue
 			}
 		} else {
-			console.log(`[gitbbon-manager][projectManager] README.md already exists`);
+			logService.info(`[gitbbon-manager][projectManager] README.md already exists`);
 		}
 
-		console.log(`[gitbbon-manager][projectManager] Project initialization completed: ${projectName}`);
+		logService.info(`[gitbbon-manager][projectManager] Project initialization completed: ${projectName}`);
 	}
 
 	private getLatestProject(manifest: ProjectManifest): Project | undefined {
@@ -422,7 +423,7 @@ export class ProjectManager {
 		}
 		config.projects[repoName].lastModified = new Date().toISOString();
 		await this.writeLocalConfig(config);
-		console.log(`[gitbbon-manager][projectManager] Updated lastModified in local config for ${repoName}`);
+		logService.info(`[gitbbon-manager][projectManager] Updated lastModified in local config for ${repoName}`);
 	}
 
 	/**
@@ -452,7 +453,7 @@ export class ProjectManager {
 				title
 			};
 			await this.writeProjectConfig(projectPath, config);
-			console.log(`[gitbbon-manager][projectManager] Added new project: ${title}`);
+			logService.info(`[gitbbon-manager][projectManager] Added new project: ${title}`);
 		}
 	}
 
@@ -463,7 +464,7 @@ export class ProjectManager {
 	 * @returns Success status
 	 */
 	public async deleteProject(projectPath: string, deleteFolder: boolean = true): Promise<boolean> {
-		console.log(`[gitbbon-manager][projectManager] Deleting project: ${projectPath}, deleteFolder: ${deleteFolder}`);
+		logService.info(`[gitbbon-manager][projectManager] Deleting project: ${projectPath}, deleteFolder: ${deleteFolder}`);
 
 		try {
 			// Delete local folder
@@ -476,12 +477,12 @@ export class ProjectManager {
 				// We just proceed to delete.
 
 				await fs.promises.rm(projectPath, { recursive: true, force: true });
-				console.log(`[gitbbon-manager][projectManager] Deleted project folder: ${projectPath}`);
+				logService.info(`[gitbbon-manager][projectManager] Deleted project folder: ${projectPath}`);
 			}
 
 			return true;
 		} catch (error) {
-			console.error('[gitbbon-manager][projectManager] Failed to delete project:', error);
+			logService.error('[gitbbon-manager][projectManager] Failed to delete project:', error);
 			return false;
 		}
 	}
@@ -509,7 +510,7 @@ export class ProjectManager {
 				const nextNum = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
 				baseName = `gitbbon-note-${nextNum}`;
 			} catch (e) {
-				console.warn('[gitbbon-manager][projectManager] Failed to read directory for auto-increment, using timestamp', e);
+				logService.warn('[gitbbon-manager][projectManager] Failed to read directory for auto-increment, using timestamp', e);
 				baseName = `gitbbon-note-${Date.now()}`;
 				return baseName;
 			}
@@ -517,7 +518,7 @@ export class ProjectManager {
 
 		// 이름 충돌 확인: 이미 존재하면 타임스탬프 사용
 		if (fs.existsSync(path.join(this.rootPath, baseName))) {
-			console.log(`[gitbbon-manager][projectManager] Name conflict detected for ${baseName}, using timestamp`);
+			logService.info(`[gitbbon-manager][projectManager] Name conflict detected for ${baseName}, using timestamp`);
 			// YYYYMMDDHHMMSS 형식 또는 그냥 Date.now()
 			const now = new Date();
 			const timestamp = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`;
@@ -531,7 +532,7 @@ export class ProjectManager {
 	 * 새 프로젝트를 생성합니다.
 	 */
 	public async addNewProject(inputName: string): Promise<{ success: boolean; projectPath?: string; message?: string }> {
-		console.log(`[gitbbon-manager][projectManager] Adding new project with name: ${inputName}`);
+		logService.info(`[gitbbon-manager][projectManager] Adding new project with name: ${inputName}`);
 		try {
 			const safeDirName = this.generateSafeRepoName(inputName);
 			const projectPath = path.join(this.rootPath, safeDirName);
@@ -544,7 +545,7 @@ export class ProjectManager {
 				projectPath: projectPath
 			};
 		} catch (error) {
-			console.error('[gitbbon-manager][projectManager] Failed to add new project:', error);
+			logService.error('[gitbbon-manager][projectManager] Failed to add new project:', error);
 			return {
 				success: false,
 				message: String(error)
@@ -570,26 +571,26 @@ export class ProjectManager {
 	 * Immediately commit .gitbbon.json changes
 	 */
 	public async commitProjectConfig(cwd: string): Promise<void> {
-		console.log(`[gitbbon-manager][projectManager] Committing .gitbbon.json at ${cwd}`);
+		logService.info(`[gitbbon-manager][projectManager] Committing .gitbbon.json at ${cwd}`);
 		try {
 			const configPath = path.join(cwd, '.gitbbon.json');
 			if (!fs.existsSync(configPath)) {
-				console.log('[gitbbon-manager][projectManager] .gitbbon.json not found, skipping config commit');
+				logService.info('[gitbbon-manager][projectManager] .gitbbon.json not found, skipping config commit');
 				return;
 			}
 
 			// Check if there are changes to .gitbbon.json
 			const status = await this.execGit(['status', '--porcelain', '.gitbbon.json'], cwd);
 			if (status.trim().length === 0) {
-				console.log('[gitbbon-manager][projectManager] No changes in .gitbbon.json to commit');
+				logService.info('[gitbbon-manager][projectManager] No changes in .gitbbon.json to commit');
 				return;
 			}
 
 			await this.execGit(['add', '.gitbbon.json'], cwd);
 			await this.execGit(['commit', '-m', 'Update project configuration'], cwd);
-			console.log('[gitbbon-manager][projectManager] Committed .gitbbon.json');
+			logService.info('[gitbbon-manager][projectManager] Committed .gitbbon.json');
 		} catch (error) {
-			console.error('[gitbbon-manager][projectManager] Failed to commit .gitbbon.json:', error);
+			logService.error('[gitbbon-manager][projectManager] Failed to commit .gitbbon.json:', error);
 		}
 	}
 
@@ -605,7 +606,7 @@ export class ProjectManager {
 	private async execGit(args: string[], cwd: string, options: { silent?: boolean; env?: Record<string, string> } = {}): Promise<string> {
 		const cmd = `git ${args.join(' ')}`;
 		if (!options.silent) {
-			console.log(`[gitbbon-manager][projectManager] Executing: ${cmd} in ${cwd}`);
+			logService.info(`[gitbbon-manager][projectManager] Executing: ${cmd} in ${cwd}`);
 		}
 
 		const execEnv = options.env ? { ...process.env, ...options.env } : process.env;
@@ -621,12 +622,12 @@ export class ProjectManager {
 			git.on('close', (code) => {
 				if (code !== 0) {
 					if (!options.silent) {
-						console.error(`[gitbbon-manager][projectManager] Git command failed: ${cmd}`, stderr);
+						logService.error(`[gitbbon-manager][projectManager] Git command failed: ${cmd}`, stderr);
 					}
 					reject(new Error(stderr || `Git command exited with code ${code}`));
 				} else {
 					if (!options.silent) {
-						console.log(`[gitbbon-manager][projectManager] Git command succeeded: ${cmd}`);
+						logService.info(`[gitbbon-manager][projectManager] Git command succeeded: ${cmd}`);
 					}
 					resolve(stdout.trim());
 				}
@@ -634,7 +635,7 @@ export class ProjectManager {
 
 			git.on('error', (err) => {
 				if (!options.silent) {
-					console.error(`[gitbbon-manager][projectManager] Failed to spawn git:`, err);
+					logService.error(`[gitbbon-manager][projectManager] Failed to spawn git:`, err);
 				}
 				reject(err);
 			});
@@ -648,20 +649,20 @@ export class ProjectManager {
 		try {
 			// 커밋이 없는 경우(Empty Repo) 에러가 발생하므로 silent: true 처리
 			const branch = await this.execGit(['rev-parse', '--abbrev-ref', 'HEAD'], cwd, { silent: true });
-			console.log(`[gitbbon-manager][projectManager] Current branch: ${branch}`);
+			logService.info(`[gitbbon-manager][projectManager] Current branch: ${branch}`);
 			return branch;
 		} catch {
 			// HEAD가 없다는 것은 커밋이 하나도 없다는 뜻 (Empty Repository)
-			console.log('[gitbbon-manager][projectManager] No HEAD found - creating root commit');
+			logService.info('[gitbbon-manager][projectManager] No HEAD found - creating root commit');
 			// 빈 커밋(allow-empty)을 생성하여 HEAD를 만들어줌
 			try {
 				await this.execGit(['commit', '--allow-empty', '-m', 'root commit'], cwd, { silent: true });
 				// 커밋 생성 후 다시 브랜치 이름 조회
 				const branch = await this.execGit(['rev-parse', '--abbrev-ref', 'HEAD'], cwd);
-				console.log(`[gitbbon-manager][projectManager] Root commit created, current branch: ${branch}`);
+				logService.info(`[gitbbon-manager][projectManager] Root commit created, current branch: ${branch}`);
 				return branch;
 			} catch (e) {
-				console.warn('[gitbbon-manager][projectManager] Failed to create root commit:', e);
+				logService.warn('[gitbbon-manager][projectManager] Failed to create root commit:', e);
 				return 'main'; // 그래도 실패하면 기본값 반환
 			}
 		}
@@ -676,13 +677,13 @@ export class ProjectManager {
 			const hasChanges = status.length > 0;
 			if (hasChanges) {
 				const lines = status.split('\n').filter(line => line.trim());
-				console.log(`[gitbbon-manager][projectManager] Found ${lines.length} changed files`);
+				logService.info(`[gitbbon-manager][projectManager] Found ${lines.length} changed files`);
 			} else {
-				console.log(`[gitbbon-manager][projectManager] No changes found`);
+				logService.info(`[gitbbon-manager][projectManager] No changes found`);
 			}
 			return hasChanges;
 		} catch (e) {
-			console.log(`[gitbbon-manager][projectManager] Failed to check changes: ${e}`);
+			logService.info(`[gitbbon-manager][projectManager] Failed to check changes: ${e}`);
 			return false;
 		}
 	}
@@ -693,10 +694,10 @@ export class ProjectManager {
 	private async branchExists(branchName: string, cwd: string): Promise<boolean> {
 		try {
 			await this.execGit(['show-ref', '--verify', '--quiet', `refs/heads/${branchName}`], cwd, { silent: true });
-			console.log(`[gitbbon-manager][projectManager] Branch exists: ${branchName}`);
+			logService.info(`[gitbbon-manager][projectManager] Branch exists: ${branchName}`);
 			return true;
 		} catch {
-			console.log(`[gitbbon-manager][projectManager] Branch does not exist: ${branchName}`);
+			logService.info(`[gitbbon-manager][projectManager] Branch does not exist: ${branchName}`);
 			return false;
 		}
 	}
@@ -711,7 +712,7 @@ export class ProjectManager {
 
 			// auto-save 브랜치가 없으면 임시 저장 없음
 			if (!(await this.branchExists(autoSaveBranch, cwd))) {
-				console.log(`[gitbbon-manager][projectManager] No auto-save branch found, no pending saves`);
+				logService.info(`[gitbbon-manager][projectManager] No auto-save branch found, no pending saves`);
 				return false;
 			}
 
@@ -723,10 +724,10 @@ export class ProjectManager {
 				{ silent: true }
 			);
 			const count = parseInt(aheadCount.trim(), 10);
-			console.log(`[gitbbon-manager][projectManager] Auto-save is ${count} commits ahead of ${currentBranch}`);
+			logService.info(`[gitbbon-manager][projectManager] Auto-save is ${count} commits ahead of ${currentBranch}`);
 			return count > 0;
 		} catch (e) {
-			console.log(`[gitbbon-manager][projectManager] Failed to check pending auto-save: ${e}`);
+			logService.info(`[gitbbon-manager][projectManager] Failed to check pending auto-save: ${e}`);
 			return false;
 		}
 	}
@@ -752,13 +753,13 @@ export class ProjectManager {
 
 			const preview = DiffParser.extractChange(diff, maxLength);
 			if (preview) {
-				console.log(`[gitbbon-manager][projectManager] Change preview: "${preview}"`);
+				logService.info(`[gitbbon-manager][projectManager] Change preview: "${preview}"`);
 				return preview;
 			}
 
 			return '';
 		} catch (e) {
-			console.log(`[gitbbon-manager][projectManager] Failed to get change preview: ${e}`);
+			logService.info(`[gitbbon-manager][projectManager] Failed to get change preview: ${e}`);
 			return '';
 		}
 	}
@@ -768,10 +769,10 @@ export class ProjectManager {
 	 * 자동 저장 후 호출되어야 함
 	 */
 	public async autoCommit(): Promise<{ success: boolean; message: string }> {
-		console.log('[gitbbon-manager][projectManager] Starting auto commit...');
+		logService.info('[gitbbon-manager][projectManager] Starting auto commit...');
 		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		if (!cwd) {
-			console.log('[gitbbon-manager][projectManager] No workspace folder open for auto commit');
+			logService.info('[gitbbon-manager][projectManager] No workspace folder open for auto commit');
 			return { success: false, message: 'No workspace folder open' };
 		}
 
@@ -782,27 +783,27 @@ export class ProjectManager {
 		try {
 			// 변경 사항 확인 (현재 작업 트리 vs HEAD/Index)
 			if (!(await this.hasChanges(cwd))) {
-				console.log('[gitbbon-manager][projectManager] No changes to auto commit');
+				logService.info('[gitbbon-manager][projectManager] No changes to auto commit');
 				return { success: true, message: 'No changes to commit' };
 			}
 
 			const currentBranch = await this.getCurrentBranch(cwd);
 			const autoSaveBranch = `auto-save/${currentBranch}`;
-			console.log(`[gitbbon-manager][projectManager] Auto committing to branch: ${autoSaveBranch}`);
+			logService.info(`[gitbbon-manager][projectManager] Auto committing to branch: ${autoSaveBranch}`);
 
 			// 1. Stage all changes (into TEMP index)
-			console.log('[gitbbon-manager][projectManager] Staging all changes to temp index...');
+			logService.info('[gitbbon-manager][projectManager] Staging all changes to temp index...');
 			await this.execGit(['add', '.'], cwd, { env });
 
 			// 2. auto-save 브랜치 없으면 생성
 			if (!(await this.branchExists(autoSaveBranch, cwd))) {
-				console.log(`[gitbbon-manager][projectManager] Creating auto-save branch: ${autoSaveBranch}`);
+				logService.info(`[gitbbon-manager][projectManager] Creating auto-save branch: ${autoSaveBranch}`);
 				try {
 					await this.execGit(['branch', autoSaveBranch], cwd);
 				} catch {
 					// 브랜치 생성 실패 시 (e.g. HEAD 없음) 직접 커밋
 					// getCurrentBranch에서 root commit 보장하므로 거의 발생 안 함
-					console.log('[gitbbon-manager][projectManager] Branch creation failed, making direct commit');
+					logService.info('[gitbbon-manager][projectManager] Branch creation failed, making direct commit');
 					const fallbackPreview = await this.getChangePreview(cwd, undefined, 20, { env });
 					// 여기서는 임시 인덱스를 사용하여 커밋을 생성해야 하지만,
 					// 편의상 branch 실패 케이스는 드물므로 기존 로직 유지하되, env 전달
@@ -815,14 +816,14 @@ export class ProjectManager {
 			}
 
 			// 3. Tree 생성 (from TEMP index)
-			console.log('[gitbbon-manager][projectManager] Creating git tree...');
+			logService.info('[gitbbon-manager][projectManager] Creating git tree...');
 			const treeId = await this.execGit(['write-tree'], cwd, { env });
 
 			// 4. auto-save 브랜치의 부모 커밋 가져오기 (이미 존재함이 확인됨)
 			let parentCommit: string | null = null;
 			if (await this.branchExists(autoSaveBranch, cwd)) {
 				parentCommit = await this.execGit(['rev-parse', autoSaveBranch], cwd);
-				console.log(`[gitbbon-manager][projectManager] Parent commit: ${parentCommit}`);
+				logService.info(`[gitbbon-manager][projectManager] Parent commit: ${parentCommit}`);
 			}
 
 			// 5. 커밋 메시지 생성 (이전 auto-save 커밋과 비교하여 추가된 텍스트의 처음 20자)
@@ -830,7 +831,7 @@ export class ProjectManager {
 			// getChangePreview도 temp index를 사용해야 함
 			const changePreview = await this.getChangePreview(cwd, compareRef, 20, { env });
 			const commitMessage = changePreview || '변경사항 저장';
-			console.log(`[gitbbon-manager][projectManager] Creating commit with message: ${commitMessage}`);
+			logService.info(`[gitbbon-manager][projectManager] Creating commit with message: ${commitMessage}`);
 			let newCommitId: string;
 			if (parentCommit) {
 				newCommitId = await this.execGit(['commit-tree', treeId, '-p', parentCommit, '-m', commitMessage], cwd);
@@ -840,20 +841,20 @@ export class ProjectManager {
 			}
 
 			// 6. auto-save 브랜치 ref 업데이트
-			console.log(`[gitbbon-manager][projectManager] Updating ${autoSaveBranch} ref to ${newCommitId}`);
+			logService.info(`[gitbbon-manager][projectManager] Updating ${autoSaveBranch} ref to ${newCommitId}`);
 			await this.execGit(['update-ref', `refs/heads/${autoSaveBranch}`, newCommitId], cwd);
 
 			// 7. Index 초기화 불필요 (Temp Index 사용으로 인해 메인 인덱스 오염 없음)
-			// console.log('[gitbbon-manager][projectManager] Resetting index after auto commit...');
+			// logService.info('[gitbbon-manager][projectManager] Resetting index after auto commit...');
 			// await this.execGit(['reset', '--mixed'], cwd, { silent: true });
 
-			console.log(`[gitbbon-manager][projectManager] Auto commit created: ${newCommitId}`);
+			logService.info(`[gitbbon-manager][projectManager] Auto commit created: ${newCommitId}`);
 			// Update lastModified in projects.json
 			await this.updateLastModified(cwd);
 
 			return { success: true, message: `Auto commit: ${newCommitId.substring(0, 7)}` };
 		} catch (error) {
-			console.error('[gitbbon-manager][projectManager] Auto commit failed:', error);
+			logService.error('[gitbbon-manager][projectManager] Auto commit failed:', error);
 			return { success: false, message: `Auto commit failed: ${error}` };
 		} finally {
 			// 임시 인덱스 파일 삭제
@@ -861,7 +862,7 @@ export class ProjectManager {
 				try {
 					await fs.promises.unlink(tempIndexFile);
 				} catch (e) {
-					console.warn(`[gitbbon-manager][projectManager] Failed to delete temp index file: ${e}`);
+					logService.warn(`[gitbbon-manager][projectManager] Failed to delete temp index file: ${e}`);
 				}
 			}
 		}
@@ -872,10 +873,10 @@ export class ProjectManager {
 	 * Plumbing 명령어를 사용하여 체크아웃 없이 수행
 	 */
 	public async reallyFinalCommit(commitMessage?: string): Promise<{ success: boolean; message: string }> {
-		console.log('[gitbbon-manager][projectManager] Starting really final commit...');
+		logService.info('[gitbbon-manager][projectManager] Starting really final commit...');
 		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		if (!cwd) {
-			console.log('[gitbbon-manager][projectManager] No workspace folder open for really final commit');
+			logService.info('[gitbbon-manager][projectManager] No workspace folder open for really final commit');
 			return { success: false, message: 'No workspace folder open' };
 		}
 
@@ -885,46 +886,46 @@ export class ProjectManager {
 			const timestamp = new Date().toLocaleString('ko-KR');
 
 			// 1. Index 갱신 (가장 중요, Auto Save 텀 사이에 변경된 내용 반영)
-			console.log('[gitbbon-manager][projectManager] Staging all changes for final commit...');
+			logService.info('[gitbbon-manager][projectManager] Staging all changes for final commit...');
 			await this.execGit(['add', '.'], cwd);
 
 			// 1.5. LLM을 사용하여 커밋 메시지 생성 (commitMessage가 제공되지 않은 경우)
 			let message = commitMessage;
 			if (!message && this.commitMessageGenerator.isConfigured()) {
-				console.log('[gitbbon-manager][projectManager] Generating commit message using LLM...');
+				logService.info('[gitbbon-manager][projectManager] Generating commit message using LLM...');
 				try {
 					// 현재 staged 상태의 diff 가져오기
 					const diff = await this.execGit(['diff', '--cached'], cwd, { silent: true });
 					const generatedMessage = await this.commitMessageGenerator.generateCommitMessage(diff);
 					if (generatedMessage) {
 						message = generatedMessage;
-						console.log(`[gitbbon-manager][projectManager] LLM generated message: ${message}`);
+						logService.info(`[gitbbon-manager][projectManager] LLM generated message: ${message}`);
 						vscode.window.showInformationMessage(`AI 커밋 메시지: ${message}`);
 					} else {
-						console.log('[gitbbon-manager][projectManager] LLM did not generate a message, using default');
+						logService.info('[gitbbon-manager][projectManager] LLM did not generate a message, using default');
 						message = `진짜최종: ${timestamp}`;
 					}
 				} catch (error) {
-					console.error('[gitbbon-manager][projectManager] Failed to generate commit message with LLM:', error);
+					logService.error('[gitbbon-manager][projectManager] Failed to generate commit message with LLM:', error);
 					message = `진짜최종: ${timestamp}`;
 				}
 			} else if (!message) {
 				message = `진짜최종: ${timestamp}`;
 			}
 
-			console.log(`[gitbbon-manager][projectManager] Really final commit with message: ${message}`);
+			logService.info(`[gitbbon-manager][projectManager] Really final commit with message: ${message}`);
 
 			// 2. Tree 생성
-			console.log('[gitbbon-manager][projectManager] Creating git tree for final commit...');
+			logService.info('[gitbbon-manager][projectManager] Creating git tree for final commit...');
 			const treeId = await this.execGit(['write-tree'], cwd);
 
 			// 3. Main 브랜치를 부모로 커밋 생성 (Squash 효과)
 			let parentCommit: string | null = null;
 			try {
 				parentCommit = await this.execGit(['rev-parse', currentBranch], cwd);
-				console.log(`[gitbbon-manager][projectManager] Parent commit for final: ${parentCommit}`);
+				logService.info(`[gitbbon-manager][projectManager] Parent commit for final: ${parentCommit}`);
 			} catch {
-				console.log('[gitbbon-manager][projectManager] No parent commit found - creating first commit');
+				logService.info('[gitbbon-manager][projectManager] No parent commit found - creating first commit');
 				// main이 없으면 (첫 커밋) 부모 없이 생성
 			}
 
@@ -936,39 +937,39 @@ export class ProjectManager {
 			}
 
 			// 4. Main Ref 이동
-			console.log(`[gitbbon-manager][projectManager] Updating ${currentBranch} branch to ${newCommitId}`);
+			logService.info(`[gitbbon-manager][projectManager] Updating ${currentBranch} branch to ${newCommitId}`);
 			await this.execGit(['update-ref', `refs/heads/${currentBranch}`, newCommitId], cwd);
 
 			// 5. HEAD를 Main으로 변경 (안전을 위해)
-			console.log(`[gitbbon-manager][projectManager] Setting HEAD to ${currentBranch}`);
+			logService.info(`[gitbbon-manager][projectManager] Setting HEAD to ${currentBranch}`);
 			await this.execGit(['symbolic-ref', 'HEAD', `refs/heads/${currentBranch}`], cwd);
 
 			// 6. Index 재설정 (Mixed는 Index를 HEAD에 맞춤. Clean한 상태 유지)
-			console.log('[gitbbon-manager][projectManager] Resetting index to HEAD...');
+			logService.info('[gitbbon-manager][projectManager] Resetting index to HEAD...');
 			await this.execGit(['reset', '--mixed'], cwd);
 
 			// 7. Autosave 브랜치 삭제 (기존 auto-save 커밋들을 고아 상태로 만듦)
 			if (await this.branchExists(autoSaveBranch, cwd)) {
-				console.log(`[gitbbon-manager][projectManager] Deleting ${autoSaveBranch} branch to orphan auto-save commits`);
+				logService.info(`[gitbbon-manager][projectManager] Deleting ${autoSaveBranch} branch to orphan auto-save commits`);
 				try {
 					await this.execGit(['branch', '-D', autoSaveBranch], cwd);
-					console.log(`[gitbbon-manager][projectManager] ${autoSaveBranch} branch deleted successfully`);
+					logService.info(`[gitbbon-manager][projectManager] ${autoSaveBranch} branch deleted successfully`);
 				} catch (error) {
-					console.warn(`[gitbbon-manager][projectManager] Failed to delete ${autoSaveBranch}:`, error);
+					logService.warn(`[gitbbon-manager][projectManager] Failed to delete ${autoSaveBranch}:`, error);
 					// 삭제 실패해도 진행 (치명적이지 않음)
 				}
 			} else {
-				console.log(`[gitbbon-manager][projectManager] ${autoSaveBranch} does not exist, skipping deletion`);
+				logService.info(`[gitbbon-manager][projectManager] ${autoSaveBranch} does not exist, skipping deletion`);
 			}
 
-			console.log(`[gitbbon-manager][projectManager] Really Final commit created: ${newCommitId}`);
+			logService.info(`[gitbbon-manager][projectManager] Really Final commit created: ${newCommitId}`);
 			vscode.window.showInformationMessage(`진짜최종 완료: ${newCommitId.substring(0, 7)}`);
 			// Update lastModified in projects.json
 			await this.updateLastModified(cwd);
 
 			return { success: true, message: `진짜최종: ${newCommitId.substring(0, 7)}` };
 		} catch (error) {
-			console.error('[gitbbon-manager][projectManager] Really Final commit failed:', error);
+			logService.error('[gitbbon-manager][projectManager] Really Final commit failed:', error);
 			vscode.window.showErrorMessage(`진짜최종 실패: ${error}`);
 			return { success: false, message: `Really Final failed: ${error}` };
 		}
@@ -983,7 +984,7 @@ export class ProjectManager {
 			// Ideally a repo has one root.
 			return rootCommit.split('\n')[0].trim();
 		} catch (e) {
-			console.log('[gitbbon-manager][projectManager] No root commit found (empty repo?)');
+			logService.info('[gitbbon-manager][projectManager] No root commit found (empty repo?)');
 			return null;
 		}
 	}
@@ -1001,13 +1002,13 @@ export class ProjectManager {
 	 * 지정된 커밋 버전으로 복원 (새로운 커밋 생성)
 	 */
 	public async restoreToVersion(cwd: string, targetCommitHash: string): Promise<{ success: boolean; message: string }> {
-		console.log(`[gitbbon-manager][projectManager] Restoring to version: ${targetCommitHash}`);
+		logService.info(`[gitbbon-manager][projectManager] Restoring to version: ${targetCommitHash}`);
 
 		try {
 			// 1. Safety Check: Uncommitted Changes
 			const changed = await this.hasChanges(cwd);
 			if (changed) {
-				console.log('[gitbbon-manager][projectManager] Uncommitted changes detected, creating backup...');
+				logService.info('[gitbbon-manager][projectManager] Uncommitted changes detected, creating backup...');
 				const backupResult = await this.reallyFinalCommit();
 				if (!backupResult.success) {
 					throw new Error(`Backup failed: ${backupResult.message}`);
@@ -1020,11 +1021,11 @@ export class ProjectManager {
 			// 3. Read Tree (Restore Content)
 			// -u: updates the index and checking out files
 			// --reset: performs a merge rather than a hard overwrite if possible, but here we want to match target
-			console.log('[gitbbon-manager][projectManager] Reading tree...');
+			logService.info('[gitbbon-manager][projectManager] Reading tree...');
 			await this.execGit(['read-tree', '-u', '--reset', targetCommitHash], cwd);
 
 			// 4. Create Restore Commit
-			console.log('[gitbbon-manager][projectManager] Creating restore commit...');
+			logService.info('[gitbbon-manager][projectManager] Creating restore commit...');
 			const restoreMessage = `복원 : ${targetTitle} (${targetCommitHash.substring(0, 7)})`;
 			await this.execGit(['commit', '-m', restoreMessage], cwd);
 
@@ -1034,7 +1035,7 @@ export class ProjectManager {
 			return { success: true, message: restoreMessage };
 
 		} catch (error) {
-			console.error('[gitbbon-manager][projectManager] Restore failed:', error);
+			logService.error('[gitbbon-manager][projectManager] Restore failed:', error);
 			throw error;
 		}
 	}

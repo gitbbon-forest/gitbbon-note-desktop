@@ -8,12 +8,14 @@ import { ProjectManager } from './projectManager';
 import { GitGraphViewProvider } from './gitGraphViewProvider';
 import { GitHubSyncManager } from './githubSyncManager';
 import * as cp from 'child_process';
+import { logService } from './services/logService';
 
 /**
  * Extension activation
  */
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-	console.log('Gitbbon Manager extension activating...');
+	logService.init();
+	logService.info('Gitbbon Manager extension activating...');
 	const projectManager = new ProjectManager();
 	const githubSyncManager = new GitHubSyncManager(projectManager);
 
@@ -26,12 +28,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// Watch .gitbbon.json and commit immediately
 	const configWatcher = vscode.workspace.createFileSystemWatcher('**/.gitbbon.json');
 	const handleConfigChange = async (uri: vscode.Uri) => {
-		console.log('[Extension] .gitbbon.json changed/created:', uri.fsPath);
+		logService.info('.gitbbon.json changed/created:', uri.fsPath);
 		const folder = vscode.workspace.getWorkspaceFolder(uri);
 		if (folder) {
 			await projectManager.commitProjectConfig(folder.uri.fsPath);
 			// Push changes if possible (Silent sync)
-			console.log('[Extension] Triggering sync after .gitbbon.json update...');
+			logService.info('Triggering sync after .gitbbon.json update...');
 			await githubSyncManager.sync(true);
 			await gitGraphProvider.refresh();
 		}
@@ -91,7 +93,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		'gitbbon.manager.autoCommit',
 		async () => {
 			const result = await projectManager.autoCommit();
-			console.log('Auto Commit Result:', result);
+			logService.info('Auto Commit Result:', result);
 			if (result.success) {
 				await gitGraphProvider.refresh();
 			}
@@ -116,19 +118,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			});
 
 			const result = await projectManager.reallyFinalCommit();
-			console.log('Really Final Result:', result);
+			logService.info('Really Final Result:', result);
 			if (result.success) {
 				await gitGraphProvider.refresh();
 				// Notify Gitbbon Editor of committed status
 				vscode.commands.executeCommand('gitbbon.editor.sendStatusUpdate', 'committed');
 				// Trigger Sync after really final commit (Silent mode)
-				console.log('[Extension] Triggering Sync after Really Final Commit (Silent)...');
+				logService.info('Triggering Sync after Really Final Commit (Silent)...');
 				githubSyncManager.sync(true)
 					.then(() => {
-						console.log('[Extension] Post-commit sync completed, refreshing git graph...');
+						logService.info('Post-commit sync completed, refreshing git graph...');
 						return gitGraphProvider.refresh();
 					})
-					.catch(e => console.error('Post-commit sync failed:', e));
+					.catch(e => logService.error('Post-commit sync failed:', e));
 			}
 			return result;
 		}
@@ -152,10 +154,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const deleteProjectCommand = vscode.commands.registerCommand(
 		'gitbbon.manager.deleteProject',
 		async (args: { projectPath: string; deleteRemote?: boolean }) => {
-			console.log('[Extension] Delete project command triggered:', args);
+			logService.info('Delete project command triggered:', args);
 
 			if (!args.projectPath) {
-				console.error('[Extension] No project path provided');
+				logService.error('No project path provided');
 				return { success: false, message: 'No project path provided' };
 			}
 
@@ -169,7 +171,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 						if (repoName) {
 							const success = await githubSyncManager.deleteGitHubRepo(repoName);
 							if (!success) {
-								console.warn('[Extension] Failed to delete remote repo, continuing with local delete');
+								logService.warn('Failed to delete remote repo, continuing with local delete');
 								return { success: false, message: 'Failed to delete remote repository' };
 							}
 						}
@@ -179,13 +181,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				// 로컬 프로젝트 삭제
 				const success = await projectManager.deleteProject(args.projectPath, true);
 				if (success) {
-					console.log('[Extension] Project deleted successfully');
+					logService.info('Project deleted successfully');
 					return { success: true, message: 'Project deleted' };
 				} else {
 					return { success: false, message: 'Failed to delete project' };
 				}
 			} catch (error) {
-				console.error('[Extension] Delete project failed:', error);
+				logService.error('Delete project failed:', error);
 				return { success: false, message: String(error) };
 			}
 		}
@@ -196,7 +198,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const addProjectCommand = vscode.commands.registerCommand(
 		'gitbbon.manager.addProject',
 		async (args?: { name: string }) => {
-			console.log('[Extension] Add project command triggered:', args);
+			logService.info('Add project command triggered:', args);
 
 			let projectName = args?.name;
 
@@ -215,7 +217,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				const result = await projectManager.addNewProject(projectName);
 				return result;
 			} catch (error) {
-				console.error('[Extension] Add project failed:', error);
+				logService.error('Add project failed:', error);
 				return { success: false, message: String(error) };
 			}
 		}
@@ -224,13 +226,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	// 30-minute Periodic Sync (Silent mode)
 	const syncInterval = setInterval(() => {
-		console.log('[Extension] Triggering periodic sync (30m, Silent)...');
+		logService.info('Triggering periodic sync (30m, Silent)...');
 		githubSyncManager.sync(true)
 			.then(() => {
-				console.log('[Extension] Periodic sync completed, refreshing git graph...');
+				logService.info('Periodic sync completed, refreshing git graph...');
 				return gitGraphProvider.refresh();
 			})
-			.catch(e => console.error('Periodic sync failed:', e));
+			.catch(e => logService.error('Periodic sync failed:', e));
 	}, 30 * 60 * 1000); // 30 minutes
 	context.subscriptions.push({ dispose: () => clearInterval(syncInterval) });
 
@@ -245,20 +247,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		// Focus Git Graph View on startup
 		// The command 'gitbbon.gitGraph.focus' is automatically generated by VS Code for the view with ID 'gitbbon.gitGraph'.
 		await vscode.commands.executeCommand('gitbbon.gitGraph.focus').then(undefined, err => {
-			console.warn('[Extension] Could not focus Git Graph view:', err);
+			logService.warn('Could not focus Git Graph view:', err);
 		});
 
 		// Attempt initial sync in SILENT mode.
 		// If user never authenticated, this will do nothing.
-		console.log('[Extension] Triggering startup sync (Silent)...');
+		logService.info('Triggering startup sync (Silent)...');
 		githubSyncManager.sync(true)
 			.then(() => {
-				console.log('[Extension] Startup sync completed, refreshing git graph...');
+				logService.info('Startup sync completed, refreshing git graph...');
 				return gitGraphProvider.refresh();
 			})
-			.catch(e => console.error('Startup sync failed:', e));
+			.catch(e => logService.error('Startup sync failed:', e));
 	}).catch(err => {
-		console.error('Startup failed:', err);
+		logService.error('Startup failed:', err);
 	});
 
 	// Restore File Command
@@ -298,7 +300,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 			vscode.window.showInformationMessage(`${relativePath} 파일이 복구되었습니다.`);
 		} catch (error) {
-			console.error('File restore failed:', error);
+			logService.error('File restore failed:', error);
 			vscode.window.showErrorMessage(`파일 복구 실패: ${error}`);
 		}
 	});

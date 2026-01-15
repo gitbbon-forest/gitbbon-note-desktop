@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { IRemoteRepositoryService, RepoInfo } from '../interfaces';
+import { logService } from '../../services/logService';
 
 interface GitHubApiResponse {
 	name: string;
@@ -28,7 +29,7 @@ export class GitHubService implements IRemoteRepositoryService {
 			this.session = await vscode.authentication.getSession('github', ['repo', 'user:email', 'delete_repo'], { createIfNone: false });
 			return this.session;
 		} catch (e) {
-			console.error('[gitbbon-manager][githubService] Authentication failed:', e);
+			logService.error('[gitbbon-manager][githubService] Authentication failed:', e);
 			return undefined;
 		}
 	}
@@ -42,17 +43,17 @@ export class GitHubService implements IRemoteRepositoryService {
 
 		// 2. If silent mode, stop here.
 		if (silent) {
-			console.log('[gitbbon-manager][githubService] ensureAuthenticated: Not authenticated, silent mode -> returning false');
+			logService.info('[gitbbon-manager][githubService] ensureAuthenticated: Not authenticated, silent mode -> returning false');
 			return false;
 		}
 
 		// 3. Interactive mode: Request login
 		try {
-			console.log('[gitbbon-manager][githubService] ensureAuthenticated: Not authenticated, requesting login...');
+			logService.info('[gitbbon-manager][githubService] ensureAuthenticated: Not authenticated, requesting login...');
 			this.session = await vscode.authentication.getSession('github', ['repo', 'user:email', 'delete_repo'], { createIfNone: true });
 			return !!this.session;
 		} catch (e) {
-			console.error('[gitbbon-manager][githubService] ensureAuthenticated failed:', e);
+			logService.error('[gitbbon-manager][githubService] ensureAuthenticated failed:', e);
 			return false;
 		}
 	}
@@ -77,7 +78,7 @@ export class GitHubService implements IRemoteRepositoryService {
 			const repo = await response.json() as GitHubApiResponse;
 			return this.mapToRepoInfo(repo);
 		} catch (e) {
-			console.error('[gitbbon-manager][githubService] getRepository error:', e);
+			logService.error('[gitbbon-manager][githubService] getRepository error:', e);
 			// Network error or other issues -> rethrow or return null?
 			// SyncEngine expects null only if repo is missing. Error should propogate.
 			throw e;
@@ -107,11 +108,11 @@ export class GitHubService implements IRemoteRepositoryService {
 
 			// Handle specific errors
 			const errorText = await response.text();
-			console.error(`[gitbbon-manager][githubService] createRepository failed: ${response.status} ${errorText}`);
+			logService.error(`[gitbbon-manager][githubService] createRepository failed: ${response.status} ${errorText}`);
 			throw new Error(`Failed to create repository: ${response.status} ${errorText}`);
 
 		} catch (e) {
-			console.error('[gitbbon-manager][githubService] createRepository error:', e);
+			logService.error('[gitbbon-manager][githubService] createRepository error:', e);
 			throw e;
 		}
 	}
@@ -143,7 +144,7 @@ export class GitHubService implements IRemoteRepositoryService {
 
 			return []; // Should be unreachable given response.ok check above, but for safety if logic changes
 		} catch (e) {
-			console.error('[gitbbon-manager][githubService] listRepositories error:', e);
+			logService.error('[gitbbon-manager][githubService] listRepositories error:', e);
 			throw e;
 		}
 	}
@@ -167,7 +168,7 @@ export class GitHubService implements IRemoteRepositoryService {
 			}
 			return false;
 		} catch (e) {
-			console.error('[gitbbon-manager][githubService] deleteRepository error:', e);
+			logService.error('[gitbbon-manager][githubService] deleteRepository error:', e);
 			return false;
 		}
 	}

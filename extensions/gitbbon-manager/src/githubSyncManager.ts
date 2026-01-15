@@ -11,6 +11,7 @@ import { SyncEngine } from './sync/syncEngine';
 import { GitHubService } from './sync/adapters/githubService';
 import { LocalProjectService } from './sync/adapters/localProjectService';
 import { ProjectConfig } from './sync/interfaces';
+import { logService } from './services/logService';
 
 export class GitHubSyncManager {
 	private readonly projectManager: ProjectManager;
@@ -31,13 +32,13 @@ export class GitHubSyncManager {
 	 * Main Sync Method
 	 */
 	public async sync(silent: boolean = false): Promise<void> {
-		console.log(`\n========== [GitHubSyncManager] SYNC START (silent: ${silent}) ==========`);
+		logService.info(`\n========== [GitHubSyncManager] SYNC START (silent: ${silent}) ==========`);
 
 		// 1. Authentication Check
 		const isAuthenticated = await this.githubService.ensureAuthenticated(silent);
 		if (!isAuthenticated) {
 			if (silent) {
-				console.log('[GitHubSyncManager] Not authenticated in silent mode. Skipping sync.');
+				logService.info('[GitHubSyncManager] Not authenticated in silent mode. Skipping sync.');
 				return;
 			} else {
 				vscode.window.showErrorMessage('GitHub Authentication required to sync.');
@@ -47,35 +48,35 @@ export class GitHubSyncManager {
 
 		try {
 			// Optimization: Fetch all remote repositories once
-			console.log('[GitHubSyncManager] Fetching remote repositories...');
+			logService.info('[GitHubSyncManager] Fetching remote repositories...');
 			const remoteRepos = await this.githubService.listRepositories();
 			const remoteRepoMap = new Map(remoteRepos.map(r => [r.name, r]));
-			console.log(`[GitHubSyncManager] Fetched ${remoteRepos.length} repositories`);
+			logService.info(`[GitHubSyncManager] Fetched ${remoteRepos.length} repositories`);
 
 			// 2. Up Sync (Local -> Remote)
-			console.log('[GitHubSyncManager] Starting Up Sync...');
+			logService.info('[GitHubSyncManager] Starting Up Sync...');
 			await this.syncUp(remoteRepoMap);
 
 			// 3. Down Sync (Discovery)
-			console.log('[GitHubSyncManager] Starting Down Sync...');
+			logService.info('[GitHubSyncManager] Starting Down Sync...');
 			// Note: remoteRepos might be slightly stale if syncUp created new repos.
 			// However, this is safe because syncDown only looks for remote repos that happen to be MISSING locally.
 			// Any repo created in syncUp would already exist locally, so syncDown would skip it anyway.
 			await this.syncDown(remoteRepos);
 
-			console.log('[GitHubSyncManager] ✅ Sync completed successfully');
+			logService.info('[GitHubSyncManager] ✅ Sync completed successfully');
 			if (!silent) {
 				vscode.window.setStatusBarMessage('$(check) Gitbbon Sync 완', 3000);
 			}
 		} catch (e) {
-			console.error('[GitHubSyncManager] Sync failed:', e);
+			logService.error('[GitHubSyncManager] Sync failed:', e);
 			if (!silent) {
 				vscode.window.showErrorMessage(`Sync failed: ${e}`);
 			}
 		}
 
 
-		console.log(`========== [GitHubSyncManager] SYNC END ==========\n`);
+		logService.info(`========== [GitHubSyncManager] SYNC END ==========\n`);
 	}
 
 	private async syncUp(remoteRepoMap: Map<string, any>): Promise<void> {
@@ -92,12 +93,12 @@ export class GitHubSyncManager {
 				modifiedAt: projectLocalData?.lastModified ?? undefined
 			};
 
-			console.log(`[GitHubSyncManager] Syncing project: ${config.name}`);
+			logService.info(`[GitHubSyncManager] Syncing project: ${config.name}`);
 			try {
 				const remoteRepo = remoteRepoMap.get(config.name) || null;
 				await this.syncEngine.syncProject(config, remoteRepo);
 			} catch (e) {
-				console.error(`[GitHubSyncManager] Failed to sync project ${config.name}:`, e);
+				logService.error(`[GitHubSyncManager] Failed to sync project ${config.name}:`, e);
 			}
 		}
 	}
@@ -111,7 +112,7 @@ export class GitHubSyncManager {
 				return path.basename(p.path) === repo.name;
 			});
 			if (!exists) {
-				console.log(`[GitHubSyncManager] Found new remote repo: ${repo.name}`);
+				logService.info(`[GitHubSyncManager] Found new remote repo: ${repo.name}`);
 
 				// Target path: ~/Documents/Gitbbon_Notes/{repo.name}
 				const documentsPath = path.join(fs.realpathSync(require('os').homedir()), 'Documents', 'Gitbbon_Notes');
@@ -122,11 +123,11 @@ export class GitHubSyncManager {
 					try {
 						const files = await fs.promises.readdir(targetPath);
 						if (files.length > 0) {
-							console.warn(`[GitHubSyncManager] Skipped downloading ${repo.name}: Directory exists and is not empty.`);
+							logService.warn(`[GitHubSyncManager] Skipped downloading ${repo.name}: Directory exists and is not empty.`);
 							continue;
 						}
 					} catch (e) {
-						console.warn(`[GitHubSyncManager] Failed to check directory ${targetPath}:`, e);
+						logService.warn(`[GitHubSyncManager] Failed to check directory ${targetPath}:`, e);
 						continue; // skip on error too to be safe
 					}
 				}
@@ -135,7 +136,7 @@ export class GitHubSyncManager {
 					await this.syncEngine.syncRemoteRepo(repo.name, targetPath);
 					vscode.window.showInformationMessage(`New note "${repo.name}" has been downloaded.`);
 				} catch (e) {
-					console.error(`[GitHubSyncManager] Failed to download ${repo.name}:`, e);
+					logService.error(`[GitHubSyncManager] Failed to download ${repo.name}:`, e);
 				}
 			}
 		}
