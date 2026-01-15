@@ -58,6 +58,52 @@ interface IProject {
 	path: string;
 	initials: string;
 	ctime: number;
+	remoteUrl?: string; // gitbbon custom: remote URL for opening GitHub
+}
+
+// gitbbon custom: Convert Git URL to web URL (GitHub, GitLab, etc.)
+function convertGitUrlToWebUrl(gitUrl: string): string | undefined {
+	// SSH format: git@github.com:user/repo.git
+	const sshMatch = gitUrl.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
+	if (sshMatch) {
+		return `https://${sshMatch[1]}/${sshMatch[2]}`;
+	}
+
+	// HTTPS format: https://github.com/user/repo.git
+	const httpsMatch = gitUrl.match(/^https?:\/\/([^/]+)\/(.+?)(?:\.git)?$/);
+	if (httpsMatch) {
+		return `https://${httpsMatch[1]}/${httpsMatch[2]}`;
+	}
+
+	return undefined;
+}
+
+// gitbbon custom: Parse .git/config to extract remote origin URL
+function parseGitConfigForRemoteUrl(configContent: string): string | undefined {
+	const lines = configContent.split('\n');
+	let inRemoteOrigin = false;
+
+	for (const line of lines) {
+		const trimmedLine = line.trim();
+
+		if (trimmedLine === '[remote "origin"]') {
+			inRemoteOrigin = true;
+			continue;
+		}
+
+		if (inRemoteOrigin) {
+			if (trimmedLine.startsWith('[')) {
+				// End of remote "origin" section
+				break;
+			}
+			const urlMatch = trimmedLine.match(/^url\s*=\s*(.+)$/);
+			if (urlMatch) {
+				return urlMatch[1].trim();
+			}
+		}
+	}
+
+	return undefined;
 }
 // gitbbon custom end
 
@@ -675,6 +721,7 @@ class ProjectBar extends DisposableStore {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this.loadProjects();
@@ -772,12 +819,29 @@ class ProjectBar extends DisposableStore {
 						// ignore error
 					}
 
+					// gitbbon custom: Read remote URL from .git/config
+					let remoteUrl: string | undefined;
+					try {
+						const gitConfigUri = URI.joinPath(child.resource, '.git', 'config');
+						if (await this.fileService.exists(gitConfigUri)) {
+							const gitConfigContent = await this.fileService.readFile(gitConfigUri);
+							const gitUrl = parseGitConfigForRemoteUrl(gitConfigContent.value.toString());
+							if (gitUrl) {
+								remoteUrl = convertGitUrlToWebUrl(gitUrl);
+							}
+						}
+					} catch (e) {
+						// ignore error
+					}
+					// gitbbon custom end
+
 					this.projects.push({
 						name: child.name,
 						title: title,
 						path: child.resource.fsPath,
 						initials: title.substring(0, 3).toUpperCase(),
-						ctime: child.ctime ?? 0
+						ctime: child.ctime ?? 0,
+						remoteUrl: remoteUrl
 					});
 				}
 			}
@@ -844,65 +908,84 @@ class ProjectBar extends DisposableStore {
 				e.preventDefault();
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => container,
-					getActions: () => [
-						toAction({
-							id: 'gitbbon.project.open',
-							label: 'Open Project',
-							run: () => openProject(false)
-						}),
-						toAction({
-							id: 'gitbbon.project.openNewWindow',
-							label: 'Open Project in New Window',
-							run: () => openProject(true)
-						}),
-						new Separator(),
-						toAction({
-							id: 'gitbbon.project.rename',
-							label: 'Rename Project',
-							run: async () => {
-								const newTitle = await this.quickInputService.input({
-									value: project.title,
-									prompt: 'Enter new project name',
-								});
-								if (newTitle) {
-									const gitbbonJsonUri = URI.joinPath(URI.file(project.path), '.gitbbon.json');
-									try {
-										let json: any = {};
-										if (await this.fileService.exists(gitbbonJsonUri)) {
-											const content = await this.fileService.readFile(gitbbonJsonUri);
-											json = JSON.parse(content.value.toString());
-										}
-										json.title = newTitle;
-										await this.fileService.writeFile(gitbbonJsonUri, VSBuffer.fromString(JSON.stringify(json, null, 2)));
-										// The file watcher will eventually trigger a reload
-									} catch (e) {
-										console.error('Failed to rename project', e);
-									}
-								}
-							}
-						}),
-						toAction({
-							id: 'gitbbon.project.delete',
-							label: 'Delete Project',
-							run: async () => {
-								const confirm = await this.dialogService.confirm({
-									message: `Are you sure you want to delete '${project.title}'?`,
-									detail: 'The folder will be moved to the trash.',
-									primaryButton: 'Delete',
-									type: 'warning'
-								});
+					getActions: () => {
+						const actions: IAction[] = [
+							toAction({
+								id: 'gitbbon.project.open',
+								label: 'Open Project',
+								run: () => openProject(false)
+							}),
+							toAction({
+								id: 'gitbbon.project.openNewWindow',
+								label: 'Open Project in New Window',
+								run: () => openProject(true)
+							}),
+						];
 
-								if (confirm.confirmed) {
-									try {
-										await this.fileService.del(URI.file(project.path), { recursive: true, useTrash: true });
-									} catch (e) {
-										console.error('Failed to delete project', e);
-										this.dialogService.error(e);
+						// gitbbon custom: Add 'Open in GitHub' if remoteUrl exists
+						if (project.remoteUrl) {
+							actions.push(
+								toAction({
+									id: 'gitbbon.project.openInGitHub',
+									label: 'Open in GitHub',
+									run: () => this.openerService.open(URI.parse(project.remoteUrl!))
+								})
+							);
+						}
+						// gitbbon custom end
+
+						actions.push(
+							new Separator(),
+							toAction({
+								id: 'gitbbon.project.rename',
+								label: 'Rename Project',
+								run: async () => {
+									const newTitle = await this.quickInputService.input({
+										value: project.title,
+										prompt: 'Enter new project name',
+									});
+									if (newTitle) {
+										const gitbbonJsonUri = URI.joinPath(URI.file(project.path), '.gitbbon.json');
+										try {
+											let json: any = {};
+											if (await this.fileService.exists(gitbbonJsonUri)) {
+												const content = await this.fileService.readFile(gitbbonJsonUri);
+												json = JSON.parse(content.value.toString());
+											}
+											json.title = newTitle;
+											await this.fileService.writeFile(gitbbonJsonUri, VSBuffer.fromString(JSON.stringify(json, null, 2)));
+											// The file watcher will eventually trigger a reload
+										} catch (e) {
+											console.error('Failed to rename project', e);
+										}
 									}
 								}
-							}
-						})
-					]
+							}),
+							toAction({
+								id: 'gitbbon.project.delete',
+								label: 'Delete Project',
+								run: async () => {
+									const confirm = await this.dialogService.confirm({
+										message: `Are you sure you want to delete '${project.title}'?`,
+										detail: 'The folder will be moved to the trash.',
+										primaryButton: 'Delete',
+										type: 'warning'
+									});
+
+									if (confirm.confirmed) {
+										try {
+											await this.fileService.del(URI.file(project.path), { recursive: true, useTrash: true });
+										} catch (e) {
+											console.error('Failed to delete project', e);
+											this.dialogService.error(e);
+										}
+									}
+								}
+							})
+						);
+
+						return actions;
+					}
 				});
 			};
 
@@ -911,65 +994,84 @@ class ProjectBar extends DisposableStore {
 				e.stopPropagation(); // Prevent default context menu
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => container,
-					getActions: () => [
-						toAction({
-							id: 'gitbbon.project.open',
-							label: 'Open Project',
-							run: () => openProject(false)
-						}),
-						toAction({
-							id: 'gitbbon.project.openNewWindow',
-							label: 'Open Project in New Window',
-							run: () => openProject(true)
-						}),
-						new Separator(),
-						toAction({
-							id: 'gitbbon.project.rename',
-							label: 'Rename Project',
-							run: async () => {
-								const newTitle = await this.quickInputService.input({
-									value: project.title,
-									prompt: 'Enter new project name',
-								});
-								if (newTitle) {
-									const gitbbonJsonUri = URI.joinPath(URI.file(project.path), '.gitbbon.json');
-									try {
-										let json: any = {};
-										if (await this.fileService.exists(gitbbonJsonUri)) {
-											const content = await this.fileService.readFile(gitbbonJsonUri);
-											json = JSON.parse(content.value.toString());
-										}
-										json.title = newTitle;
-										await this.fileService.writeFile(gitbbonJsonUri, VSBuffer.fromString(JSON.stringify(json, null, 2)));
-										// The file watcher will eventually trigger a reload
-									} catch (e) {
-										console.error('Failed to rename project', e);
-									}
-								}
-							}
-						}),
-						toAction({
-							id: 'gitbbon.project.delete',
-							label: 'Delete Project',
-							run: async () => {
-								const confirm = await this.dialogService.confirm({
-									message: `Are you sure you want to delete '${project.title}'?`,
-									detail: 'The folder will be moved to the trash.',
-									primaryButton: 'Delete',
-									type: 'warning'
-								});
+					getActions: () => {
+						const actions: IAction[] = [
+							toAction({
+								id: 'gitbbon.project.open',
+								label: 'Open Project',
+								run: () => openProject(false)
+							}),
+							toAction({
+								id: 'gitbbon.project.openNewWindow',
+								label: 'Open Project in New Window',
+								run: () => openProject(true)
+							}),
+						];
 
-								if (confirm.confirmed) {
-									try {
-										await this.fileService.del(URI.file(project.path), { recursive: true, useTrash: true });
-									} catch (e) {
-										console.error('Failed to delete project', e);
-										this.dialogService.error(e);
+						// gitbbon custom: Add 'Open in GitHub' if remoteUrl exists
+						if (project.remoteUrl) {
+							actions.push(
+								toAction({
+									id: 'gitbbon.project.openInGitHub',
+									label: 'Open in GitHub',
+									run: () => this.openerService.open(URI.parse(project.remoteUrl!))
+								})
+							);
+						}
+						// gitbbon custom end
+
+						actions.push(
+							new Separator(),
+							toAction({
+								id: 'gitbbon.project.rename',
+								label: 'Rename Project',
+								run: async () => {
+									const newTitle = await this.quickInputService.input({
+										value: project.title,
+										prompt: 'Enter new project name',
+									});
+									if (newTitle) {
+										const gitbbonJsonUri = URI.joinPath(URI.file(project.path), '.gitbbon.json');
+										try {
+											let json: any = {};
+											if (await this.fileService.exists(gitbbonJsonUri)) {
+												const content = await this.fileService.readFile(gitbbonJsonUri);
+												json = JSON.parse(content.value.toString());
+											}
+											json.title = newTitle;
+											await this.fileService.writeFile(gitbbonJsonUri, VSBuffer.fromString(JSON.stringify(json, null, 2)));
+											// The file watcher will eventually trigger a reload
+										} catch (e) {
+											console.error('Failed to rename project', e);
+										}
 									}
 								}
-							}
-						})
-					]
+							}),
+							toAction({
+								id: 'gitbbon.project.delete',
+								label: 'Delete Project',
+								run: async () => {
+									const confirm = await this.dialogService.confirm({
+										message: `Are you sure you want to delete '${project.title}'?`,
+										detail: 'The folder will be moved to the trash.',
+										primaryButton: 'Delete',
+										type: 'warning'
+									});
+
+									if (confirm.confirmed) {
+										try {
+											await this.fileService.del(URI.file(project.path), { recursive: true, useTrash: true });
+										} catch (e) {
+											console.error('Failed to delete project', e);
+											this.dialogService.error(e);
+										}
+									}
+								}
+							})
+						);
+
+						return actions;
+					}
 				});
 			};
 		});
