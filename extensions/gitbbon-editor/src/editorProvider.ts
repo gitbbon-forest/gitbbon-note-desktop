@@ -324,6 +324,91 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 	}
 
 	/**
+	 * gitbbon custom: 선택 텍스트 기반 비슷한 글 검색
+	 */
+	private async searchSimilarForSelection(
+		selectedText: string,
+		document: vscode.TextDocument,
+		webviewPanel: vscode.WebviewPanel
+	): Promise<void> {
+		try {
+			const searchExtension = vscode.extensions.getExtension('gitbbon.gitbbon-search');
+			if (!searchExtension) {
+				console.log('[GitbbonEditor][SelectionSimilar] gitbbon-search extension not found');
+				return;
+			}
+
+			if (!searchExtension.isActive) {
+				await searchExtension.activate();
+			}
+
+			const api = searchExtension.exports;
+			if (!api || typeof api.search !== 'function') {
+				console.log('[GitbbonEditor][SelectionSimilar] gitbbon-search API not available');
+				return;
+			}
+
+			// Query는 선택된 텍스트 (최대 200자)
+			const query = selectedText.substring(0, 200).trim();
+
+			if (!query || query.length < 5) {
+				return;
+			}
+
+			console.log(`[GitbbonEditor][SelectionSimilar] Searching for: "${query.substring(0, 50)}..."`);
+
+			// Current document's workspace folder path
+			const wsFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+			const filePathPrefix = wsFolder ? wsFolder.uri.fsPath : undefined;
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const results = await api.search(query, 4, { filePathPrefix }); // Top 4 (assuming user's doc might be 1)
+
+			const currentPath = document.uri.fsPath;
+			const articles = await Promise.all(
+				results
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					.filter((r: any) => r.filePath !== currentPath && r.score >= 0.3) // 최소 30% 유사도
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					.map(async (r: any) => {
+						let title = path.basename(r.filePath);
+						try {
+							const uri = vscode.Uri.file(r.filePath);
+							const contentUint8 = await vscode.workspace.fs.readFile(uri);
+							const content = new TextDecoder().decode(contentUint8);
+							const fm = FrontmatterParser.parse(content);
+							if (fm.frontmatter.title) {
+								title = fm.frontmatter.title;
+							}
+						} catch (e) {
+							// Ignore file read error
+						}
+						return {
+							title,
+							path: r.filePath,
+							score: r.score
+						};
+					})
+			);
+
+			// Sort by score desc
+			articles.sort((a, b) => b.score - a.score);
+
+			// Take top 3
+			const topArticles = articles.slice(0, 3);
+
+			console.log(`[GitbbonEditor][SelectionSimilar] Found ${topArticles.length} articles`);
+
+			webviewPanel.webview.postMessage({
+				type: 'selectionSimilarArticles',
+				articles: topArticles
+			});
+		} catch (error) {
+			console.error('[GitbbonEditor][SelectionSimilar] Failed to search similar articles:', error);
+		}
+	}
+
+	/**
 	 * Custom Editor 생성 시 호출
 	 */
 	public async resolveCustomTextEditor(
@@ -585,6 +670,11 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 						if (message.path) {
 							const uri = vscode.Uri.file(message.path);
 							vscode.commands.executeCommand('vscode.open', uri);
+						}
+						break;
+					case 'searchSimilarForSelection':
+						if (message.text) {
+							this.searchSimilarForSelection(message.text, document, webviewPanel);
 						}
 						break;
 				}

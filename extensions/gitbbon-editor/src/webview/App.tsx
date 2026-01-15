@@ -4,6 +4,7 @@ import { SaveStatus } from './ReallyFinalButton';
 import { SearchBar } from './SearchBar';
 import { Loader } from './Loader';
 import { SimilarArticles, SimilarArticle } from './SimilarArticles';
+import { SelectionSimilarArticles } from './SelectionSimilarArticles';
 
 declare const acquireVsCodeApi: () => {
 	postMessage(message: any): void;
@@ -45,6 +46,10 @@ export const App = () => {
 
 	// gitbbon custom: Similar Articles state
 	const [similarArticles, setSimilarArticles] = useState<SimilarArticle[]>([]);
+
+	// gitbbon custom: Selection-based Similar Articles state
+	const [selectionSimilarArticles, setSelectionSimilarArticles] = useState<SimilarArticle[]>([]);
+	const [showSelectionSimilar, setShowSelectionSimilar] = useState(false);
 
 	// Keep titleRef in sync for callbacks
 	useEffect(() => {
@@ -190,6 +195,29 @@ export const App = () => {
 		});
 	}, []);
 
+	// gitbbon custom: 선택 텍스트 변경 시 비슷한 글 검색 요청 (debounce)
+	const debouncedSearchSimilar = useMemo(
+		() =>
+			debounce((text: string) => {
+				console.log('[gitbbon-editor][App][SelectionSimilar] Searching for:', text.substring(0, 50));
+				vscode.postMessage({
+					type: 'searchSimilarForSelection',
+					text,
+				});
+			}, 500),
+		[]
+	);
+
+	const handleSelectionChange = useCallback((selectedText: string | null) => {
+		if (selectedText && selectedText.trim().length >= 5) {
+			setShowSelectionSimilar(true);
+			debouncedSearchSimilar(selectedText);
+		} else {
+			setShowSelectionSimilar(false);
+			setSelectionSimilarArticles([]);
+		}
+	}, [debouncedSearchSimilar]);
+
 	// Cmd+L / Ctrl+L 단축키 처리 (AI) + Cmd+F / Ctrl+F 처리 (검색)
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
@@ -302,6 +330,13 @@ export const App = () => {
 						setSimilarArticles(message.articles);
 					}
 					break;
+				// gitbbon custom: 선택 텍스트 기반 비슷한 글 검색 결과
+				case 'selectionSimilarArticles':
+					if (message.articles) {
+						console.log('[gitbbon-editor][App][SelectionSimilar] Received articles:', message.articles.length);
+						setSelectionSimilarArticles(message.articles);
+					}
+					break;
 			}
 		};
 
@@ -348,8 +383,15 @@ export const App = () => {
 					initialContent={editorContent}
 					onChange={handleEditorChangeWithTitle}
 					onAskAI={handleAskAI}
+					onSelectionChange={handleSelectionChange}
 				/>
 			</div>
+			{/* gitbbon custom: Selection-based Similar Articles (툴바 상단) */}
+			<SelectionSimilarArticles
+				articles={selectionSimilarArticles}
+				onArticleClick={handleOpenSimilarArticle}
+				visible={showSelectionSimilar}
+			/>
 			<SimilarArticles articles={similarArticles} onArticleClick={handleOpenSimilarArticle} />
 		</div>
 	);
