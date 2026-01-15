@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { logService } from './services/logService';
 
 /**
  * 커밋 정보 인터페이스
@@ -134,7 +135,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 			this._hasMore = commits.length === GitGraphViewProvider.INITIAL_LOAD_COUNT;
 			this._sendCommitsToWebview();
 		} catch (error) {
-			console.error('[GitGraphViewProvider] Failed to load commits:', error);
+			logService.error('[GitGraphViewProvider] Failed to load commits:', error);
 			this._view?.webview.postMessage({
 				type: 'error',
 				message: `커밋 로드 실패: ${error}`
@@ -158,7 +159,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 			this._hasMore = commits.length === GitGraphViewProvider.LOAD_MORE_COUNT;
 			this._sendCommitsToWebview();
 		} catch (error) {
-			console.error('[GitGraphViewProvider] Failed to load more commits:', error);
+			logService.error('[GitGraphViewProvider] Failed to load more commits:', error);
 		} finally {
 			this._isLoading = false;
 		}
@@ -195,8 +196,8 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 			`--format=${format}`
 		];
 
-		console.log(`[GitGraphViewProvider] Executing: git ${args.join(' ')}`);
-		console.log(`[GitGraphViewProvider] Current PATH (first 200 chars): ${(process.env.PATH || '').substring(0, 200)}...`);
+		logService.info(`[GitGraphViewProvider] Executing: git ${args.join(' ')}`);
+		logService.info(`[GitGraphViewProvider] Current PATH (first 200 chars): ${(process.env.PATH || '').substring(0, 200)}...`);
 
 		return new Promise((resolve, reject) => {
 			const git = cp.spawn('git', args, { cwd });
@@ -210,12 +211,12 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 				if (code !== 0) {
 					// 저장소가 비어있거나 커밋이 없는 경우 (exit code 128)
 					if (stderr.includes('does not have any commits') || stderr.includes('fatal: your current branch')) {
-						console.log('[GitGraphViewProvider] No commits found (empty repository)');
+						logService.info('[GitGraphViewProvider] No commits found (empty repository)');
 						resolve([]);
 						return;
 					}
 
-					console.error('[GitGraphViewProvider] Git command failed:', stderr);
+					logService.error('[GitGraphViewProvider] Git command failed:', stderr);
 					reject(new Error(stderr));
 					return;
 				}
@@ -238,12 +239,12 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 					}
 				}
 
-				console.log(`[GitGraphViewProvider] Loaded ${commits.length} commits`);
+				logService.info(`[GitGraphViewProvider] Loaded ${commits.length} commits`);
 				resolve(commits);
 			});
 
 			git.on('error', (err) => {
-				console.error('[GitGraphViewProvider] Failed to spawn git:', err);
+				logService.error('[GitGraphViewProvider] Failed to spawn git:', err);
 				reject(err);
 			});
 		});

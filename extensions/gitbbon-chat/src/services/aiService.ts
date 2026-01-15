@@ -4,6 +4,7 @@ import { createEditorTools } from '../tools/editorTools';
 import { ContextService } from './ContextService';
 import { SYSTEM_PROMPT } from '../constants/prompts';
 import { type StreamEvent, type ToolStartEvent, type ToolEndEvent, generateToolId } from '../types';
+import { logService } from './logService';
 
 /**
  * Event Channel for real-time streaming
@@ -60,9 +61,9 @@ export class AIService {
 
 		if (this.apiKey) {
 			process.env.AI_GATEWAY_API_KEY = this.apiKey;
-			console.log('[gitbbon-chat][aiService] Initialized with API Key');
+			logService.info('[gitbbon-chat][aiService] Initialized with API Key');
 		} else {
-			console.warn('[GitbbonChat] No API key found.');
+			logService.warn('[GitbbonChat] No API key found.');
 		}
 	}
 
@@ -78,7 +79,7 @@ export class AIService {
 
 		const lastMessage = messages[messages.length - 1];
 		const userInput = typeof lastMessage.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage.content);
-		console.log('[gitbbon-chat][aiService] User Input:', userInput);
+		logService.info('[gitbbon-chat][aiService] User Input:', userInput);
 
 		const channel = new EventChannel();
 
@@ -140,8 +141,8 @@ export class AIService {
 
 		const instructions = SYSTEM_PROMPT + '\n\n' + contextParts.join('\n');
 
-		console.log('[gitbbon-chat][System Prompt]', instructions);
-		console.log(`[gitbbon-chat][aiService] Starting agent: ${modelName}`);
+		logService.info('[gitbbon-chat][System Prompt]', instructions);
+		logService.info(`[gitbbon-chat][aiService] Starting agent: ${modelName}`);
 
 		// Run agent with phase indicators
 		const agentPromise = (async () => {
@@ -156,7 +157,7 @@ export class AIService {
 					toolName: 'Thinking...',
 					timestamp: thinkingStart,
 				});
-				console.log('[gitbbon-chat][Phase] Thinking...');
+				logService.info('[gitbbon-chat][Phase] Thinking...');
 
 				let hasToolCalls = false;
 
@@ -166,7 +167,7 @@ export class AIService {
 					tools,
 					onStepFinish: (event) => {
 						// Log every step change
-						console.log('[gitbbon-chat][Agent Step] Step Finished', {
+						logService.info('[gitbbon-chat][Agent Step] Step Finished', {
 							text: event.text ? event.text.slice(0, 100) + '...' : undefined,
 							tools: event.toolCalls?.map(t => t.toolName).join(', ') || 'None'
 						});
@@ -182,18 +183,18 @@ export class AIService {
 									duration: Date.now() - thinkingStart,
 									success: true,
 								});
-								console.log('[gitbbon-chat][Phase] Tool Execution Started');
+								logService.info('[gitbbon-chat][Phase] Tool Execution Started');
 							}
 
 							// Log tool calls
 							event.toolCalls.forEach(call => {
-								console.log(`[gitbbon-chat][Tool Call] ${call.toolName}`, (call as any).args);
+								logService.info(`[gitbbon-chat][Tool Call] ${call.toolName}`, (call as any).args);
 							});
 
 							// Log tool results
 							if (event.toolResults) {
 								event.toolResults.forEach(result => {
-									console.log(`[gitbbon-chat][Tool Result] ${result.toolName}`, (result as any).result);
+									logService.info(`[gitbbon-chat][Tool Result] ${result.toolName}`, (result as any).result);
 								});
 							}
 						}
@@ -211,7 +212,7 @@ export class AIService {
 						duration: Date.now() - thinkingStart,
 						success: true,
 					});
-					console.log('[gitbbon-chat][Phase] Thinking Complete (No Tools Used)');
+					logService.info('[gitbbon-chat][Phase] Thinking Complete (No Tools Used)');
 				}
 
 				// Phase 2: Writing response (if we had tool calls)
@@ -223,7 +224,7 @@ export class AIService {
 						toolName: 'Writing response...',
 						timestamp: Date.now(),
 					});
-					console.log('[gitbbon-chat][Phase] Writing Response');
+					logService.info('[gitbbon-chat][Phase] Writing Response');
 					// Small delay to show the phase
 					await new Promise(r => setTimeout(r, 100));
 					channel.push({
@@ -236,11 +237,11 @@ export class AIService {
 				}
 
 				if (result.text) {
-					console.log('[gitbbon-chat][AI Response]', result.text.slice(0, 200) + '...');
+					logService.info('[gitbbon-chat][AI Response]', result.text.slice(0, 200) + '...');
 					channel.push({ type: 'text', content: result.text });
 				}
 			} catch (error) {
-				console.error('[gitbbon-chat][aiService] Agent failed:', error);
+				logService.error('[gitbbon-chat][aiService] Agent failed:', error);
 				channel.push({
 					type: 'tool-end',
 					id: thinkingId,

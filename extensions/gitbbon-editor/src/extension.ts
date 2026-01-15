@@ -5,12 +5,14 @@
 
 import * as vscode from 'vscode';
 import { GitbbonEditorProvider } from './editorProvider';
+import { logService } from './services/logService';
 
 /**
  * Extension activation
  * Gitbbon Editor extension의 진입점
  */
 export function activate(context: vscode.ExtensionContext) {
+	logService.init();
 	// Custom Editor Provider 등록
 	const provider = new GitbbonEditorProvider(context);
 	const registration = vscode.window.registerCustomEditorProvider(
@@ -109,12 +111,12 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 	context.subscriptions.push(sendStatusUpdateCommand);
 
-	console.log('[gitbbon-editor][extension] Activated');
+	logService.info('Activated');
 }
 
 /**
  * Extension deactivation
  */
 export function deactivate() {
-	console.log('[gitbbon-editor][extension] Deactivated');
+	logService.info('Deactivated');
 }

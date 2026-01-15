@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import { type ModelMessage } from 'ai';
 import { AIService } from './services/aiService';
+import { logService } from './services/logService';
 
 class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = 'gitbbon.chat';
@@ -75,7 +76,7 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 
 
 		if (!this.aiService.hasApiKey()) {
-			console.warn('[GitbbonChat] Missing API Key');
+			logService.warn('Missing API Key');
 			this._webviewView.webview.postMessage({ type: 'chat-done' });
 			this._webviewView.webview.postMessage({
 				type: 'chat-chunk',
@@ -111,7 +112,7 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 			this._webviewView.webview.postMessage({ type: 'chat-done' });
 
 		} catch (error) {
-			console.error('[GitbbonChat] Chat failed:', error);
+			logService.error('Chat failed:', error);
 			this._webviewView.webview.postMessage({
 				type: 'chat-chunk',
 				chunk: '모든 AI 모델 호출에 실패했습니다.'
@@ -152,6 +153,7 @@ function getNonce() {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
+	logService.init();
 	const provider = new GitbbonChatViewProvider(context.extensionUri);
 
 	context.subscriptions.push(
@@ -210,7 +212,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		})
 	);
 
-	console.log('[gitbbon-chat][extension] Activated');
+	logService.info('Activated');
 }
 
 export function deactivate(): void { }
