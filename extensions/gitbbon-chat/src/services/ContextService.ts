@@ -257,10 +257,17 @@ export class ContextService {
 	/**
 	 * Create a new note file with content.
 	 * Automatically creates parent directories if they don't exist.
+	 * If title is provided, it will be placed in YAML frontmatter.
 	 */
-	public static async createNote(filePath: string, content: string): Promise<string> {
+	public static async createNote(filePath: string, content: string, title?: string): Promise<string> {
 		if (!filePath) {
 			throw new Error("File path is required.");
+		}
+
+		// Build final content with YAML frontmatter if title is provided
+		let finalContent = content;
+		if (title) {
+			finalContent = `---\ntitle: ${title}\n---\n${content}`;
 		}
 
 		// Resolve URI
@@ -285,7 +292,7 @@ export class ContextService {
 
 		// Write file
 		const encoder = new TextEncoder();
-		await vscode.workspace.fs.writeFile(uri, encoder.encode(content));
+		await vscode.workspace.fs.writeFile(uri, encoder.encode(finalContent));
 
 		// Open the created file
 		await vscode.commands.executeCommand('vscode.open', uri);

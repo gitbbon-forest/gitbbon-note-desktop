@@ -153,19 +153,20 @@ ${detail.after}
 			inputSchema: z.object({
 				action: z.enum(['create', 'update', 'delete']).describe('Action type'),
 				filePath: z.string().describe('File path'),
-				content: z.string().optional().describe('For create: full markdown content'),
+				title: z.string().optional().describe('For create: Note title (will be placed in YAML frontmatter)'),
+				content: z.string().optional().describe('For create: Note body content (without frontmatter)'),
 				changes: z.array(z.object({
 					oldText: z.string(),
 					newText: z.string()
 				})).optional().describe('For update: text replacements')
 			}),
-			execute: async ({ action, filePath, content, changes }) => {
+			execute: async ({ action, filePath, title, content, changes }) => {
 				return withProgress('edit_note', { action, filePath }, emitter, async () => {
 					try {
 						switch (action) {
 							case 'create':
 								if (!content) return 'Error: content required.';
-								return await ContextService.createNote(filePath, content);
+								return await ContextService.createNote(filePath, content, title);
 							case 'update':
 								if (!changes?.length) return 'Error: changes required.';
 								await ContextService.applySuggestions(filePath, changes, 'direct');
