@@ -205,11 +205,20 @@ export const App = () => {
 		});
 	}, []);
 
+	// Request relative link from extension
+	const handleCreateLink = useCallback((path: string) => {
+		// editorRef.current?.createLink(path); // Old direct call
+		vscode.postMessage({
+			type: 'requestRelativeLink',
+			path
+		});
+	}, []);
+
 	// gitbbon custom: 선택 텍스트 변경 시 비슷한 글 검색 요청 (debounce)
 	const debouncedSearchSimilar = useMemo(
 		() =>
 			debounce((text: string) => {
-				log('[gitbbon-editor][App][SelectionSimilar] Searching for:', text.substring(0, 50));
+				console.log('[gitbbon-editor][App][SelectionSimilar] Searching for:', text.substring(0, 50));
 				vscode.postMessage({
 					type: 'searchSimilarForSelection',
 					text,
@@ -257,30 +266,30 @@ export const App = () => {
 					const remoteTitle = message.frontmatter?.title || '';
 					const remoteContent = message.content || '';
 
-					log(`[gitbbon-editor][App] Received ${message.type} message`);
-					log(`[gitbbon-editor][App] remoteContent length: ${remoteContent.length}, contentRef length: ${contentRef.current?.length || 'null'}`);
+					console.log(`[gitbbon-editor][App] Received ${message.type} message`);
+					console.log(`[gitbbon-editor][App] remoteContent length: ${remoteContent.length}, contentRef length: ${contentRef.current?.length || 'null'}`);
 
 					// Update Title
 					setTitle(remoteTitle);
 
 					// Update Editor
 					const contentChanged = remoteContent !== contentRef.current;
-					log(`[gitbbon-editor][App] contentChanged: ${contentChanged}`);
+					console.log(`[gitbbon-editor][App] contentChanged: ${contentChanged}`);
 
 					if (contentRef.current === null) {
 						// First load
-						log('[gitbbon-editor][App] First load, setting initial content');
+						console.log('[gitbbon-editor][App] First load, setting initial content');
 						setEditorContent(remoteContent);
 						lastSentContentRef.current = remoteContent;
 					} else if (editorRef.current && contentChanged) {
 						// gitbbon custom: 에코 감지 - 우리가 보낸 콘텐츠가 돌아온 경우 무시
 						if (lastSentContentRef.current === remoteContent) {
-							log('[gitbbon-editor][App] Ignoring echo - content matches what we sent');
+							console.log('[gitbbon-editor][App] Ignoring echo - content matches what we sent');
 							break;
 						}
 
 						// Subsequent updates (only if content changed and not echo)
-						log('[gitbbon-editor][App] External content update detected');
+						console.log('[gitbbon-editor][App] External content update detected');
 						editorRef.current.setContent(remoteContent);
 						setEditorContent(remoteContent);
 						lastSentContentRef.current = remoteContent;
@@ -288,7 +297,7 @@ export const App = () => {
 
 					// [New] Handle initial status (e.g. if draft exists)
 					if (message.type === 'init' && message.initialStatus) {
-						log(`[gitbbon-editor][App] Setting initial status: ${message.initialStatus}`);
+						console.log(`[gitbbon-editor][App] Setting initial status: ${message.initialStatus}`);
 						setSaveStatus(message.initialStatus as SaveStatus);
 					}
 					break;
@@ -343,17 +352,69 @@ export const App = () => {
 				// gitbbon custom: 선택 텍스트 기반 비슷한 글 검색 결과
 				case 'selectionSimilarArticles':
 					if (message.articles) {
-						log('[gitbbon-editor][App][SelectionSimilar] Received articles:', message.articles.length);
+						console.log('[gitbbon-editor][App][SelectionSimilar] Received articles:', message.articles.length);
 						setSelectionSimilarArticles(message.articles);
+					}
+					break;
+				case 'insertLink':
+					if (message.path) {
+						editorRef.current?.insertLink(message.path);
 					}
 					break;
 			}
 		};
 
 		window.addEventListener('message', handleMessage);
+
+		// Listen for custom link click event from Milkdown (from clickPlugin)
+		const handleLinkClick = (e: Event) => {
+			const detail = (e as CustomEvent).detail;
+			if (detail && detail.type === 'openLink') {
+				vscode.postMessage({
+					type: 'openLink',
+					href: detail.href
+				});
+			}
+		};
+		window.addEventListener('gitbbon-link-click', handleLinkClick);
+
+		// Global click listener to intercept links in tooltips/widgets
+		const handleGlobalClick = (e: MouseEvent) => {
+			let target = e.target as HTMLElement;
+
+			// Check if the click is inside the editor (ProseMirror)
+			// If so, we want to let Milkdown handle it (show tooltip), so we ignore it here.
+			const isInsideEditor = target.closest('.ProseMirror');
+			if (isInsideEditor) {
+				return;
+			}
+
+			// Traverse up to find <a> tag
+			while (target && target.tagName !== 'A' && target !== document.body) {
+				target = target.parentElement as HTMLElement;
+			}
+
+			if (target && target.tagName === 'A') {
+				const href = target.getAttribute('href');
+				if (href) {
+					e.preventDefault();
+					e.stopPropagation();
+					vscode.postMessage({
+						type: 'openLink',
+						href: href
+					});
+				}
+			}
+		};
+		document.addEventListener('click', handleGlobalClick, true);
+
 		vscode.postMessage({ type: 'ready' });
 
-		return () => window.removeEventListener('message', handleMessage);
+		return () => {
+			window.removeEventListener('message', handleMessage);
+			window.removeEventListener('gitbbon-link-click', handleLinkClick);
+			document.removeEventListener('click', handleGlobalClick, true);
+		};
 	}, []);
 
 	if (editorContent === null) {
@@ -400,6 +461,7 @@ export const App = () => {
 			<SelectionSimilarArticles
 				articles={selectionSimilarArticles}
 				onArticleClick={handleOpenSimilarArticle}
+				onLinkClick={handleCreateLink}
 				visible={showSelectionSimilar}
 			/>
 			<SimilarArticles articles={similarArticles} onArticleClick={handleOpenSimilarArticle} />

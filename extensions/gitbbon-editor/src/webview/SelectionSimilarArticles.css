@@ -29,7 +29,8 @@
 .selection-similar-item {
 	display: flex;
 	align-items: center;
-	padding: 6px 10px;
+	justify-content: space-between; /* title and button separated */
+	padding: 4px 8px; /* Adjusted padding */
 	cursor: pointer;
 	font-size: 11px;
 	color: var(--crepe-color-on-surface, var(--vscode-foreground, #cccccc));
@@ -49,4 +50,30 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	flex-grow: 1; /* Take up available space */
+	margin-right: 8px; /* Space between title and button */
+}
+
+/* Link Button Style */
+.selection-similar-link-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: none;
+	border: none;
+	padding: 2px;
+	cursor: pointer;
+	color: inherit; /* Inherit color from parent (handles hover) */
+	border-radius: 4px;
+	opacity: 0.7;
+	transition: opacity 0.1s ease, background-color 0.1s ease;
+}
+
+.selection-similar-link-button:hover {
+	opacity: 1;
+	background-color: rgba(255, 255, 255, 0.1);
+}
+
+.selection-similar-item:hover .selection-similar-link-button {
+	color: var(--crepe-color-primary, var(--vscode-textLink-activeForeground, #3794ff));
 }

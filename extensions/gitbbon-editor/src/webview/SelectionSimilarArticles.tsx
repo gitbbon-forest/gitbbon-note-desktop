@@ -11,6 +11,7 @@ export interface SimilarArticle {
 interface SelectionSimilarArticlesProps {
 	articles: SimilarArticle[];
 	onArticleClick: (path: string) => void;
+	onLinkClick: (path: string) => void;
 	visible: boolean;
 }
 
@@ -21,6 +22,7 @@ interface SelectionSimilarArticlesProps {
 export const SelectionSimilarArticles: React.FC<SelectionSimilarArticlesProps> = ({
 	articles,
 	onArticleClick,
+	onLinkClick,
 	visible
 }) => {
 	const [toolbarElement, setToolbarElement] = useState<HTMLElement | null>(null);
@@ -31,7 +33,7 @@ export const SelectionSimilarArticles: React.FC<SelectionSimilarArticlesProps> =
 		const findToolbar = () => {
 			const toolbar = document.querySelector('.milkdown-toolbar') as HTMLElement;
 			if (toolbar) {
-				// console.log('[gitbbon-editor][SelectionSimilar] Toolbar found:', toolbar);
+				console.log('[gitbbon-editor][SelectionSimilar] Toolbar found:', toolbar);
 				setToolbarElement(toolbar);
 			} else {
 				setToolbarElement(null);
@@ -105,6 +107,23 @@ export const SelectionSimilarArticles: React.FC<SelectionSimilarArticlesProps> =
 						title={article.title}
 					>
 						<span className="selection-similar-title">{article.title}</span>
+						<button
+							className="selection-similar-link-button"
+							onClick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								onLinkClick(article.path);
+							}}
+							onMouseDown={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+							}}
+							title="Connect as Link"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width="14" height="14">
+								<path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+							</svg>
+						</button>
 					</li>
 				))}
 			</ul>

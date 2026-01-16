@@ -52,6 +52,8 @@ export interface MilkdownEditorRef {
 	// gitbbon custom: Replace functionality
 	replaceNextMatch: () => void;
 	replaceAllMatches: () => void;
+	// gitbbon custom: Link functionality
+	insertLink: (path: string) => void;
 }
 
 // gitbbon custom: AI 물어보기 버튼 아이콘 (sparkle)
@@ -392,6 +394,36 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 				(editor as any).action((ctx: any) => {
 					const view = ctx.get(editorViewCtx);
 					replaceAll(view.state, view.dispatch, view);
+				});
+			}
+		},
+		// gitbbon custom: Link functionality - 링크 삽입 (상대 경로)
+		insertLink: (path: string) => {
+			if (loading) return;
+			const editor = getInstance();
+			if (!editor) return;
+
+			if (typeof (editor as any).action === 'function') {
+				(editor as any).action((ctx: any) => {
+					const view = ctx.get(editorViewCtx);
+					const { state, dispatch } = view;
+					const { schema } = state;
+					const { from, to } = state.selection;
+
+					// URL 인코딩? 필요 시 encodeURI(path) 사용. 공백 등이 있을 수 있음.
+					// 하지만 마크다운에서 파일명에 공백이 있으면 %20으로 변환하는게 안전함.
+					// 일단 그대로 사용.
+
+					if (from === to) {
+						// 선택 영역이 없는 경우
+						const linkMark = schema.marks.link.create({ href: path });
+						const text = path;
+						dispatch(state.tr.insertText(text, from, to).addMark(from, from + text.length, linkMark));
+					} else {
+						// 선택 영역이 있는 경우
+						const linkMark = schema.marks.link.create({ href: path });
+						dispatch(state.tr.addMark(from, to, linkMark));
+					}
 				});
 			}
 		}

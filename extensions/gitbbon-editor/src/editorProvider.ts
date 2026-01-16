@@ -730,6 +730,38 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 							this.searchSimilarForSelection(message.text, document, webviewPanel);
 						}
 						break;
+					case 'requestRelativeLink':
+						if (message.path) {
+							const targetPath = message.path;
+							const currentPath = document.uri.fsPath;
+							const currentDir = path.dirname(currentPath);
+							let relativePath = path.relative(currentDir, targetPath);
+							// Add relative prefix if needed (e.g. "foo.md" -> "./foo.md" might be preferred but standard relative path is fine)
+							// VS Code/Markdown usually works fine with "foo.md" if in same dir.
+							// But to be safe and explicit, standard path.relative is good.
+							// Replace backslashes for Windows
+							relativePath = relativePath.split(path.sep).join('/');
+
+							webviewPanel.webview.postMessage({
+								type: 'insertLink',
+								path: relativePath
+							});
+						}
+						break;
+					case 'openLink':
+						if (message.href) {
+							// Check if it's an external link or relative path
+							const href = message.href;
+							if (href.startsWith('http://') || href.startsWith('https://')) {
+								vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(href));
+							} else {
+								// Relative path logic
+								const currentDir = path.dirname(document.uri.fsPath);
+								const targetPath = path.resolve(currentDir, href);
+								vscode.commands.executeCommand('vscode.open', vscode.Uri.file(targetPath));
+							}
+						}
+						break;
 				}
 			}
 		);
