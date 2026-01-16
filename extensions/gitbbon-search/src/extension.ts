@@ -134,15 +134,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 	context.subscriptions.push(gitWatcher);
 
 	// Hidden Webview 초기화 (배경에서 모델 로딩)
-	logService.info('[DEBUG] Starting Hidden Webview initialization...');
+	logService.debug('Starting Hidden Webview initialization...');
 	try {
-		logService.info('[DEBUG] Creating HiddenWebview...');
+		logService.debug('Creating HiddenWebview...');
 		hiddenWebview = vscode.window.createHiddenWebview('gitbbon-search-model', {
 			webviewOptions: {
 				enableScripts: true
 			}
 		});
-		logService.info('[DEBUG] HiddenWebview created successfully');
+		logService.debug('HiddenWebview created successfully');
 
 		// modelHost.js를 읽어서 인라인으로 삽입 (Hidden Webview에서 외부 ES 모듈 로드 불가)
 		const modelHostScriptUri = vscode.Uri.joinPath(context.extensionUri, 'out', 'webview', 'modelHost.js');
@@ -181,17 +181,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 </body>
 </html>`;
 
-		logService.info('[DEBUG] Hidden Webview HTML set, length: ' + hiddenWebview.html.length);
+		logService.debug('Hidden Webview HTML set, length: ' + hiddenWebview.html.length);
 
 		// Hidden Webview로부터 메시지 수신
 		logService.info('[DEBUG] Setting up message handler...');
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		hiddenWebview.onDidReceiveMessage(async (message: any) => {
-			logService.info('[DEBUG] Received message from Hidden Webview: ' + message.type);
+			logService.debug('Received message from Hidden Webview: ' + message.type);
 			switch (message.type) {
 				case 'webviewReady':
 					// Webview가 준비되었으므로 이제 initModel 전송
-					logService.info('[DEBUG] Received webviewReady, sending initModel message...');
+					logService.debug('Received webviewReady, sending initModel message...');
 					hiddenWebview!.postMessage({ type: 'initModel' });
 					break;
 				case 'modelReady':
@@ -266,7 +266,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 
 		// 모델 로딩 시작 요청은 webviewReady 메시지를 받은 후에 수행
 		// (initModel을 즉시 보내면 Webview가 아직 리스너를 설정하지 않아 메시지가 손실될 수 있음)
-		logService.info('[DEBUG] Hidden Webview created, waiting for webviewReady message...');
+		logService.debug('Hidden Webview created, waiting for webviewReady message...');
 
 		context.subscriptions.push(hiddenWebview);
 	} catch (error) {
@@ -299,7 +299,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
  */
 async function embedQuery(query: string): Promise<number[]> {
 	if (!hiddenWebview || !modelReady) {
-		logService.warn(`[DEBUG] embedQuery failed: hiddenWebview=${!!hiddenWebview}, modelReady=${modelReady}`);
+		logService.warn(`embedQuery failed: hiddenWebview=${!!hiddenWebview}, modelReady=${modelReady}`);
 		throw new Error('Search model is not ready');
 	}
 
@@ -437,7 +437,7 @@ async function indexFile(fileUri: vscode.Uri): Promise<void> {
 			logService.info(`Cache invalid for ${fileUri.fsPath}, re-indexing...`);
 		}
 
-		logService.info(`Requesting embedding for ${fileUri.fsPath} (title: ${title})`);
+		logService.debug(`Requesting embedding for ${fileUri.fsPath} (title: ${title})`);
 		hiddenWebview.postMessage({
 			type: 'embedDocument',
 			filePath: fileUri.fsPath,

@@ -339,11 +339,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			// Multi Diff 탭이면 캐시에서 full hash 찾기 또는 short hash로 하이라이트
 			const cachedCommits = multiDiffHashCache.get(extractedHashes.current);
 			if (cachedCommits) {
-				console.log(`[Tab Change] Highlighting from cache for: ${tabLabel}`, cachedCommits);
+				logService.debug(`Tab Change: Highlighting from cache for: ${tabLabel}`, cachedCommits);
 				gitGraphProvider.highlightCommits(cachedCommits.current, cachedCommits.compare);
 			} else {
 				// 캐시에 없으면 추출한 short hash로 직접 하이라이트
-				console.log(`[Tab Change] Highlighting with extracted hashes: ${tabLabel}`, extractedHashes);
+				logService.debug(`Tab Change: Highlighting with extracted hashes: ${tabLabel}`, extractedHashes);
 				gitGraphProvider.highlightCommits(extractedHashes.current, extractedHashes.compare);
 			}
 		} else {
@@ -356,7 +356,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const switchComparisonModeCommand = vscode.commands.registerCommand(
 		'gitbbon.switchComparisonMode',
 		async (args: { mode: string; multiDiffSource: string }) => {
-			console.log('Switch Comparison Mode triggered:', args);
+			logService.info('Switch Comparison Mode triggered:', args);
 			if (!args.multiDiffSource) {
 				vscode.window.showErrorMessage('No Multi Diff Source provided.');
 				return;
@@ -364,7 +364,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 			try {
 				const uri = vscode.Uri.parse(args.multiDiffSource);
-				console.log('uri.scheme:', uri.scheme);
+				logService.debug('uri.scheme:', uri.scheme);
 
 				// scm-history-item 스킴인 경우 컨텍스트 갱신
 				if (uri.scheme === 'scm-history-item') {
@@ -373,7 +373,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
 					if (historyItemId && rootUri) {
 						currentCommitContext = { historyItemId, rootUri };
-						console.log('Updated commit context:', currentCommitContext);
+						logService.debug('Updated commit context:', currentCommitContext);
 					}
 				}
 
@@ -419,7 +419,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 						// Get subject only (%s)
 						cp.exec(`git log -1 --pretty=%s ${hash}`, { cwd: rootUri.fsPath }, (err: Error | null, stdout: string) => {
 							if (err) {
-								console.error(`Failed to get message for ${hash}`, err);
+								logService.error(`Failed to get message for ${hash}`, err);
 								resolve('No message');
 							} else {
 								resolve(stdout.trim());
@@ -439,9 +439,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 							const currentBranch = await getCurrentBranch();
 							const commitHash = await resolveRefToCommitHash(currentBranch);
 							parentCommitId = commitHash;
-							console.log(`Savepoint mode: comparing with '${currentBranch}' -> commit ${commitHash}`);
+							logService.info(`Savepoint mode: comparing with '${currentBranch}' -> commit ${commitHash}`);
 						} catch (e) {
-							console.error('Failed to resolve branch to commit:', e);
+							logService.error('Failed to resolve branch to commit:', e);
 						}
 						break;
 					case 'draft':
@@ -451,9 +451,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 							const autoSaveBranch = `auto-save/${currentBranch}`;
 							const commitHash = await resolveRefToCommitHash(autoSaveBranch);
 							parentCommitId = commitHash;
-							console.log(`Draft mode: comparing with '${autoSaveBranch}' -> commit ${commitHash}`);
+							logService.info(`Draft mode: comparing with '${autoSaveBranch}' -> commit ${commitHash}`);
 						} catch (e) {
-							console.error('Failed to resolve auto-save branch to commit:', e);
+							logService.error('Failed to resolve auto-save branch to commit:', e);
 							vscode.window.showWarningMessage(`auto-save 브랜치를 찾을 수 없습니다.`);
 						}
 						break;
@@ -462,15 +462,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 						try {
 							const commitParent = await resolveRefToCommitHash(`${historyItemId}^`);
 							parentCommitId = commitParent;
-							console.log(`Default mode: comparing with parent commit ${commitParent}`);
+							logService.info(`Default mode: comparing with parent commit ${commitParent}`);
 						} catch (e) {
-							console.error('Failed to resolve parent commit:', e);
+							logService.error('Failed to resolve parent commit:', e);
 							vscode.window.showWarningMessage('부모 커밋을 찾을 수 없습니다.');
 						}
 						break;
 				}
 
-				console.log(`Switching mode to ${args.mode}, parent: ${parentCommitId}`);
+				logService.info(`Switching mode to ${args.mode}, parent: ${parentCommitId}`);
 
 				if (!parentCommitId) {
 					// Default 모드: 기존 Core 명령어 사용
@@ -537,7 +537,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 					try {
 						const changedFiles = await getChangedFiles();
-						console.log(`[switchComparisonMode] Changed files:`, changedFiles);
+						logService.debug(`[switchComparisonMode] Changed files:`, changedFiles);
 
 						if (changedFiles.length === 0) {
 							vscode.window.showInformationMessage('변경된 파일이 없습니다.');
@@ -599,16 +599,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 						const shortHash = historyItemId.substring(0, 8);
 						multiDiffHashCache.set(shortHash, { current: historyItemId, compare: parentCommitId });
 						gitGraphProvider.highlightCommits(historyItemId, parentCommitId);
-						console.log(`[switchComparisonMode] Cached (key: ${shortHash}) and highlighted`);
+						logService.debug(`Switch Comparison Mode: Cached (key: ${shortHash}) and highlighted`);
 
 					} catch (e) {
-						console.error('[switchComparisonMode] Failed to get changed files:', e);
+						logService.error('Switch Comparison Mode: Failed to get changed files:', e);
 						vscode.window.showErrorMessage('변경된 파일 목록을 가져오지 못했습니다.');
 					}
 				}
 
 			} catch (e) {
-				console.error('Failed to switch comparison mode:', e);
+				logService.error('Failed to switch comparison mode:', e);
 				vscode.window.showErrorMessage('Failed to switch comparison mode.');
 			}
 		}
@@ -619,7 +619,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const restoreToVersionCommand = vscode.commands.registerCommand(
 		'gitbbon.restoreToVersion',
 		async (args: { commitHash: string; multiDiffSource: string }) => {
-			console.log('Restore to Version triggered:', args);
+			logService.info('Restore to Version triggered:', args);
 
 			if (!args.commitHash) {
 				vscode.window.showErrorMessage('No commit hash provided for restoration.');
@@ -635,7 +635,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 						rootUri = vscode.workspace.workspaceFolders?.[0]?.uri; // fallback to first folder usually works
 					}
 				} catch (e) {
-					console.error('Failed to parse multiDiffSource:', e);
+					logService.error('Failed to parse multiDiffSource:', e);
 				}
 			}
 			if (!rootUri) {
@@ -681,19 +681,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					}
 				});
 			} catch (e) {
-				console.error('[Restore] Failed:', e);
+				logService.error('Restore Failed:', e);
 				vscode.window.showErrorMessage(`복원 실패: ${e}`);
 			}
 		}
 	);
 	context.subscriptions.push(restoreToVersionCommand);
 
-	console.log('Gitbbon Manager extension activated!');
+	logService.info('Gitbbon Manager extension activated!');
 }
 
 /**
  * Extension deactivation
  */
 export function deactivate(): void {
-	console.log('Gitbbon Manager extension deactivated');
+	logService.info('Gitbbon Manager extension deactivated');
 }

@@ -92,14 +92,14 @@ export class Workbench extends Layout {
 		parent: HTMLElement,
 		private readonly options: IWorkbenchOptions | undefined,
 		private readonly serviceCollection: ServiceCollection,
-		logService: ILogService
+		private readonly appLogService: ILogService
 	) {
 		super(parent, { resetLayout: Boolean(options?.resetLayout) });
 
 		// Perf: measure workbench startup time
 		mark('code/willStartWorkbench');
 
-		this.registerErrorHandler(logService);
+		this.registerErrorHandler(appLogService);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {
@@ -391,7 +391,7 @@ export class Workbench extends Layout {
 
 	// gitbbon custom: Floating Widget System - create container and register commands
 	private createFloatingLayer(container: HTMLElement, commandService: ICommandService): void {
-		console.log('Gitbbon: Creating Floating Layer');
+		this.appLogService.info('Gitbbon: Creating Floating Layer');
 		this.floatingLayer = document.createElement('div');
 		this.floatingLayer.classList.add('gitbbon-floating-layer');
 		this.floatingLayer.style.bottom = `${FLOATING_WIDGET_BOTTOM}px`;
@@ -411,7 +411,7 @@ export class Workbench extends Layout {
 
 		// Register Internal Commands
 		CommandsRegistry.registerCommand('_gitbbon.upsertFloatingWidget', (accessor, args: { id: string, type?: 'button', label?: string, icon?: string, tooltip?: string, command?: string, priority?: number, dimmed?: boolean }) => {
-			console.log('[Gitbbon] _gitbbon.upsertFloatingWidget called', args);
+			this.appLogService.info('[Gitbbon] _gitbbon.upsertFloatingWidget called', args);
 			const existing = this.floatingWidgets.get(args.id);
 			this.floatingWidgets.set(args.id, {
 				type: args.type || 'button',
@@ -426,7 +426,7 @@ export class Workbench extends Layout {
 		});
 
 		CommandsRegistry.registerCommand('_gitbbon.removeFloatingWidget', (accessor, args: { id: string }) => {
-			console.log('[Gitbbon] _gitbbon.removeFloatingWidget called', args);
+			this.appLogService.info('[Gitbbon] _gitbbon.removeFloatingWidget called', args);
 		});
 
 		// Initialize Single Main Widget (Saved state, dimmed)
@@ -444,11 +444,11 @@ export class Workbench extends Layout {
 	// gitbbon custom: Floating Widget System - render buttons based on state
 	private renderFloatingWidgets(): void {
 		if (!this.floatingLayer) {
-			console.log('[Gitbbon] renderFloatingWidgets aborted: floatingLayer not found');
+			this.appLogService.info('[Gitbbon] renderFloatingWidgets aborted: floatingLayer not found');
 			return;
 		}
 
-		console.log('[Gitbbon] renderFloatingWidgets running. Widgets count:', this.floatingWidgets.size);
+		this.appLogService.info('[Gitbbon] renderFloatingWidgets running. Widgets count:', this.floatingWidgets.size);
 
 		const sortedWidgets = Array.from(this.floatingWidgets.entries())
 			.sort(([, a], [, b]) => a.priority - b.priority);

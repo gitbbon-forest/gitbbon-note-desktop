@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { FrontmatterParser } from './frontmatterParser';
 import { getNonce } from './util';
+import { logService } from './services/logService';
 
 /**
  * Gitbbon Custom Editor Provider
@@ -136,7 +137,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		}
 
 		if (!this.webviewReadyMap.get(this.activeWebviewPanel)) {
-			console.warn('[GitbbonEditor] Webview not ready for suggestions');
+			logService.warn('Webview not ready for suggestions');
 			vscode.window.showWarningMessage('Editor is not fully loaded yet. Please try again.');
 			return;
 		}
@@ -160,7 +161,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			throw new Error("No active document found.");
 		}
 
-		console.log('[gitbbon-editor][editorProvider] Direct Apply started');
+		logService.info('Direct Apply started');
 
 		const document = this.activeDocument;
 		const fullText = document.getText();
@@ -198,7 +199,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 					workspaceEdit.replace(document.uri, range, newText || '');
 					hasChanges = true;
 				} else {
-					console.warn(`[GitbbonEditor] Could not find oldText: "${oldText.substring(0, 20)}..."`);
+					logService.warn(`Could not find oldText: "${oldText.substring(0, 20)}..."`);
 					// We could throw here to trigger self-correction, but let's try to apply other changes
 					// Actually, throwing is better for the AI to know it failed.
 					// BUT if we applied SOME changes, we shouldn't fail completely?
@@ -216,7 +217,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			if (!success) {
 				throw new Error("Failed to apply WorkspaceEdit.");
 			}
-			console.log('[gitbbon-editor][editorProvider] Direct Apply success');
+			logService.info('Direct Apply success');
 		}
 	}
 
@@ -250,7 +251,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		try {
 			const searchExtension = vscode.extensions.getExtension('gitbbon.gitbbon-search');
 			if (!searchExtension) {
-				console.log('[GitbbonEditor] gitbbon-search extension not found');
+				logService.info('gitbbon-search extension not found');
 				return;
 			}
 
@@ -260,7 +261,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 
 			const api = searchExtension.exports;
 			if (!api || typeof api.search !== 'function') {
-				console.log('[GitbbonEditor] gitbbon-search API not available');
+				logService.info('gitbbon-search API not available');
 				return;
 			}
 
@@ -272,7 +273,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 				return;
 			}
 
-			console.log(`[GitbbonEditor] Searching for similar articles for: "${query}"`);
+			logService.info(`Searching for similar articles for: "${query}"`);
 
 			// Current document's workspace folder path
 			const wsFolder = vscode.workspace.getWorkspaceFolder(document.uri);
@@ -333,7 +334,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 				articles: articles
 			});
 		} catch (error) {
-			console.error('[GitbbonEditor] Failed to update similar articles:', error);
+			logService.error('Failed to update similar articles:', error);
 		}
 	}
 
@@ -348,7 +349,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		try {
 			const searchExtension = vscode.extensions.getExtension('gitbbon.gitbbon-search');
 			if (!searchExtension) {
-				console.log('[GitbbonEditor][SelectionSimilar] gitbbon-search extension not found');
+				logService.info('gitbbon-search extension not found (SelectionSimilar)');
 				return;
 			}
 
@@ -358,7 +359,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 
 			const api = searchExtension.exports;
 			if (!api || typeof api.search !== 'function') {
-				console.log('[GitbbonEditor][SelectionSimilar] gitbbon-search API not available');
+				logService.info('gitbbon-search API not available (SelectionSimilar)');
 				return;
 			}
 
@@ -369,7 +370,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 				return;
 			}
 
-			console.log(`[GitbbonEditor][SelectionSimilar] Searching for: "${query.substring(0, 50)}..."`);
+			logService.info(`Searching for: "${query.substring(0, 50)}..." (SelectionSimilar)`);
 
 			// Current document's workspace folder path
 			const wsFolder = vscode.workspace.getWorkspaceFolder(document.uri);
@@ -430,14 +431,14 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			// Sort by score desc
 			articles.sort((a, b) => b.score - a.score);
 
-			console.log(`[GitbbonEditor][SelectionSimilar] Found ${articles.length} articles`);
+			logService.info(`Found ${articles.length} similar articles (SelectionSimilar)`);
 
 			webviewPanel.webview.postMessage({
 				type: 'selectionSimilarArticles',
 				articles: articles
 			});
 		} catch (error) {
-			console.error('[GitbbonEditor][SelectionSimilar] Failed to search similar articles:', error);
+			logService.error('Failed to search similar articles (SelectionSimilar):', error);
 		}
 	}
 
@@ -490,8 +491,9 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		try {
 			hasDraft = await vscode.commands.executeCommand('gitbbon.manager.hasPendingAutoSave') as boolean;
 		} catch (e) {
-			console.warn('[GitbbonEditorProvider] Failed to check pending auto-save:', e);
+			logService.warn('Failed to check pending auto-save:', e);
 		}
+
 
 		// Webview로 초기 데이터 전송
 		webviewPanel.webview.postMessage({
@@ -522,7 +524,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 					await document.save();
 					// Auto save 로그 제거 (너무 빈번함)
 				} catch (error) {
-					console.error('Auto save failed:', error);
+					logService.error('Auto save failed:', error);
 				}
 			}, AUTO_SAVE_DELAY_MS);
 
@@ -555,7 +557,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 
 					}
 				} catch (error) {
-					console.error('Auto commit failed:', error);
+					logService.error('Auto commit failed:', error);
 				}
 			}, delay);
 		};
@@ -592,7 +594,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 					case 'ready':
 						// Webview 준비 완료 시 초기 데이터 재전송 및 상태 업데이트
 						GitbbonEditorProvider.webviewReadyMap.set(webviewPanel, true);
-						console.log('[gitbbon-editor][editorProvider] Webview ready');
+						logService.info('Webview ready');
 
 						const initialText = document.getText();
 						lastWebviewText = initialText;
@@ -602,8 +604,9 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 						try {
 							hasDraftReady = await vscode.commands.executeCommand('gitbbon.manager.hasPendingAutoSave') as boolean;
 						} catch (e) {
-							console.warn('[GitbbonEditorProvider] Failed to check pending auto-save (ready):', e);
+							logService.warn('Failed to check pending auto-save (ready):', e);
 						}
+
 
 						webviewPanel.webview.postMessage({
 							type: 'init',
@@ -648,7 +651,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 								this.updateSimilarArticles(document, webviewPanel);
 							}
 						} catch (error) {
-							console.error('Really Final failed:', error);
+							logService.error('Really Final failed:', error);
 							vscode.window.showErrorMessage(`진짜최종 실패: ${error}`);
 						}
 						break;
