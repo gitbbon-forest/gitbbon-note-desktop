@@ -26,6 +26,7 @@ import { EditorInputCapabilities, GroupIdentifier, IMoveResult, IRevertOptions, 
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
 import { ICustomEditorModel, ICustomEditorService } from '../common/customEditor.js';
+import { ITextFileService, ITextFileEditorModel } from '../../../services/textfile/common/textfiles.js'; // gitbbon
 import { IOverlayWebview, IWebviewService } from '../../webview/browser/webview.js';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from '../../webviewPanel/browser/webviewWorkbenchService.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -77,6 +78,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	private _editorName: string | undefined = undefined;
 
+	private _yamlTitle: string | undefined; // gitbbon
+
 	private readonly _backupId: string | undefined;
 
 	private readonly _untitledDocumentData: VSBuffer | undefined;
@@ -101,6 +104,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService,
+		@ITextFileService private readonly textFileService: ITextFileService // gitbbon
 	) {
 		super({ providedId: init.viewType, viewType: init.viewType, name: '', iconPath: init.iconPath }, webview, themeService, webviewWorkbenchService);
 		this._editorResource = init.resource;
@@ -110,6 +114,21 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._untitledDocumentData = options.untitledDocumentData;
 
 		this.registerListeners();
+
+		// gitbbon start: Listen for text model changes to update title
+		this._register(this.textFileService.files.onDidResolve(e => {
+			if (isEqual(e.model.resource, this.resource)) {
+				this.registerTextModelListeners(e.model);
+				this.updateTitleFromContent(e.model);
+			}
+		}));
+
+		const existingModel = this.textFileService.files.get(this.resource);
+		if (existingModel) {
+			this.registerTextModelListeners(existingModel);
+			this.updateTitleFromContent(existingModel);
+		}
+		// gitbbon end
 	}
 
 	private registerListeners(): void {
@@ -177,6 +196,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	override getName(): string {
+		if (this._yamlTitle) { // gitbbon
+			return this._yamlTitle; // gitbbon
+		} // gitbbon
+
 		const customTitle = this.getWebviewTitle();
 		if (customTitle) {
 			return customTitle;
@@ -450,4 +473,30 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 		return true;
 	}
+
+	// gitbbon start
+	// gitbbon start
+	private registerTextModelListeners(model: ITextFileEditorModel): void {
+		if (model.isResolved()) {
+			this._register(model.textEditorModel.onDidChangeContent(() => {
+				this.updateTitleFromContent(model);
+			}));
+		}
+	}
+
+	private updateTitleFromContent(model: ITextFileEditorModel): void {
+		if (model.isResolved() && this.resource.path.toLowerCase().endsWith('.md')) {
+			const text = model.textEditorModel.getValue().substring(0, 500);
+			const match = text.match(/^---\r?\n[\s\S]*?title:\s*(.+?)\r?\n[\s\S]*?---/);
+			if (match && match[1]) {
+				const newTitle = match[1].trim().replace(/^['"](.*)['"]$/, '$1');
+
+				if (this._yamlTitle !== newTitle) {
+					this._yamlTitle = newTitle;
+					this.updateLabel(); // Clears caches and fires change event
+				}
+			}
+		}
+	}
+	// gitbbon end
 }

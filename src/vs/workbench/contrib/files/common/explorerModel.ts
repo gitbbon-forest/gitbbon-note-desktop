@@ -22,6 +22,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js'; // gitbbon
 
 export class ExplorerModel implements IDisposable {
 
@@ -36,9 +37,10 @@ export class ExplorerModel implements IDisposable {
 		fileService: IFileService,
 		configService: IConfigurationService,
 		filesConfigService: IFilesConfigurationService,
+		textFileService: ITextFileService
 	) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
-			.map(folder => new ExplorerItem(folder.uri, fileService, configService, filesConfigService, undefined, true, false, false, false, folder.name, undefined, false, (item) => this._onDidChangeItem.fire(item)));
+			.map(folder => new ExplorerItem(folder.uri, fileService, configService, filesConfigService, textFileService, undefined, true, false, false, false, folder.name, undefined, false, (item) => this._onDidChangeItem.fire(item)));
 		setRoots();
 
 		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => {
@@ -104,6 +106,7 @@ export class ExplorerItem {
 		private readonly fileService: IFileService,
 		private readonly configService: IConfigurationService,
 		private readonly filesConfigService: IFilesConfigurationService,
+		private readonly textFileService: ITextFileService,
 		private _parent: ExplorerItem | undefined,
 		private _isDirectory?: boolean,
 		private _isSymbolicLink?: boolean,
@@ -124,21 +127,42 @@ export class ExplorerItem {
 		return this._title;
 	}
 
-	private async resolveTitle(): Promise<void> {
-		if (this._title !== undefined) {
+	private static titleCache = new ResourceMap<string>(); // gitbbon
+
+	async resolveTitle(force: boolean = false): Promise<void> { // gitbbon
+		if (this._title !== undefined && !force) {
 			return;
 		}
 		if (!this.name.toLowerCase().endsWith('.md')) {
 			return;
 		}
 
+		// Check cache first
+		if (ExplorerItem.titleCache.has(this.resource)) {
+			this._title = ExplorerItem.titleCache.get(this.resource);
+		}
+
 		try {
 			// Read the first 500 bytes to check for frontmatter
-			const content = await this.fileService.readFile(this.resource, { length: 500 });
-			const text = content.value.toString();
+
+			// Try to read from text file service first (if model exists)
+			let text = '';
+			const model = this.textFileService.files.get(this.resource); // gitbbon
+			if (model) { // gitbbon
+				const content = model.textEditorModel?.getValue() || ''; // gitbbon
+				text = content.substring(0, 500); // gitbbon
+			} else {
+				const content = await this.fileService.readFile(this.resource, { length: 500 });
+				text = content.value.toString();
+			}
+
 			const match = text.match(/^---\r?\n[\s\S]*?title:\s*(.+?)\r?\n[\s\S]*?---/);
 			if (match && match[1]) {
 				const newTitle = match[1].trim().replace(/^['"](.*)['"]$/, '$1'); // Remove quotes if present
+
+				// Update cache
+				ExplorerItem.titleCache.set(this.resource, newTitle);
+
 				if (this._title !== newTitle) {
 					this._title = newTitle;
 					this._onDidChange?.(this);
@@ -245,8 +269,8 @@ export class ExplorerItem {
 		return this === this.root;
 	}
 
-	static create(fileService: IFileService, configService: IConfigurationService, filesConfigService: IFilesConfigurationService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, fileService, configService, filesConfigService, parent, raw.isDirectory, raw.isSymbolicLink, raw.readonly, raw.locked, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory, parent ? parent['_onDidChange'] : undefined);
+	static create(fileService: IFileService, configService: IConfigurationService, filesConfigService: IFilesConfigurationService, textFileService: ITextFileService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
+		const stat = new ExplorerItem(raw.resource, fileService, configService, filesConfigService, textFileService, parent, raw.isDirectory, raw.isSymbolicLink, raw.readonly, raw.locked, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory, parent ? parent['_onDidChange'] : undefined);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -261,7 +285,7 @@ export class ExplorerItem {
 			// Recurse into children
 			if (raw.children) {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
-					const child = ExplorerItem.create(fileService, configService, filesConfigService, raw.children[i], stat, resolveTo);
+					const child = ExplorerItem.create(fileService, configService, filesConfigService, textFileService, raw.children[i], stat, resolveTo);
 					stat.addChild(child);
 				}
 			}
@@ -383,7 +407,7 @@ export class ExplorerItem {
 				this.error = undefined;
 				try {
 					const stat = await this.fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
-					const resolved = ExplorerItem.create(this.fileService, this.configService, this.filesConfigService, stat, this);
+					const resolved = ExplorerItem.create(this.fileService, this.configService, this.filesConfigService, this.textFileService, stat, this);
 					ExplorerItem.mergeLocalWithDisk(resolved, this);
 				} catch (e) {
 					this.error = e;
@@ -581,8 +605,8 @@ export class ExplorerItem {
 }
 
 export class NewExplorerItem extends ExplorerItem {
-	constructor(fileService: IFileService, configService: IConfigurationService, filesConfigService: IFilesConfigurationService, parent: ExplorerItem, isDirectory: boolean) {
-		super(URI.file(''), fileService, configService, filesConfigService, parent, isDirectory);
+	constructor(fileService: IFileService, configService: IConfigurationService, filesConfigService: IFilesConfigurationService, textFileService: ITextFileService, parent: ExplorerItem, isDirectory: boolean) {
+		super(URI.file(''), fileService, configService, filesConfigService, textFileService, parent, isDirectory);
 		this._isDirectoryResolved = true;
 	}
 }

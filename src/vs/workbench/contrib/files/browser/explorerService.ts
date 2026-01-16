@@ -26,6 +26,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IExpression } from '../../../../base/common/glob.js';
 import { ResourceGlobMatcher } from '../../../common/resources.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js'; // gitbbon
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -54,16 +55,34 @@ export class ExplorerService implements IExplorerService {
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IHostService hostService: IHostService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		this.config = this.configurationService.getValue('explorer');
 
-		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService, this.configurationService, this.filesConfigurationService);
+		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService, this.configurationService, this.filesConfigurationService, this.textFileService);
 		this.disposables.add(this.model);
 		this.disposables.add(this.model.onDidChangeItem(item => {
 			this.view?.refresh(false, item);
 		}));
 		this.disposables.add(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
+
+		// Listen for text model changes to update title immediately
+		this.disposables.add(this.textFileService.files.onDidResolve(e => { // gitbbon
+			const model = e.model; // gitbbon
+			if (model.isResolved()) { // gitbbon
+				const contentListener = model.textEditorModel.onDidChangeContent(() => { // gitbbon
+					if (model.resource.path.toLowerCase().endsWith('.md')) { // gitbbon
+						const items = this.model.findAll(model.resource); // gitbbon
+						items.forEach(item => item.resolveTitle(true)); // gitbbon
+					} // gitbbon
+				}); // gitbbon
+				const disposeListener = model.onWillDispose(() => { // gitbbon
+					contentListener.dispose(); // gitbbon
+					disposeListener.dispose(); // gitbbon
+				}); // gitbbon
+			} // gitbbon
+		})); // gitbbon
 
 		this.onFileChangesScheduler = new RunOnceScheduler(async () => {
 			const events = this.fileChangeEvents;
@@ -307,7 +326,7 @@ export class ExplorerService implements IExplorerService {
 			const stat = await this.fileService.resolve(root.resource, options);
 
 			// Convert to model
-			const modelStat = ExplorerItem.create(this.fileService, this.configurationService, this.filesConfigurationService, stat, undefined, options.resolveTo);
+			const modelStat = ExplorerItem.create(this.fileService, this.configurationService, this.filesConfigurationService, this.textFileService, stat, undefined, options.resolveTo);
 			// Update Input with disk Stat
 			ExplorerItem.mergeLocalWithDisk(modelStat, root);
 			const item = root.find(resource);
@@ -366,12 +385,12 @@ export class ExplorerService implements IExplorerService {
 					if (!p.isDirectoryResolved) {
 						const stat = await this.fileService.resolve(p.resource, { resolveMetadata });
 						if (stat) {
-							const modelStat = ExplorerItem.create(this.fileService, this.configurationService, this.filesConfigurationService, stat, p.parent);
+							const modelStat = ExplorerItem.create(this.fileService, this.configurationService, this.filesConfigurationService, this.textFileService, stat, p.parent);
 							ExplorerItem.mergeLocalWithDisk(modelStat, p);
 						}
 					}
 
-					const childElement = ExplorerItem.create(this.fileService, this.configurationService, this.filesConfigurationService, addedElement, p.parent);
+					const childElement = ExplorerItem.create(this.fileService, this.configurationService, this.filesConfigurationService, this.textFileService, addedElement, p.parent);
 					// Make sure to remove any previous version of the file if any
 					p.removeChild(childElement);
 					p.addChild(childElement);

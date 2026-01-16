@@ -129,9 +129,19 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		// Attach to model that matches our resource once created
 		this._register(this.textFileService.files.onDidCreate(model => this.onDidCreateTextFileModel(model)));
 
+
+		// Listen for model resolution to update title
+		this._register(this.textFileService.files.onDidResolve(e => { // gitbbon
+			if (isEqual(e.model.resource, this.resource)) { // gitbbon
+				this.registerModelListeners(e.model); // gitbbon
+				this.updateTitleFromContent(e.model); // gitbbon
+			} // gitbbon
+		})); // gitbbon
+
 		// If a file model already exists, make sure to wire it in
 		if (this.model) {
 			this.registerModelListeners(this.model);
+			this.updateTitleFromContent(this.model); // gitbbon
 		}
 	}
 
@@ -165,6 +175,24 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			this.modelListeners.clear();
 			this.model = undefined;
 		}));
+
+		// Listen for content changes if the model is resolved
+		if (model.isResolved()) { // gitbbon
+			this.modelListeners.add(model.textEditorModel.onDidChangeContent(() => { // gitbbon
+				this.updateTitleFromContent(model); // gitbbon
+			})); // gitbbon
+		} // gitbbon
+	}
+
+	private updateTitleFromContent(model: ITextFileEditorModel): void { // gitbbon
+		if (model.isResolved() && this.resource.path.toLowerCase().endsWith('.md')) { // gitbbon
+			const text = model.textEditorModel.getValue().substring(0, 500); // gitbbon
+			const match = text.match(/^---\r?\n[\s\S]*?title:\s*(.+?)\r?\n[\s\S]*?---/); // gitbbon
+			if (match && match[1]) { // gitbbon
+				const newTitle = match[1].trim().replace(/^['"](.*)['"]$/, '$1'); // gitbbon
+				this.setPreferredName(newTitle); // gitbbon
+			} // gitbbon
+		} // gitbbon
 	}
 
 	override getName(): string {

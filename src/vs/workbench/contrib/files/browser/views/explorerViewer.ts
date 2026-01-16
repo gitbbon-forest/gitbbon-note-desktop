@@ -39,6 +39,7 @@ import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
 import { IDialogService, getFileNamesMessage } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js'; // gitbbon
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { findValidPasteFileTarget } from '../fileActions.js';
@@ -101,7 +102,8 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		@IFileService private readonly fileService: IFileService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
+		@ITextFileService private readonly textFileService: ITextFileService // gitbbon
 	) { }
 
 	getParent(element: ExplorerItem): ExplorerItem {
@@ -146,7 +148,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 				if (element instanceof ExplorerItem && element.isRoot) {
 					if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 						// Single folder create a dummy explorer item to show error
-						const placeholder = new ExplorerItem(element.resource, this.fileService, this.configService, this.filesConfigService, undefined, undefined, false);
+						const placeholder = new ExplorerItem(element.resource, this.fileService, this.configService, this.filesConfigService, this.textFileService, undefined, undefined, false); // gitbbon
 						placeholder.error = e;
 						return [placeholder];
 					} else {
@@ -295,6 +297,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
+		@ITextFileService private readonly textFileService: ITextFileService, // gitbbon
 		@IProgressService private readonly progressService: IProgressService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IContextKeyService contextKeyService: IContextKeyService
@@ -457,7 +460,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			let child = currentItem.getChild(stat);
 			if (!child) {
 				const isDirectory = pathSegments[pathSegments.length - 1] === stat ? resourceIsDirectory : true;
-				child = new PhantomExplorerItem(currentResource, this.fileService, this.configurationService, this.filesConfigService, currentItem, isDirectory);
+				child = new PhantomExplorerItem(currentResource, this.fileService, this.configurationService, this.filesConfigService, this.textFileService, currentItem, isDirectory); // gitbbon
 				currentItem.addChild(child);
 				phantomElements.push(child as PhantomExplorerItem);
 			}
