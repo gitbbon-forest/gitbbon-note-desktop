@@ -31,6 +31,10 @@
           {
             "filenamePattern": "*.md",
             "scheme": "file"
+          },
+          {
+            "filenamePattern": "*",
+            "scheme": "untitled"
           }
         ]
       }

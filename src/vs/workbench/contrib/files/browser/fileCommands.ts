@@ -688,15 +688,52 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	handler: async (accessor, args?: { languageId?: string; viewType?: string }) => {
 		const editorService = accessor.get(IEditorService);
+		const fileService = accessor.get(IFileService);
+		const contextService = accessor.get(IWorkspaceContextService);
 
-		await editorService.openEditor({
-			resource: undefined,
-			options: {
-				override: args?.viewType,
-				pinned: true
-			},
-			languageId: args?.languageId,
-		});
+		const folders = contextService.getWorkspace().folders;
+		if (folders.length > 0) {
+			const root = folders[0].uri;
+			const now = new Date();
+			const year = now.getFullYear();
+			const month = String(now.getMonth() + 1).padStart(2, '0');
+			const day = String(now.getDate()).padStart(2, '0');
+			const hour = String(now.getHours()).padStart(2, '0');
+			const minute = String(now.getMinutes()).padStart(2, '0');
+			const second = String(now.getSeconds()).padStart(2, '0');
+			const baseName = `${year}-${month}-${day}_${hour}-${minute}-${second}`;
+
+			let fileName = `${baseName}.md`;
+			let uri = joinPath(root, fileName);
+			let counter = 1;
+
+			while (await fileService.exists(uri)) {
+				fileName = `${baseName}_${counter}.md`;
+				uri = joinPath(root, fileName);
+				counter++;
+			}
+
+			await fileService.createFile(uri, undefined, { overwrite: false });
+
+			await editorService.openEditor({
+				resource: uri,
+				options: {
+					override: args?.viewType ?? 'gitbbon.editor',
+					pinned: true
+				},
+				languageId: args?.languageId ?? 'markdown',
+			});
+		} else {
+			// Fallback for no workspace
+			await editorService.openEditor({
+				resource: undefined,
+				options: {
+					override: args?.viewType ?? 'gitbbon.editor',
+					pinned: true
+				},
+				languageId: args?.languageId ?? 'markdown',
+			});
+		}
 	}
 });
 

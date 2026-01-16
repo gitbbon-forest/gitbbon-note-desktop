@@ -520,6 +520,10 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 				clearTimeout(autoSaveTimer);
 			}
 			autoSaveTimer = setTimeout(async () => {
+				// Untitled 문서는 자동 저장하지 않음 (저장 대화상자 방지)
+				if (document.isUntitled) {
+					return;
+				}
 				try {
 					await document.save();
 					// Auto save 로그 제거 (너무 빈번함)
@@ -537,6 +541,10 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			const delay = 500;
 
 			autoCommitTimer = setTimeout(async () => {
+				// Untitled 문서는 자동 커밋하지 않음
+				if (document.isUntitled) {
+					return;
+				}
 				try {
 					// 커밋 전 혹시 모르니 한번 더 저장 보장 (이미 저장되었겠지만)
 					await document.save();
