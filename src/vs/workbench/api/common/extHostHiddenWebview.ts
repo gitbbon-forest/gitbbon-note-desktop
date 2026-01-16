@@ -103,9 +103,7 @@ export class ExtHostHiddenWebviews implements extHostProtocol.ExtHostHiddenWebvi
 
 		this._hiddenWebviews.set(handle, hiddenWebview);
 
-		this._proxy.$createHiddenWebview(handle, extension.identifier, {
-			allowScripts: true,
-		});
+		this._proxy.$createHiddenWebview(handle, extension.identifier, {});
 
 		return hiddenWebview;
 	}

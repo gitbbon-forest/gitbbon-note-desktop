@@ -220,6 +220,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}
 	}
 
+	focusActivityBar(): void {
+		this.focusCompositeBar();
+	}
+
 	toJSON(): object {
 		return {
 			type: Parts.SIDEBAR_PART

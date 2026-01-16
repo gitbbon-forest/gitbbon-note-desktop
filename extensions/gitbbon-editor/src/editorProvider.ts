@@ -618,6 +618,15 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 						// Update similar articles
 						this.updateSimilarArticles(document, webviewPanel);
 						break;
+					case 'log':
+						if (message.level === 'error') {
+							logService.error(message.message, ...(message.args || []));
+						} else if (message.level === 'warn') {
+							logService.warn(message.message, ...(message.args || []));
+						} else {
+							logService.info(message.message, ...(message.args || []));
+						}
+						break;
 					case 'reallyFinal':
 						// 진짜최종 버튼 클릭 시
 						try {

@@ -31,7 +31,7 @@ export const SelectionSimilarArticles: React.FC<SelectionSimilarArticlesProps> =
 		const findToolbar = () => {
 			const toolbar = document.querySelector('.milkdown-toolbar') as HTMLElement;
 			if (toolbar) {
-				console.log('[gitbbon-editor][SelectionSimilar] Toolbar found:', toolbar);
+				// console.log('[gitbbon-editor][SelectionSimilar] Toolbar found:', toolbar);
 				setToolbarElement(toolbar);
 			} else {
 				setToolbarElement(null);

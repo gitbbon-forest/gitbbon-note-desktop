@@ -51,6 +51,7 @@ import { ResourceFileEdit } from '../../../../editor/browser/services/bulkEditSe
 import { IExplorerService } from './files.js';
 import { BrowserFileUpload, FileDownload } from './fileImportExport.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js'; // gitbbon
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
@@ -905,6 +906,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const remoteAgentService = accessor.get(IRemoteAgentService);
 	const commandService = accessor.get(ICommandService);
 	const pathService = accessor.get(IPathService);
+	const textFileService = accessor.get(ITextFileService); // gitbbon
 
 	const wasHidden = !viewsService.isViewVisible(VIEW_ID);
 	const view = await viewsService.openView(VIEW_ID, true);
@@ -935,7 +937,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 		throw new Error('Parent folder is readonly.');
 	}
 
-	const newStat = new NewExplorerItem(fileService, configService, filesConfigService, folder, isFolder);
+	const newStat = new NewExplorerItem(fileService, configService, filesConfigService, textFileService, folder, isFolder);
 	folder.addChild(newStat);
 
 	const onSuccess = async (value: string): Promise<void> => {

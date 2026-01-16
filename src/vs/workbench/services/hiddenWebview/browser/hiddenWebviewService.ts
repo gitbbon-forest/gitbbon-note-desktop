@@ -183,7 +183,7 @@ window.addEventListener('message', function(event) {
 	}
 });
 
-console.log('[HiddenWebview] Bridge initialized');
+// console.log('[HiddenWebview] Bridge initialized');
 </script>
 `;
 		// <head> 태그 뒤에 브릿지 스크립트 삽입

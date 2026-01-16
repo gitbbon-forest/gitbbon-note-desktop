@@ -28,6 +28,16 @@ function debounce<T extends (...args: any[]) => void>(fn: T, delay: number): T {
 	}) as T;
 }
 
+// Helper to log to VS Code output channel
+const log = (message: string, ...args: any[]) => {
+	vscode.postMessage({
+		type: 'log',
+		level: 'info',
+		message: message,
+		args: args
+	});
+};
+
 export const App = () => {
 	const [title, setTitle] = useState('');
 	const [editorContent, setEditorContent] = useState<string | null>(null);
@@ -92,7 +102,7 @@ export const App = () => {
 	};
 
 	const handleEditorChangeWithTitle = useCallback((markdown: string) => {
-		console.log('[gitbbon-editor][App] handleEditorChangeWithTitle called');
+		log('[gitbbon-editor][App] handleEditorChangeWithTitle called');
 		setEditorContent(markdown);
 		setSaveStatus('unsaved');
 		// gitbbon custom: 보낸 콘텐츠 기록 (루프 방지)
@@ -199,7 +209,7 @@ export const App = () => {
 	const debouncedSearchSimilar = useMemo(
 		() =>
 			debounce((text: string) => {
-				console.log('[gitbbon-editor][App][SelectionSimilar] Searching for:', text.substring(0, 50));
+				log('[gitbbon-editor][App][SelectionSimilar] Searching for:', text.substring(0, 50));
 				vscode.postMessage({
 					type: 'searchSimilarForSelection',
 					text,
@@ -247,30 +257,30 @@ export const App = () => {
 					const remoteTitle = message.frontmatter?.title || '';
 					const remoteContent = message.content || '';
 
-					console.log(`[gitbbon-editor][App] Received ${message.type} message`);
-					console.log(`[gitbbon-editor][App] remoteContent length: ${remoteContent.length}, contentRef length: ${contentRef.current?.length || 'null'}`);
+					log(`[gitbbon-editor][App] Received ${message.type} message`);
+					log(`[gitbbon-editor][App] remoteContent length: ${remoteContent.length}, contentRef length: ${contentRef.current?.length || 'null'}`);
 
 					// Update Title
 					setTitle(remoteTitle);
 
 					// Update Editor
 					const contentChanged = remoteContent !== contentRef.current;
-					console.log(`[gitbbon-editor][App] contentChanged: ${contentChanged}`);
+					log(`[gitbbon-editor][App] contentChanged: ${contentChanged}`);
 
 					if (contentRef.current === null) {
 						// First load
-						console.log('[gitbbon-editor][App] First load, setting initial content');
+						log('[gitbbon-editor][App] First load, setting initial content');
 						setEditorContent(remoteContent);
 						lastSentContentRef.current = remoteContent;
 					} else if (editorRef.current && contentChanged) {
 						// gitbbon custom: 에코 감지 - 우리가 보낸 콘텐츠가 돌아온 경우 무시
 						if (lastSentContentRef.current === remoteContent) {
-							console.log('[gitbbon-editor][App] Ignoring echo - content matches what we sent');
+							log('[gitbbon-editor][App] Ignoring echo - content matches what we sent');
 							break;
 						}
 
 						// Subsequent updates (only if content changed and not echo)
-						console.log('[gitbbon-editor][App] External content update detected');
+						log('[gitbbon-editor][App] External content update detected');
 						editorRef.current.setContent(remoteContent);
 						setEditorContent(remoteContent);
 						lastSentContentRef.current = remoteContent;
@@ -278,7 +288,7 @@ export const App = () => {
 
 					// [New] Handle initial status (e.g. if draft exists)
 					if (message.type === 'init' && message.initialStatus) {
-						console.log(`[gitbbon-editor][App] Setting initial status: ${message.initialStatus}`);
+						log(`[gitbbon-editor][App] Setting initial status: ${message.initialStatus}`);
 						setSaveStatus(message.initialStatus as SaveStatus);
 					}
 					break;
@@ -333,7 +343,7 @@ export const App = () => {
 				// gitbbon custom: 선택 텍스트 기반 비슷한 글 검색 결과
 				case 'selectionSimilarArticles':
 					if (message.articles) {
-						console.log('[gitbbon-editor][App][SelectionSimilar] Received articles:', message.articles.length);
+						log('[gitbbon-editor][App][SelectionSimilar] Received articles:', message.articles.length);
 						setSelectionSimilarArticles(message.articles);
 					}
 					break;

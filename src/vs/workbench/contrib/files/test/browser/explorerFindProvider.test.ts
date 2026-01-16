@@ -133,7 +133,7 @@ suite('Find Provider - ExplorerView', () => {
 	const configService = new TestConfigurationService();
 
 	function createStat(this: any, path: string, isFolder: boolean): ExplorerItem {
-		return new ExplorerItem(URI.from({ scheme: 'file', path }), fileService, configService, NullFilesConfigurationService, undefined, isFolder);
+		return new ExplorerItem(URI.from({ scheme: 'file', path }), fileService, configService, NullFilesConfigurationService, undefined as any, undefined, isFolder);
 	}
 
 	let root: ExplorerItem;

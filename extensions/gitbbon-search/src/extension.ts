@@ -172,7 +172,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gitbbo
 <body>
 	<script>
 		// Debug: 스크립트 로드 확인
-		console.log('[modelHost] Script loading...');
+		// console.log('[modelHost] Script loading...');
 		window.addEventListener('error', (e) => {
 			window.parent.postMessage({ type: 'consoleLog', level: 'error', message: '[modelHost SCRIPT ERROR] ' + e.message + ' at ' + e.filename + ':' + e.lineno }, '*');
 		});

@@ -133,19 +133,19 @@ export class ActivitybarPart extends Part {
 	private content: HTMLElement | undefined;
 
 	constructor(
-		private readonly paneCompositePart: IPaneCompositePart,
+		paneCompositePart: IPaneCompositePart,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		// gitbbon custom: dependencies for project scanning
-		@IFileService private readonly fileService: IFileService,
-		@IPathService private readonly pathService: IPathService,
-		@IHostService private readonly hostService: IHostService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IFileService fileService: IFileService,
+		@IPathService pathService: IPathService,
+		@IHostService hostService: IHostService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@ICommandService commandService: ICommandService,
+		@IQuickInputService quickInputService: IQuickInputService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		// gitbbon custom end
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
@@ -707,7 +707,7 @@ class ProjectBar extends DisposableStore {
 	}
 
 	constructor(
-		private readonly options: {
+		options: {
 			orientation: ActionsOrientation;
 			colors: (theme: IColorTheme) => any;
 			activityHoverOptions: { position: () => HoverPosition };

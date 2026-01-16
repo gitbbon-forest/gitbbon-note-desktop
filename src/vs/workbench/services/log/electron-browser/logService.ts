@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConsoleLogger, ILogger } from '../../../../platform/log/common/log.js';
+import { ILogger } from '../../../../platform/log/common/log.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 import { LoggerChannelClient } from '../../../../platform/log/common/logIpc.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -18,16 +18,16 @@ export class NativeLogService extends LogService {
 
 		const fileLogger = disposables.add(loggerService.createLogger(environmentService.logFile, { id: windowLogId, name: windowLogGroup.name, group: windowLogGroup }));
 
-		let consoleLogger: ILogger;
+		const otherLoggers: ILogger[] = [];
 		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
 			// Extension development test CLI: forward everything to main side
-			consoleLogger = loggerService.createConsoleMainLogger();
+			otherLoggers.push(loggerService.createConsoleMainLogger());
 		} else {
-			// Normal mode: Log to console
-			consoleLogger = new ConsoleLogger(fileLogger.getLevel());
+			// Normal mode: Log to console -> Disabled to keep console clean
+			// otherLoggers.push(new ConsoleLogger(fileLogger.getLevel()));
 		}
 
-		super(fileLogger, [consoleLogger]);
+		super(fileLogger, otherLoggers);
 
 		this._register(disposables);
 	}

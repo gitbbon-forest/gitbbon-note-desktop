@@ -27,7 +27,7 @@ suite('Files - ExplorerView', () => {
 
 
 	function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number, isSymLink = false, isUnknown = false): ExplorerItem {
-		return new ExplorerItem(toResource.call(this, path), fileService, configService, NullFilesConfigurationService, undefined, isFolder, isSymLink, false, false, name, mtime, isUnknown);
+		return new ExplorerItem(toResource.call(this, path), fileService, configService, NullFilesConfigurationService, undefined as any, undefined, isFolder, isSymLink, false, false, name, mtime, isUnknown);
 	}
 
 	test('getContext', async function () {
