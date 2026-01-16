@@ -235,6 +235,8 @@ export const EDITOR_GROUP_BORDER = registerColor('editorGroup.border', {
 	hcLight: contrastBorder
 }, localize('editorGroupBorder', "Color to separate multiple editor groups from each other. Editor groups are the containers of editors."));
 
+export const EDITOR_GROUP_HEADER_FOREGROUND = registerColor('editorGroupHeader.foreground', editorForeground, localize('editorGroupHeaderForeground', "Foreground color of the editor group title header. Editor groups are the containers of editors."));
+
 export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBackground', {
 	dark: Color.fromHex('#53595D').transparent(0.5),
 	light: Color.fromHex('#2677CB').transparent(0.18),

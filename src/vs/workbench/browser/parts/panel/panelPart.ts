@@ -118,6 +118,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 
 		const container = assertReturnsDefined(this.getContainer());
 		container.style.backgroundColor = this.getColor(PANEL_BACKGROUND) || '';
+		container.style.color = this.getColor(PANEL_ACTIVE_TITLE_FOREGROUND) || '';
 		const borderColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
 		container.style.borderLeftColor = borderColor;
 		container.style.borderRightColor = borderColor;
