@@ -536,7 +536,7 @@ export const PANEL_SECTION_HEADER_BACKGROUND = registerColor('panelSectionHeader
 	hcLight: null,
 }, localize('panelSectionHeaderBackground', "Panel section header background color. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
 
-export const PANEL_SECTION_HEADER_FOREGROUND = registerColor('panelSectionHeader.foreground', null, localize('panelSectionHeaderForeground', "Panel section header foreground color. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+export const PANEL_SECTION_HEADER_FOREGROUND = registerColor('panelSectionHeader.foreground', PANEL_ACTIVE_TITLE_FOREGROUND, localize('panelSectionHeaderForeground', "Panel section header foreground color. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
 
 export const PANEL_SECTION_HEADER_BORDER = registerColor('panelSectionHeader.border', contrastBorder, localize('panelSectionHeaderBorder', "Panel section header border color used when multiple views are stacked vertically in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
 
@@ -607,7 +607,7 @@ export const SIDE_BAR_BACKGROUND = registerColor('sideBar.background', {
 	hcLight: '#FFFFFF'
 }, localize('sideBarBackground', "Side bar background color. The side bar is the container for views like explorer and search."));
 
-export const SIDE_BAR_FOREGROUND = registerColor('sideBar.foreground', null, localize('sideBarForeground', "Side bar foreground color. The side bar is the container for views like explorer and search."));
+export const SIDE_BAR_FOREGROUND = registerColor('sideBar.foreground', editorForeground, localize('sideBarForeground', "Side bar foreground color. The side bar is the container for views like explorer and search."));
 
 export const SIDE_BAR_BORDER = registerColor('sideBar.border', {
 	dark: null,
@@ -778,7 +778,7 @@ export const NOTIFICATIONS_BACKGROUND = registerColor('notifications.background'
 
 export const NOTIFICATIONS_LINKS = registerColor('notificationLink.foreground', textLinkForeground, localize('notificationsLink', "Notification links foreground color. Notifications slide in from the bottom right of the window."));
 
-export const NOTIFICATIONS_CENTER_HEADER_FOREGROUND = registerColor('notificationCenterHeader.foreground', null, localize('notificationCenterHeaderForeground', "Notifications center header foreground color. Notifications slide in from the bottom right of the window."));
+export const NOTIFICATIONS_CENTER_HEADER_FOREGROUND = registerColor('notificationCenterHeader.foreground', NOTIFICATIONS_FOREGROUND, localize('notificationCenterHeaderForeground', "Notifications center header foreground color. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_CENTER_HEADER_BACKGROUND = registerColor('notificationCenterHeader.background', {
 	dark: lighten(NOTIFICATIONS_BACKGROUND, 0.3),
