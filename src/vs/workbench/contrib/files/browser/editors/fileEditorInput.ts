@@ -22,6 +22,8 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { createTextBufferFactory } from '../../../../../editor/common/model/textModel.js';
+import { Range } from '../../../../../editor/common/core/range.js'; // gitbbon
+import { RunOnceScheduler } from '../../../../../base/common/async.js'; // gitbbon
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -83,6 +85,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	private readonly modelListeners = this._register(new DisposableStore());
 
+	private readonly titleUpdateScheduler: RunOnceScheduler; // gitbbon
+
 	constructor(
 		resource: URI,
 		preferredResource: URI | undefined,
@@ -143,6 +147,14 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			this.registerModelListeners(this.model);
 			this.updateTitleFromContent(this.model); // gitbbon
 		}
+
+		// gitbbon start
+		this.titleUpdateScheduler = this._register(new RunOnceScheduler(() => {
+			if (this.model) {
+				this.updateTitleFromContent(this.model);
+			}
+		}, 300));
+		// gitbbon end
 	}
 
 	private onDidCreateTextFileModel(model: ITextFileEditorModel): void {
@@ -179,15 +191,21 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		// Listen for content changes if the model is resolved
 		if (model.isResolved()) { // gitbbon
 			this.modelListeners.add(model.textEditorModel.onDidChangeContent(() => { // gitbbon
-				this.updateTitleFromContent(model); // gitbbon
+				this.titleUpdateScheduler.schedule(); // gitbbon
 			})); // gitbbon
 		} // gitbbon
 	}
 
 	private updateTitleFromContent(model: ITextFileEditorModel): void { // gitbbon
 		if (model.isResolved() && this.resource.path.toLowerCase().endsWith('.md')) { // gitbbon
-			const text = model.textEditorModel.getValue().substring(0, 500); // gitbbon
-			const match = text.match(/^---\r?\n[\s\S]*?title:\s*(.+?)\r?\n[\s\S]*?---/); // gitbbon
+			// Actually the implementation plan said getValueInRange(new Range(1, 1, 1, 501)) assuming it's linear,
+			// but getValueInRange takes (startLine, startCol, endLine, endCol).
+			// To be safe and mimicking "first 500 chars", let's read the first 50 lines which should cover frontmatter.
+			// Or better: read a chunk. But Range works on lines.
+			// Let's assume frontmatter is within the first 50 lines.
+			const contentToCheck = model.textEditorModel.getValueInRange(new Range(1, 1, 50, 1)); // gitbbon
+
+			const match = contentToCheck.match(/^---\r?\n[\s\S]*?title:\s*(.+?)\r?\n[\s\S]*?---/); // gitbbon
 			if (match && match[1]) { // gitbbon
 				const newTitle = match[1].trim().replace(/^['"](.*)['"]$/, '$1'); // gitbbon
 				this.setPreferredName(newTitle); // gitbbon

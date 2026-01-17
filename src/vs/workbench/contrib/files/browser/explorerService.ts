@@ -71,15 +71,21 @@ export class ExplorerService implements IExplorerService {
 		this.disposables.add(this.textFileService.files.onDidResolve(e => { // gitbbon
 			const model = e.model; // gitbbon
 			if (model.isResolved()) { // gitbbon
-				const contentListener = model.textEditorModel.onDidChangeContent(() => { // gitbbon
+				const scheduler = new RunOnceScheduler(() => { // gitbbon
 					if (model.resource.path.toLowerCase().endsWith('.md')) { // gitbbon
 						const items = this.model.findAll(model.resource); // gitbbon
 						items.forEach(item => item.resolveTitle(true)); // gitbbon
 					} // gitbbon
+				}, 300); // gitbbon
+
+				const contentListener = model.textEditorModel.onDidChangeContent(() => { // gitbbon
+					scheduler.schedule(); // gitbbon
 				}); // gitbbon
+
 				const disposeListener = model.onWillDispose(() => { // gitbbon
 					contentListener.dispose(); // gitbbon
 					disposeListener.dispose(); // gitbbon
+					scheduler.dispose(); // gitbbon
 				}); // gitbbon
 			} // gitbbon
 		})); // gitbbon

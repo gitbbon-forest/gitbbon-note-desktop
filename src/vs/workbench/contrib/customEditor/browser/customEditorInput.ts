@@ -15,6 +15,8 @@ import { dirname, isEqual } from '../../../../base/common/resources.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { Range } from '../../../../editor/common/core/range.js'; // gitbbon
+import { RunOnceScheduler } from '../../../../base/common/async.js'; // gitbbon
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
@@ -84,6 +86,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	private readonly _untitledDocumentData: VSBuffer | undefined;
 
+	private readonly titleUpdateScheduler: RunOnceScheduler; // gitbbon
+
 	override get resource() { return this._editorResource; }
 
 	private _modelRef?: IReference<ICustomEditorModel>;
@@ -128,6 +132,16 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			this.registerTextModelListeners(existingModel);
 			this.updateTitleFromContent(existingModel);
 		}
+
+		// gitbbon start
+		this.titleUpdateScheduler = this._register(new RunOnceScheduler(() => {
+			if (this._modelRef) {
+				const model = this.textFileService.files.get(this.resource);
+				if (model) {
+					this.updateTitleFromContent(model);
+				}
+			}
+		}, 300));
 		// gitbbon end
 	}
 
@@ -479,15 +493,15 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	private registerTextModelListeners(model: ITextFileEditorModel): void {
 		if (model.isResolved()) {
 			this._register(model.textEditorModel.onDidChangeContent(() => {
-				this.updateTitleFromContent(model);
+				this.titleUpdateScheduler.schedule(); // gitbbon
 			}));
 		}
 	}
 
 	private updateTitleFromContent(model: ITextFileEditorModel): void {
 		if (model.isResolved() && this.resource.path.toLowerCase().endsWith('.md')) {
-			const text = model.textEditorModel.getValue().substring(0, 500);
-			const match = text.match(/^---\r?\n[\s\S]*?title:\s*(.+?)\r?\n[\s\S]*?---/);
+			const contentToCheck = model.textEditorModel.getValueInRange(new Range(1, 1, 50, 1)); // gitbbon
+			const match = contentToCheck.match(/^---\r?\n[\s\S]*?title:\s*(.+?)\r?\n[\s\S]*?---/); // gitbbon
 			if (match && match[1]) {
 				const newTitle = match[1].trim().replace(/^['"](.*)['"]$/, '$1');
 
