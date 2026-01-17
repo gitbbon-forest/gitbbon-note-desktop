@@ -498,11 +498,24 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 			!!this.searchView.model.replaceString &&
 			!match.isReadonly;
 
-		templateData.before.textContent = preview.before;
-		templateData.match.textContent = preview.inside;
-		templateData.match.classList.toggle('replace', replace);
-		templateData.replace.textContent = replace ? match.replaceString : '';
-		templateData.after.textContent = preview.after;
+		// [Gitbbon] AI 검색 결과인 경우 전체 preview lines를 한 줄로 표시
+		// MatchImpl은 첫 줄만 반환하므로, AI 검색에서는 fullPreviewLines를 사용
+		// AI 검색은 의미 기반이므로 키워드 하이라이트 없이 일반 텍스트로 표시
+		const isAISearchResult = isSearchTreeAIFileMatch(match.parent());
+		if (isAISearchResult) {
+			const fullText = match.fullPreviewLines().join(' ').replace(/\s+/g, ' ').trim();
+			templateData.before.textContent = fullText;
+			templateData.match.textContent = '';
+			templateData.match.classList.toggle('replace', false);
+			templateData.replace.textContent = '';
+			templateData.after.textContent = '';
+		} else {
+			templateData.before.textContent = preview.before;
+			templateData.match.textContent = preview.inside;
+			templateData.match.classList.toggle('replace', replace);
+			templateData.replace.textContent = replace ? match.replaceString : '';
+			templateData.after.textContent = preview.after;
+		}
 
 		const title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
 		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
@@ -516,7 +529,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 
 		// AI 검색 결과(시맨틱 검색)인 경우 라인 번호 숨김
 		// AI 검색은 의미 기반 검색이므로 정확한 라인 번호가 사용자에게 무의미함
-		const isAISearchResult = isSearchTreeAIFileMatch(match.parent());
+		// gitbbon custom: isAISearchResult는 위에서 이미 선언됨
 		const lineNumberStr = (showLineNumbers && !isAISearchResult) ? `${match.range().startLineNumber}:` : '';
 		const shouldShowLineNumber = ((numLines > 0) || showLineNumbers) && !isAISearchResult;
 		templateData.lineNumber.classList.toggle('show', shouldShowLineNumber);

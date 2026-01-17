@@ -312,15 +312,31 @@ export class SearchService {
 	}
 
 	/**
-	 * 파일에서 스니펫 추출 (마크다운 문법 제거)
+	 * 파일에서 스니펫 추출 (마크다운 문법 제거, YAML frontmatter 제외)
 	 */
 	async getSnippet(filePath: string, range: [number, number]): Promise<string> {
 		try {
 			const uri = vscode.Uri.file(filePath);
 			const content = await vscode.workspace.fs.readFile(uri);
 			const text = Buffer.from(content).toString('utf-8');
-			const rawSnippet = text.slice(range[0], Math.min(range[1], range[0] + 200));
-			return cleanMarkdown(rawSnippet);
+
+			// [Gitbbon] YAML frontmatter 건너뛰기
+			// 파일이 ---로 시작하면 frontmatter 영역을 계산하여 스니펫에서 제외
+			let effectiveStart = range[0];
+			if (text.startsWith('---')) {
+				const frontmatterEndMatch = text.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
+				if (frontmatterEndMatch) {
+					const frontmatterEnd = frontmatterEndMatch[0].length;
+					// range가 frontmatter 영역 내에 있으면 frontmatter 끝 이후부터 시작
+					if (effectiveStart < frontmatterEnd) {
+						effectiveStart = frontmatterEnd;
+					}
+				}
+			}
+
+			// [Gitbbon] 스니펫은 항상 200자까지 추출 (청크 range와 무관하게 충분한 맥락 제공)
+			const rawSnippet = text.slice(effectiveStart, effectiveStart + 200);
+			return cleanMarkdown(rawSnippet).trim();
 		} catch {
 			return '';
 		}

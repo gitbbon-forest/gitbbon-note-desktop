@@ -1840,9 +1840,11 @@ export class SearchView extends ViewPane {
 		}
 
 
-		if (completed && completed.limitHit) {
-			completed.messages.push({ type: TextSearchCompleteMessageType.Warning, text: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") });
-		}
+		// [Gitbbon] limitHit 경고 메시지 숨김
+		// 노트 앱에서 "결과가 일부만 표시됨" 경고는 사용자에게 불필요함
+		// if (completed && completed.limitHit) {
+		// 	completed.messages.push({ type: TextSearchCompleteMessageType.Warning, text: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") });
+		// }
 
 		if (completed && completed.messages) {
 			for (const message of completed.messages) {

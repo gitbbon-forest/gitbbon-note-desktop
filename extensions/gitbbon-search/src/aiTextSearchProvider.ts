@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import { searchService } from './services/searchService.js';
-import { extractTitle } from './services/titleExtractor.js';
 import { logService } from './services/logService.js';
 
 // Proposed API 타입 정의 (vscode.proposed.aiTextSearchProvider.d.ts에서 발췌)
@@ -94,29 +93,10 @@ export class GitbbonAITextSearchProvider {
 					const content = await vscode.workspace.fs.readFile(fileUri);
 					const text = Buffer.from(content).toString('utf-8');
 
-					// [Gitbbon] YAML frontmatter의 title 추출 (마크다운 파일인 경우)
-					// title이 있으면 스니펫으로 사용, 없으면 기존 청크 스니펫 사용
-					const isMarkdown = filePath.endsWith('.md');
-					let previewText: string;
-					const highlightRanges: vscode.Range[] = [];
-
-					if (isMarkdown) {
-						const title = extractTitle(text, filePath);
-						previewText = title;
-
-						// 검색어가 title에 포함되어 있으면 하이라이트 범위 계산 (대소문자 무시)
-						const lowerTitle = title.toLowerCase();
-						const lowerQuery = query.toLowerCase();
-						const matchIndex = lowerTitle.indexOf(lowerQuery);
-
-						if (matchIndex !== -1) {
-							// 검색어 위치에 하이라이트 표시
-							highlightRanges.push(new vscode.Range(0, matchIndex, 0, matchIndex + query.length));
-						}
-					} else {
-						// 마크다운이 아닌 경우 기존 스니펫 사용
-						previewText = await searchService.getSnippet(filePath, range);
-					}
+					// [Gitbbon] AI 검색 결과의 previewText는 항상 청크 위치의 원본 텍스트를 사용
+					// 파일 제목(title)은 FileMatchRenderer에서 별도로 표시하므로
+					// 여기서는 실제 검색된 청크의 스니펫을 보여줌
+					const previewText = await searchService.getSnippet(filePath, range);
 
 					if (!previewText) {
 						continue;
@@ -140,10 +120,14 @@ export class GitbbonAITextSearchProvider {
 					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					const TextSearchMatch2 = (vscode as any).TextSearchMatch2;
 					if (TextSearchMatch2) {
-						// 하이라이트가 있으면 사용, 없으면 빈 범위 (하이라이트 없음)
-						const previewRange = highlightRanges.length > 0
-							? highlightRanges[0]
-							: new vscode.Range(0, 0, 0, 0);
+						// [Gitbbon] AI 검색 결과는 previewText 전체를 표시해야 하므로
+						// previewRange를 스니펫 전체 길이로 설정 (MatchImpl에서 이 범위로 표시함)
+						const previewLines = previewText.split('\n');
+						const lastLineLength = previewLines[previewLines.length - 1].length;
+						const previewRange = new vscode.Range(
+							0, 0,
+							previewLines.length - 1, lastLineLength
+						);
 
 						const match = new TextSearchMatch2(
 							fileUri,
@@ -170,4 +154,3 @@ export class GitbbonAITextSearchProvider {
 
 // 싱글톤 인스턴스
 export const aiTextSearchProvider = new GitbbonAITextSearchProvider();
-
