@@ -5,6 +5,8 @@ import { ContextService } from './ContextService';
 import { SYSTEM_PROMPT } from '../constants/prompts';
 import { type StreamEvent, type ToolStartEvent, type ToolEndEvent, generateToolId } from '../types';
 import { logService } from './logService';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
 
 /**
  * Event Channel for real-time streaming
@@ -50,16 +52,59 @@ class EventChannel {
 
 export class AIService {
 	private apiKey: string | undefined;
+	private initialized = false;
 
-	constructor() {
-		this.initializeApiKey();
+	constructor(private readonly secrets: vscode.SecretStorage) {}
+
+	public async ensureInitialized(): Promise<void> {
+		if (this.initialized) {
+			return;
+		}
+		await this.initializeApiKey();
+		this.initialized = true;
 	}
 
-	private initializeApiKey(): void {
-		const HARDCODED_KEY = 'vck_4XdyhTvmnGMqyMBjZSTfGjgTTw0OfkKanAuoABTT2mJhFd49bt4YtYL5';
-		this.apiKey = process.env.VERCEL_AI_GATE_API_KEY || process.env.AI_GATEWAY_API_KEY || HARDCODED_KEY;
+	private async initializeApiKey(): Promise<void> {
+		// Load .env from workspace root
+		try {
+			// out/services -> out -> src -> extensions -> root
+			const envPath = path.join(__dirname, '..', '..', '..', '..', '.env');
+			const result = dotenv.config({ path: envPath });
+
+			if (result.error) {
+				logService.warn(`[gitbbon-chat] Failed to load .env from ${envPath}`, result.error);
+			} else {
+				logService.info(`[gitbbon-chat] Loaded .env from ${envPath}`);
+			}
+		} catch (e) {
+			logService.error('[gitbbon-chat] Error loading .env', e);
+		}
+
+		// 1. 환경변수에서 먼저 확인
+		this.apiKey = process.env.AI_GATE_API_KEY || process.env.VERCEL_AI_GATE_API_KEY || process.env.AI_GATEWAY_API_KEY;
+
+		// 2. 환경변수에 없으면 SecretStorage에서 가져오기
+		if (!this.apiKey) {
+			this.apiKey = await this.secrets.get('AI_GATEWAY_API_KEY');
+		}
+
+		// 3. 둘 다 없으면 사용자에게 입력받기
+		if (!this.apiKey) {
+			const userInput = await vscode.window.showInputBox({
+				prompt: 'AI Gateway API 키를 입력해주세요',
+				password: true,
+				placeHolder: 'API Key'
+			});
+
+			if (userInput) {
+				await this.secrets.store('AI_GATEWAY_API_KEY', userInput);
+				this.apiKey = userInput;
+				logService.info('[gitbbon-chat][aiService] API Key stored in SecretStorage');
+			}
+		}
 
 		if (this.apiKey) {
+			// Standardize for other consumers if needed
 			process.env.AI_GATEWAY_API_KEY = this.apiKey;
 			logService.info('[gitbbon-chat][aiService] Initialized with API Key');
 		} else {
@@ -75,6 +120,7 @@ export class AIService {
 	 * Real-time streaming with LLM phase indicators
 	 */
 	public async *streamAgentChat(messages: ModelMessage[]): AsyncGenerator<StreamEvent, void, unknown> {
+		await this.ensureInitialized();
 		if (!this.apiKey) throw new Error('No API Key');
 
 		const lastMessage = messages[messages.length - 1];
