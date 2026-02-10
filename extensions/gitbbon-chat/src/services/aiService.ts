@@ -5,8 +5,6 @@ import { ContextService } from './ContextService';
 import { SYSTEM_PROMPT } from '../constants/prompts';
 import { type StreamEvent, type ToolStartEvent, type ToolEndEvent, generateToolId } from '../types';
 import { logService } from './logService';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
 
 /**
  * Event Channel for real-time streaming
@@ -65,27 +63,12 @@ export class AIService {
 	}
 
 	private async initializeApiKey(): Promise<void> {
-		// Load .env from workspace root
-		try {
-			// out/services -> out -> src -> extensions -> root
-			const envPath = path.join(__dirname, '..', '..', '..', '..', '.env');
-			const result = dotenv.config({ path: envPath });
+		// 1. SecretStorage에서 먼저 확인
+		this.apiKey = await this.secrets.get('AI_GATEWAY_API_KEY');
 
-			if (result.error) {
-				logService.warn(`[gitbbon-chat] Failed to load .env from ${envPath}`, result.error);
-			} else {
-				logService.info(`[gitbbon-chat] Loaded .env from ${envPath}`);
-			}
-		} catch (e) {
-			logService.error('[gitbbon-chat] Error loading .env', e);
-		}
-
-		// 1. 환경변수에서 먼저 확인
-		this.apiKey = process.env.AI_GATE_API_KEY || process.env.VERCEL_AI_GATE_API_KEY || process.env.AI_GATEWAY_API_KEY;
-
-		// 2. 환경변수에 없으면 SecretStorage에서 가져오기
+		// 2. SecretStorage에 없으면 시스템 환경변수 확인
 		if (!this.apiKey) {
-			this.apiKey = await this.secrets.get('AI_GATEWAY_API_KEY');
+			this.apiKey = process.env.AI_GATE_API_KEY || process.env.VERCEL_AI_GATE_API_KEY || process.env.AI_GATEWAY_API_KEY;
 		}
 
 		// 3. 둘 다 없으면 사용자에게 입력받기

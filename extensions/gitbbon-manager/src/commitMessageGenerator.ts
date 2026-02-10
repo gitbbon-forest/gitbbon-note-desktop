@@ -6,8 +6,6 @@
 import * as vscode from 'vscode';
 import { generateText } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
 
 export class CommitMessageGenerator {
 	private anthropic: ReturnType<typeof createAnthropic> | null = null;
@@ -25,28 +23,17 @@ export class CommitMessageGenerator {
 	}
 
 	private async initializeApiKey(): Promise<void> {
-		// 우선순위: Env Var -> SecretStorage -> .env 파일 -> 사용자 입력
+		// 우선순위: SecretStorage -> 시스템 환경변수 -> 사용자 입력
 
-		// 1. .env 파일 로드 시도 (Workspace root)
-		// out -> gitbbon-manager -> extensions -> root
-		const envPath = path.join(__dirname, '..', '..', '..', '.env');
+		// 1. SecretStorage에서 먼저 확인
+		this.apiKey = await this.secrets.get('AI_GATEWAY_API_KEY');
 
-		const result = dotenv.config({ path: envPath });
-		if (result.error) {
-			console.warn(`[CommitMessageGenerator] Failed to load .env from: ${envPath}`, result.error);
-		} else {
-			console.log(`[CommitMessageGenerator] Loaded .env from: ${envPath}`);
-		}
-
-		// 2. 환경 변수 확인 (AI_GATE_API_KEY 추가)
-		this.apiKey = process.env.AI_GATE_API_KEY || process.env.AI_GATEWAY_API_KEY;
-
-		// 3. 환경변수에 없으면 SecretStorage에서 가져오기
+		// 2. SecretStorage에 없으면 시스템 환경변수 확인
 		if (!this.apiKey) {
-			this.apiKey = await this.secrets.get('AI_GATEWAY_API_KEY');
+			this.apiKey = process.env.AI_GATE_API_KEY || process.env.AI_GATEWAY_API_KEY;
 		}
 
-		// 4. 둘 다 없으면 사용자에게 입력받기
+		// 3. 둘 다 없으면 사용자에게 입력받기
 		if (!this.apiKey) {
 			const userInput = await vscode.window.showInputBox({
 				prompt: 'AI Gateway API 키를 입력해주세요',
@@ -65,7 +52,7 @@ export class CommitMessageGenerator {
 			// 호환성을 위해 AI_GATEWAY_API_KEY도 설정
 			process.env.AI_GATEWAY_API_KEY = this.apiKey;
 		} else {
-			console.error('AI_GATE_API_KEY is not configured. Please check your .env file.');
+			console.error('AI_GATEWAY_API_KEY is not configured.');
 		}
 	}
 
