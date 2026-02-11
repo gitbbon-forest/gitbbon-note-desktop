@@ -22,7 +22,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js'; // gitbbon
 import { Range } from '../../../../editor/common/core/range.js'; // gitbbon
 
