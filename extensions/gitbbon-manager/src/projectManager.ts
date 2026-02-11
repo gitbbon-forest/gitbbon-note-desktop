@@ -30,16 +30,17 @@ export class ProjectManager {
 	private readonly commitMessageGenerator: CommitMessageGenerator;
 	private selfDestructWatcher: vscode.FileSystemWatcher | undefined;
 
-	constructor() {
+	constructor(private readonly context: vscode.ExtensionContext) {
 		this.rootPath = path.join(os.homedir(), 'Documents', 'Gitbbon_Notes');
-		this.commitMessageGenerator = new CommitMessageGenerator();
+		this.commitMessageGenerator = new CommitMessageGenerator(context.secrets);
 	}
 
 	/**
 	 * Start watching the current workspace folder for deletion.
 	 * If deleted, close the window.
 	 */
-	public startSelfDestructWatcher(context: vscode.ExtensionContext): void {
+	public startSelfDestructWatcher(): void {
+		const context = this.context;
 		const currentWorkspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		if (!currentWorkspacePath) {
 			return;

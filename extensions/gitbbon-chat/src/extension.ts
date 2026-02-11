@@ -15,8 +15,16 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 	private aiService: AIService;
 	private _pendingText?: string;
 
-	constructor(private readonly _extensionUri: vscode.Uri) {
-		this.aiService = new AIService();
+	constructor(private readonly _context: vscode.ExtensionContext) {
+		this.aiService = new AIService(_context.secrets);
+	}
+
+	public getAIService(): AIService {
+		return this.aiService;
+	}
+
+	private get _extensionUri(): vscode.Uri {
+		return this._context.extensionUri;
 	}
 
 	/**
@@ -75,12 +83,15 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 
 
 
+		// Ensure AI Service is initialized (loads keys)
+		await this.aiService.ensureInitialized();
+
 		if (!this.aiService.hasApiKey()) {
 			logService.warn('Missing API Key');
 			this._webviewView.webview.postMessage({ type: 'chat-done' });
 			this._webviewView.webview.postMessage({
 				type: 'chat-chunk',
-				chunk: '데모 모드입니다. .env 파일에 AI_GATEWAY_API_KEY를 설정해주세요.'
+				chunk: 'API 키가 설정되지 않았습니다. 입력 프롬프트를 확인해주세요.'
 			});
 			this._webviewView.webview.postMessage({ type: 'chat-done' });
 			return;
@@ -154,7 +165,7 @@ function getNonce() {
 
 export function activate(context: vscode.ExtensionContext): void {
 	logService.init();
-	const provider = new GitbbonChatViewProvider(context.extensionUri);
+	const provider = new GitbbonChatViewProvider(context);
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(
@@ -208,6 +219,20 @@ export function activate(context: vscode.ExtensionContext): void {
 				await vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
 				// 포맷된 텍스트 전송
 				provider.sendTextToChat(formattedText);
+			}
+		})
+	);
+
+	// API 키 설정 커맨드
+	context.subscriptions.push(
+		vscode.commands.registerCommand('gitbbon.chat.setApiKey', async () => {
+			const aiService = provider.getAIService();
+			const success = await aiService.promptForApiKey();
+
+			if (success) {
+				vscode.window.showInformationMessage('API 키가 성공적으로 저장되었습니다.');
+			} else {
+				vscode.window.showWarningMessage('API 키 설정이 취소되었습니다.');
 			}
 		})
 	);

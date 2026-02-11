@@ -52,7 +52,7 @@ export class AIService {
 	private apiKey: string | undefined;
 	private initialized = false;
 
-	constructor(private readonly secrets: vscode.SecretStorage) {}
+	constructor(private readonly secrets: vscode.SecretStorage) { }
 
 	public async ensureInitialized(): Promise<void> {
 		if (this.initialized) {
@@ -63,27 +63,22 @@ export class AIService {
 	}
 
 	private async initializeApiKey(): Promise<void> {
+		logService.info('[gitbbon-chat][aiService] initializeApiKey started');
+
 		// 1. SecretStorage에서 먼저 확인
 		this.apiKey = await this.secrets.get('AI_GATEWAY_API_KEY');
+		logService.info('[gitbbon-chat][aiService] SecretStorage check:', this.apiKey ? 'found' : 'not found');
 
 		// 2. SecretStorage에 없으면 시스템 환경변수 확인
 		if (!this.apiKey) {
 			this.apiKey = process.env.AI_GATE_API_KEY || process.env.VERCEL_AI_GATE_API_KEY || process.env.AI_GATEWAY_API_KEY;
+			logService.info('[gitbbon-chat][aiService] Env var check:', this.apiKey ? 'found' : 'not found');
 		}
 
 		// 3. 둘 다 없으면 사용자에게 입력받기
 		if (!this.apiKey) {
-			const userInput = await vscode.window.showInputBox({
-				prompt: 'AI Gateway API 키를 입력해주세요',
-				password: true,
-				placeHolder: 'API Key'
-			});
-
-			if (userInput) {
-				await this.secrets.store('AI_GATEWAY_API_KEY', userInput);
-				this.apiKey = userInput;
-				logService.info('[gitbbon-chat][aiService] API Key stored in SecretStorage');
-			}
+			logService.info('[gitbbon-chat][aiService] No API key found, prompting user...');
+			await this.promptForApiKey();
 		}
 
 		if (this.apiKey) {
@@ -97,6 +92,38 @@ export class AIService {
 
 	public hasApiKey(): boolean {
 		return !!this.apiKey;
+	}
+
+	/**
+	 * Prompt user for API key and store in SecretStorage
+	 */
+	public async promptForApiKey(): Promise<boolean> {
+		logService.info('[gitbbon-chat][aiService] Showing input prompt...');
+
+		const userInput = await vscode.window.showInputBox({
+			prompt: 'Vercel AI Gateway API 키를 입력해주세요',
+			password: true,
+			placeHolder: 'API Key',
+			ignoreFocusOut: true,
+			validateInput: (value) => {
+				if (!value || value.trim().length === 0) {
+					return 'API 키를 입력해주세요';
+				}
+				return null;
+			}
+		});
+
+		logService.info('[gitbbon-chat][aiService] User input:', userInput ? 'provided' : 'cancelled');
+
+		if (userInput && userInput.trim()) {
+			await this.secrets.store('AI_GATEWAY_API_KEY', userInput.trim());
+			this.apiKey = userInput.trim();
+			process.env.AI_GATEWAY_API_KEY = this.apiKey;
+			logService.info('[gitbbon-chat][aiService] API Key stored in SecretStorage');
+			return true;
+		}
+
+		return false;
 	}
 
 	/**

@@ -12,7 +12,7 @@ export class CommitMessageGenerator {
 	private apiKey: string | undefined;
 	private initialized = false;
 
-	constructor(private readonly secrets: vscode.SecretStorage) {}
+	constructor(private readonly secrets: vscode.SecretStorage) { }
 
 	private async ensureInitialized(): Promise<void> {
 		if (this.initialized) {
@@ -36,7 +36,7 @@ export class CommitMessageGenerator {
 		// 3. 둘 다 없으면 사용자에게 입력받기
 		if (!this.apiKey) {
 			const userInput = await vscode.window.showInputBox({
-				prompt: 'AI Gateway API 키를 입력해주세요',
+				prompt: 'Vercel AI Gateway API 키를 입력해주세요',
 				password: true,
 				placeHolder: 'API Key'
 			});
