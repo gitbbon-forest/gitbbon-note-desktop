@@ -54,6 +54,11 @@
         "title": "AI에게 물어보기",
         "category": "Gitbbon",
         "icon": "$(sparkle)"
+      },
+      {
+        "command": "gitbbon.chat.setApiKey",
+        "title": "Set API Key",
+        "category": "Gitbbon Chat"
       }
     ],
     "keybindings": [
