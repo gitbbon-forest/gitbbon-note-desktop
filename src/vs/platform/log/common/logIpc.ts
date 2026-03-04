@@ -40,10 +40,17 @@ export class LoggerChannelClient extends AbstractLoggerService implements ILogge
 		});
 	}
 
+	// gitbbon custom: allow registerLogger to take ILogger
+	override registerLogger(loggerResource: ILoggerResource, logger?: ILogger): void {
+		super.registerLogger(loggerResource, logger);
+		this.channel.call('registerLogger', [loggerResource, this.windowId]);
+	}
+	/* gitbbon custom: allow registerLogger to take ILogger
 	override registerLogger(logger: ILoggerResource): void {
 		super.registerLogger(logger);
 		this.channel.call('registerLogger', [logger, this.windowId]);
 	}
+	*/
 
 	override deregisterLogger(resource: URI): void {
 		super.deregisterLogger(resource);

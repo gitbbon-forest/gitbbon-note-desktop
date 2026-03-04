@@ -20,10 +20,17 @@ export class ExtHostLoggerService extends BaseExtHostLoggerService {
 		return super.doCreateLogger(resource, logLevel, options);
 	}
 
+	// gitbbon custom: allow registerLogger to take ILogger
+	override registerLogger(resource: ILoggerResource, logger?: ILogger): void {
+		super.registerLogger(resource, logger);
+		this._proxy.$registerLogger(resource);
+	}
+	/* gitbbon custom: allow registerLogger to take ILogger
 	override registerLogger(resource: ILoggerResource): void {
 		super.registerLogger(resource);
 		this._proxy.$registerLogger(resource);
 	}
+	*/
 
 	override deregisterLogger(resource: URI): void {
 		super.deregisterLogger(resource);

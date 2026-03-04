@@ -24,7 +24,11 @@ export interface ILoggerMainService extends ILoggerService {
 
 	createLogger(id: string, options?: Omit<ILoggerOptions, 'id'>, windowId?: number): ILogger;
 
+	// gitbbon custom: allow registerLogger to take ILogger
+	registerLogger(resource: ILoggerResource, logger?: ILogger, windowId?: number): void;
+	/* gitbbon custom: allow registerLogger to take ILogger
 	registerLogger(resource: ILoggerResource, windowId?: number): void;
+	*/
 
 	getGlobalLoggers(): ILoggerResource[];
 
@@ -48,12 +52,21 @@ export class LoggerMainService extends LoggerService implements ILoggerMainServi
 		}
 	}
 
+	// gitbbon custom: allow registerLogger to take ILogger
+	override registerLogger(resource: ILoggerResource, logger?: ILogger, windowId?: number): void {
+		if (windowId !== undefined) {
+			this.loggerResourcesByWindow.set(resource.resource, windowId);
+		}
+		super.registerLogger(resource, logger);
+	}
+	/* gitbbon custom: allow registerLogger to take ILogger
 	override registerLogger(resource: ILoggerResource, windowId?: number): void {
 		if (windowId !== undefined) {
 			this.loggerResourcesByWindow.set(resource.resource, windowId);
 		}
 		super.registerLogger(resource);
 	}
+	*/
 
 	override deregisterLogger(resource: URI): void {
 		this.loggerResourcesByWindow.delete(resource);

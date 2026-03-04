@@ -32,7 +32,11 @@ export class LoggerChannel implements IServerChannel {
 			case 'consoleLog': return this.consoleLog(arg[0], arg[1]);
 			case 'setLogLevel': return isLogLevel(arg[0]) ? this.loggerService.setLogLevel(arg[0]) : this.loggerService.setLogLevel(URI.revive(arg[0]), arg[1]);
 			case 'setVisibility': return this.loggerService.setVisibility(URI.revive(arg[0]), arg[1]);
+			// gitbbon custom: allow registerLogger to take ILogger
+			case 'registerLogger': return this.loggerService.registerLogger({ ...arg[0], resource: URI.revive(arg[0].resource) }, undefined, arg[1]);
+			/* gitbbon custom: allow registerLogger to take ILogger
 			case 'registerLogger': return this.loggerService.registerLogger({ ...arg[0], resource: URI.revive(arg[0].resource) }, arg[1]);
+			*/
 			case 'deregisterLogger': return this.loggerService.deregisterLogger(URI.revive(arg[0]));
 		}
 

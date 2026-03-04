@@ -235,7 +235,11 @@ export interface ILoggerService {
 	 *
 	 * Use it when you want to register a logger that is not created by the logger service.
 	 */
+	// gitbbon custom: allow registerLogger to take ILogger
+	registerLogger(resource: ILoggerResource, logger?: ILogger): void;
+	/* gitbbon custom: allow registerLogger to take ILogger
 	registerLogger(resource: ILoggerResource): void;
+	*/
 
 	/**
 	 * Deregister the logger for the given resource.
@@ -642,9 +646,13 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 				when: options?.when
 			}
 		};
+		// gitbbon custom: remove workaround, registerLogger now takes ILogger
+		this.registerLogger(loggerEntry.info, loggerEntry.logger);
+		/* gitbbon custom: remove workaround, registerLogger now takes ILogger
 		this.registerLogger(loggerEntry.info);
 		// TODO: @sandy081 Remove this once registerLogger can take ILogger
 		this._loggers.set(resource, loggerEntry);
+		*/
 		return logger;
 	}
 
@@ -693,14 +701,25 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 		return logLevel ?? this.logLevel;
 	}
 
-	registerLogger(resource: ILoggerResource): void {
+	registerLogger(resource: ILoggerResource, logger?: ILogger): void {
+		// gitbbon custom: log for verification
+		console.log(`[gitbbon] registerLogger: ${resource.id} (logger provided: ${!!logger})`);
 		const existing = this._loggers.get(resource.resource);
 		if (existing) {
+			// gitbbon custom: update existing entry
+			if (logger) {
+				existing.logger = logger;
+			}
+			existing.info = resource;
 			if (existing.info.hidden !== resource.hidden) {
 				this.setVisibility(resource.resource, !resource.hidden);
 			}
 		} else {
+			// gitbbon custom: store provided logger
+			this._loggers.set(resource.resource, { info: resource, logger });
+			/* gitbbon custom: store provided logger
 			this._loggers.set(resource.resource, { info: resource, logger: undefined });
+			*/
 			this._onDidChangeLoggers.fire({ added: [resource], removed: [] });
 		}
 	}
