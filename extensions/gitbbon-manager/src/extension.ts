@@ -154,40 +154,50 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const deleteProjectCommand = vscode.commands.registerCommand(
 		'gitbbon.manager.deleteProject',
 		async (args: { projectPath: string; deleteRemote?: boolean }) => {
-			logService.info('Delete project command triggered:', args);
+			logService.info(`[Gitbbon-Delete] Delete project command triggered. Local path: ${args.projectPath}, deleteRemote: ${args.deleteRemote}`);
 
 			if (!args.projectPath) {
-				logService.error('No project path provided');
+				logService.error('[Gitbbon-Delete] Error: No project path provided');
 				return { success: false, message: 'No project path provided' };
 			}
 
 			try {
 				// 원격 삭제가 요청된 경우
 				if (args.deleteRemote) {
+					logService.info(`[Gitbbon-Delete] Fetching remote URL for project: ${args.projectPath}`);
 					const remoteUrl = await projectManager.getRemoteUrl(args.projectPath);
 					if (remoteUrl) {
 						// URL에서 저장소 이름 추출 (예: https://github.com/user/gitbbon-note-xxx.git)
 						const repoName = remoteUrl.split('/').pop()?.replace('.git', '');
 						if (repoName) {
+							logService.info(`[Gitbbon-Delete] Attempting to delete remote repository on GitHub: ${repoName}`);
 							const success = await githubSyncManager.deleteGitHubRepo(repoName);
 							if (!success) {
-								logService.warn('Failed to delete remote repo, continuing with local delete');
+								logService.warn(`[Gitbbon-Delete] Failed to delete remote repository. Continuing with local delete.`);
 								return { success: false, message: 'Failed to delete remote repository' };
+							} else {
+								logService.info(`[Gitbbon-Delete] Remote repository '${repoName}' successfully deleted.`);
 							}
+						} else {
+							logService.warn(`[Gitbbon-Delete] Failed to extract repo name from remote URL: ${remoteUrl}`);
 						}
+					} else {
+						logService.warn(`[Gitbbon-Delete] No remote URL found for project: ${args.projectPath}`);
 					}
 				}
 
 				// 로컬 프로젝트 삭제
+				logService.info(`[Gitbbon-Delete] Attempting to delete local project path: ${args.projectPath}`);
 				const success = await projectManager.deleteProject(args.projectPath, true);
 				if (success) {
-					logService.info('Project deleted successfully');
+					logService.info(`[Gitbbon-Delete] Local project '${args.projectPath}' deleted successfully.`);
 					return { success: true, message: 'Project deleted' };
 				} else {
+					logService.warn(`[Gitbbon-Delete] Failed to delete local project: ${args.projectPath}`);
 					return { success: false, message: 'Failed to delete project' };
 				}
 			} catch (error) {
-				logService.error('Delete project failed:', error);
+				logService.error(`[Gitbbon-Delete] Exception during deletion:`, error);
 				return { success: false, message: String(error) };
 			}
 		}
