@@ -979,12 +979,20 @@ class ProjectBar extends DisposableStore {
 										message: `Are you sure you want to delete '${project.title}'?`,
 										detail: 'The folder will be moved to the trash.',
 										primaryButton: 'Delete',
-										type: 'warning'
+										type: 'warning',
+										checkbox: {
+											label: 'Delete remote repository on GitHub as well',
+											checked: true
+										}
 									});
 
 									if (confirm.confirmed) {
 										try {
-											await this.fileService.del(URI.file(project.path), { recursive: true, useTrash: true });
+											console.log(`[Gitbbon Delete] Initiated for ${project.title}. Local path: ${project.path}, Delete remote: ${confirm.checkboxChecked}`);
+											await this.commandService.executeCommand('gitbbon.manager.deleteProject', {
+												projectPath: project.path,
+												deleteRemote: confirm.checkboxChecked
+											});
 										} catch (e) {
 											console.error('Failed to delete project', e);
 											this.dialogService.error(e);
@@ -1065,12 +1073,20 @@ class ProjectBar extends DisposableStore {
 										message: `Are you sure you want to delete '${project.title}'?`,
 										detail: 'The folder will be moved to the trash.',
 										primaryButton: 'Delete',
-										type: 'warning'
+										type: 'warning',
+										checkbox: {
+											label: 'Delete remote repository on GitHub as well',
+											checked: true
+										}
 									});
 
 									if (confirm.confirmed) {
 										try {
-											await this.fileService.del(URI.file(project.path), { recursive: true, useTrash: true });
+											console.log(`[Gitbbon Delete] Initiated for ${project.title}. Local path: ${project.path}, Delete remote: ${confirm.checkboxChecked}`);
+											await this.commandService.executeCommand('gitbbon.manager.deleteProject', {
+												projectPath: project.path,
+												deleteRemote: confirm.checkboxChecked
+											});
 										} catch (e) {
 											console.error('Failed to delete project', e);
 											this.dialogService.error(e);
