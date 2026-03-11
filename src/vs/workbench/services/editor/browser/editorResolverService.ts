@@ -148,6 +148,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// Resolved the editor ID as much as possible, now find a given editor (cast here is ok because we resolve down to a string above)
 		let { editor: selectedEditor, conflictingDefault } = this.getEditor(resource, untypedEditor.options?.override as (string | EditorResolution.EXCLUSIVE_ONLY | undefined));
+
 		// If no editor was found and this was a typed editor or an editor with an explicit override we could not resolve it
 		if (!selectedEditor && (untypedEditor.options?.override || isEditorInputWithOptions(editor))) {
 			return ResolvedStatus.NONE;
@@ -178,6 +179,16 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			}
 		}
 
+		if (selectedEditor.editorFactoryObject.createMultiDiffEditorInput === undefined && isResourceMultiDiffEditorInput(untypedEditor)) {
+			// gitbbon custom: if the chosen editor (like gitbbon.editor) doesn't support MultiDiffEditor, fallback to default rather than failing
+			const fallbackEditor = this.getEditor(resource, DEFAULT_EDITOR_ASSOCIATION.id);
+			if (fallbackEditor?.editor) {
+				selectedEditor = fallbackEditor.editor;
+			} else {
+				return ResolvedStatus.NONE;
+			}
+		}
+
 		// If no override we take the selected editor id so that matches works with the isActive check
 		untypedEditor.options = { override: selectedEditor.editorInfo.id, ...untypedEditor.options };
 
@@ -187,6 +198,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		const input = await this.doResolveEditor(untypedEditor, group, selectedEditor);
+
 		if (conflictingDefault && input) {
 			// Show the conflicting default dialog
 			await this.doHandleConflictingDefaults(resource, selectedEditor.editorInfo.label, untypedEditor, input.editor, group);
@@ -198,6 +210,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			}
 			return { ...input, group };
 		}
+		
 		return ResolvedStatus.ABORT;
 	}
 

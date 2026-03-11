@@ -1387,7 +1387,11 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceMultiDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceMultiDiffEditorInput(editor)) {
+			return editor.multiDiffSource;
+		}
+
+		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 
@@ -1456,7 +1460,11 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceMultiDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceMultiDiffEditorInput(editor)) {
+			return editor.multiDiffSource;
+		}
+
+		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 

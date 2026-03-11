@@ -257,7 +257,9 @@ export class OpenCommitInMultiDiffEditorAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, repositoryRootUri: URI, commitHash: string, parentCommitId?: string): Promise<void> {
+	async run(accessor: ServicesAccessor, repositoryRootUriRaw: UriComponents, commitHash: string, parentCommitId?: string): Promise<void> {
+		const repositoryRootUri = URI.revive(repositoryRootUriRaw);
+
 		console.log('[OpenCommitInMultiDiffEditor] Called with:', {
 			repositoryRootUri: repositoryRootUri?.toString(),
 			commitHash,
@@ -268,16 +270,13 @@ export class OpenCommitInMultiDiffEditorAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 
 		// Find repository
-		const repository = [...scmService.repositories].find(r => r.provider.rootUri?.toString() === repositoryRootUri.toString());
+		const repository = [...scmService.repositories].find(r => r.provider.rootUri?.toString() === repositoryRootUri?.toString());
 		if (!repository) {
-			console.warn('[OpenCommitInMultiDiffEditor] Repository not found for URI:', repositoryRootUri);
 			return;
 		}
-		console.log('[OpenCommitInMultiDiffEditor] Found repository:', repository.provider.id);
 
-		// Construct Multi Diff Source URI for the commit
+		// Construct MultiDiff Source URI for the commit
 		const multiDiffSource = ScmHistoryItemResolver.getMultiDiffSourceUri(repository.provider, commitHash, parentCommitId, undefined);
-		console.log('[OpenCommitInMultiDiffEditor] multiDiffSource URI:', multiDiffSource.toString());
 
 		const label = `Commit ${commitHash.substring(0, 8)} ${parentCommitId ? `vs ${parentCommitId.substring(0, 8)}` : ''}`;
 
@@ -295,19 +294,23 @@ export class OpenCommitInMultiDiffEditorAction extends Action2 {
 				const rightCommit = await historyProvider.resolveHistoryItem(commitHash);
 				rightMessage = rightCommit?.message ?? 'No message';
 			} catch (e) {
-				console.error('[OpenCommitInMultiDiffEditor] Failed to fetch commit messages:', e);
+				// Ignore
 			}
 		}
 
-		await editorService.openEditor({
-			label,
-			multiDiffSource,
-			commitMessages: {
-				left: leftMessage,
-				right: rightMessage,
-				leftHash: parentCommitId,
-				rightHash: commitHash
-			}
-		});
+		try {
+			await editorService.openEditor({
+				label,
+				multiDiffSource,
+				commitMessages: {
+					left: leftMessage,
+					right: rightMessage,
+					leftHash: parentCommitId,
+					rightHash: commitHash
+				}
+			});
+		} catch (error) {
+			// Ignore
+		}
 	}
 }

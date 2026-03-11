@@ -123,7 +123,8 @@ ${diff.substring(0, 3000)}
 	/**
 	 * API 키가 설정되어 있는지 확인합니다.
 	 */
-	public isConfigured(): boolean {
-		return process.env.AI_GATEWAY_API_KEY !== undefined;
+	public async isConfigured(): Promise<boolean> {
+		await this.ensureInitialized();
+		return this.apiKey !== undefined || process.env.AI_GATEWAY_API_KEY !== undefined || process.env.AI_GATE_API_KEY !== undefined;
 	}
 }

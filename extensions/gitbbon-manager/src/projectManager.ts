@@ -892,7 +892,7 @@ export class ProjectManager {
 
 			// 1.5. LLM을 사용하여 커밋 메시지 생성 (commitMessage가 제공되지 않은 경우)
 			let message = commitMessage;
-			if (!message && this.commitMessageGenerator.isConfigured()) {
+			if (!message && await this.commitMessageGenerator.isConfigured()) {
 				logService.info('[gitbbon-manager][projectManager] Generating commit message using LLM...');
 				try {
 					// 현재 staged 상태의 diff 가져오기
