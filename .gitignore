@@ -25,3 +25,4 @@ product.overrides.json
 vscode-telemetry-docs/
 .aider*
 .env
+.vercel
