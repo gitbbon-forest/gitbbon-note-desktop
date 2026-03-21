@@ -393,14 +393,14 @@ body {
 }
 
 .tool-accordion-summary::before {
-	content: '▶ ';
+	content: '> ';
 	font-size: 0.7em;
 	transition: transform 0.15s ease;
 	display: inline-block;
 }
 
 .tool-accordion[open] .tool-accordion-summary::before {
-	content: '▼ ';
+	content: 'v ';
 }
 
 .tool-accordion-detail {

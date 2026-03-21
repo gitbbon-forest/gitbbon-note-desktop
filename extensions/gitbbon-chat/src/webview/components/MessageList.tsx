@@ -61,12 +61,11 @@ interface ToolStatusData {
 }
 
 const ToolStatusLine: React.FC<{ data: ToolStatusData }> = ({ data }) => {
-	const emoji = data.isRunning ? '⏳' : (data.success ? '✅' : '❌');
 	const argsText = data.args && Object.keys(data.args).length > 0
 		? Object.values(data.args).map(v => typeof v === 'string' ? v.slice(0, 40) : String(v)).join(', ')
 		: '';
 	const timeText = data.duration !== undefined ? ` (${(data.duration / 1000).toFixed(1)}s)` : '';
-	const summary = `${emoji} ${data.toolName}${argsText ? ` ${argsText}` : ''}${timeText}`;
+	const summary = `${data.toolName}${argsText ? ` ${argsText}` : ''}${timeText}`;
 
 	if (!data.args || Object.keys(data.args).length === 0) {
 		return <div className="tool-status-line">{summary}</div>;
