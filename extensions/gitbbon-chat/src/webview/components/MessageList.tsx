@@ -141,6 +141,8 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, onRetry 
 												<table {...props}>{children}</table>
 											</div>
 										),
+										th: ({ children, style, ...props }) => <th style={style} {...props}>{children}</th>,
+										td: ({ children, style, ...props }) => <td style={style} {...props}>{children}</td>,
 									}}
 									>
 										{m.content}
