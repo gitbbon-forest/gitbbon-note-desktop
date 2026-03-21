@@ -58,14 +58,55 @@
 			}
 		},
 		{
+			"type": "npm",
+			"script": "watch-gitbbon-chatd",
+			"label": "Gitbbon Chat - Build",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers",
+				"close": false
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"absolute"
+				],
+				"pattern": {
+					"regexp": "error TS\\d+: (.*)$",
+					"file": 1,
+					"message": 1
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".",
+					"endsPattern": "watching for file changes"
+				}
+			}
+		},
+		{
 			"label": "VS Code - Build",
 			"dependsOn": [
 				"Core - Build",
-				"Ext - Build"
+				"Ext - Build",
+				"Gitbbon Chat - Build"
 			],
 			"group": {
 				"kind": "build",
 				"isDefault": true
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Watch",
+			"type": "shell",
+			"command": "npm run watch",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "always",
+				"group": "buildWatchers",
+				"close": false
 			},
 			"problemMatcher": []
 		},
@@ -94,10 +135,23 @@
 			"problemMatcher": "$tsc"
 		},
 		{
+			"type": "npm",
+			"script": "kill-watch-gitbbon-chatd",
+			"label": "Kill Gitbbon Chat - Build",
+			"group": "build",
+			"presentation": {
+				"reveal": "never",
+				"group": "buildKillers",
+				"close": true
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
 			"label": "Kill VS Code - Build",
 			"dependsOn": [
 				"Kill Core - Build",
-				"Kill Ext - Build"
+				"Kill Ext - Build",
+				"Kill Gitbbon Chat - Build"
 			],
 			"group": "build",
 			"problemMatcher": []
