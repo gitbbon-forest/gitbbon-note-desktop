@@ -207,10 +207,9 @@ export class ContextService {
 		// If it's a .md file and Gitbbon Editor is default, it will open with it.
 		await vscode.commands.executeCommand('vscode.open', uri);
 
-		// 3. Wait for editor to be active
-		// Check if the current active editor matches the requested file
-		// Retry a few times if needed (async opening)
-		for (let i = 0; i < 5; i++) {
+		// 3. Wait for editor to be active (200ms × 20 = 4초)
+		let editorReady = false;
+		for (let i = 0; i < 20; i++) {
 			const activeEditor = vscode.window.activeTextEditor;
 			const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
 
@@ -218,13 +217,25 @@ export class ContextService {
 				(activeTab?.input instanceof vscode.TabInputCustom && activeTab.input.uri.toString() === uri.toString());
 
 			if (isActive) {
+				editorReady = true;
 				break;
 			}
 			await new Promise(resolve => setTimeout(resolve, 200));
 		}
 
+		if (!editorReady) {
+			const retry = await vscode.window.showWarningMessage(
+				`파일을 여는 데 시간이 걸리고 있습니다: ${vscode.workspace.asRelativePath(uri)}`,
+				'다시 시도',
+				'취소'
+			);
+			if (retry === '다시 시도') {
+				return this.applySuggestions(filePath, changes, mode);
+			}
+			throw new Error(`에디터를 열 수 없습니다: ${filePath}`);
+		}
+
 		// 4. Apply Suggestions or Direct Edit
-		// If it is the custom editor (Milkdown)
 		if (this.isGitbbonEditor()) {
 			if (mode === 'direct') {
 				await vscode.commands.executeCommand('gitbbon.editor.directApply', changes);
@@ -232,7 +243,6 @@ export class ContextService {
 				await vscode.commands.executeCommand('gitbbon.editor.applySuggestions', changes);
 			}
 		} else {
-			// Fallback: Try to execute command even if standard editor appears active (might be early state)
 			try {
 				if (mode === 'direct') {
 					await vscode.commands.executeCommand('gitbbon.editor.directApply', changes);
@@ -240,7 +250,6 @@ export class ContextService {
 					await vscode.commands.executeCommand('gitbbon.editor.applySuggestions', changes);
 				}
 			} catch (e) {
-				// Rethrow so the caller (tool) knows it failed
 				throw new Error(`Failed to apply changes. Ensure the file is opened in Gitbbon Editor. Error: ${e}`);
 			}
 		}
