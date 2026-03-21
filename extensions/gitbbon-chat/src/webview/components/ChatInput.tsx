@@ -6,6 +6,7 @@ interface ChatInputProps {
 	isSending: boolean; // 전송 중 상태
 	isReceiving: boolean; // 수신 중 상태
 	onSubmit: (e: React.FormEvent) => void;
+	onCancel: () => void;
 	inputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
@@ -25,7 +26,20 @@ const SendIcon = () => (
 	</svg>
 );
 
-const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSending, isReceiving, onSubmit, inputRef }) => {
+// 정지(Stop) 아이콘 SVG
+const StopIcon = () => (
+	<svg
+		width="16"
+		height="16"
+		viewBox="0 0 24 24"
+		fill="currentColor"
+		stroke="none"
+	>
+		<rect x="6" y="6" width="12" height="12" rx="2" />
+	</svg>
+);
+
+const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSending, isReceiving, onSubmit, onCancel, inputRef }) => {
 	const internalRef = useRef<HTMLTextAreaElement>(null);
 	const textareaRef = inputRef || internalRef;
 	const isLoading = isSending || isReceiving;
@@ -47,7 +61,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSend
 
 	// Enter로 전송, Shift+Enter로 줄바꿈 (처리 중에도 입력은 가능하지만 전송은 불가)
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		if (e.key === 'Enter' && !e.shiftKey) {
+		if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
 			e.preventDefault();
 			// 로딩 중이 아니고 입력값이 있을 때만 전송
 			if (!isLoading && inputValue.trim()) {
@@ -79,14 +93,25 @@ const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSend
 					rows={1}
 				/>
 				<div className="chat-input-actions">
-					<button
-						type="submit"
-						disabled={isSubmitDisabled}
-						className={getButtonClass()}
-						aria-label="전송"
-					>
-						<SendIcon />
-					</button>
+					{isLoading ? (
+						<button
+							type="button"
+							onClick={onCancel}
+							className="chat-submit-btn stop"
+							aria-label="중단"
+						>
+							<StopIcon />
+						</button>
+					) : (
+						<button
+							type="submit"
+							disabled={isSubmitDisabled}
+							className={getButtonClass()}
+							aria-label="전송"
+						>
+							<SendIcon />
+						</button>
+					)}
 				</div>
 			</div>
 		</form>

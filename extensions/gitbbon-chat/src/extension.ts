@@ -62,6 +62,9 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 		webviewView.webview.onDidReceiveMessage(async (message) => {
 			if (message.type === 'chat-request') {
 				await this._handleChatMessage(message.messages);
+			} else if (message.type === 'chat-cancel') {
+				this.aiService.cancelCurrentStream();
+				webviewView.webview.postMessage({ type: 'chat-done' });
 			}
 		});
 

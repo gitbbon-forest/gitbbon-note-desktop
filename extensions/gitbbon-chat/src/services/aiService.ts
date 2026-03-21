@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ToolLoopAgent, type ModelMessage } from 'ai';
+import { streamText, stepCountIs, type ModelMessage } from 'ai';
 import { createEditorTools } from '../tools/editorTools';
 import { ContextService } from './ContextService';
 import { SYSTEM_PROMPT } from '../constants/prompts';
@@ -51,8 +51,20 @@ class EventChannel {
 export class AIService {
 	private apiKey: string | undefined;
 	private initialized = false;
+	private currentAbortController: AbortController | null = null;
 
 	constructor(private readonly secrets: vscode.SecretStorage) { }
+
+	/**
+	 * Cancel the current streaming response
+	 */
+	public cancelCurrentStream(): void {
+		if (this.currentAbortController) {
+			this.currentAbortController.abort();
+			this.currentAbortController = null;
+			logService.info('[gitbbon-chat][aiService] Stream cancelled by user');
+		}
+	}
 
 	public async ensureInitialized(): Promise<void> {
 		if (this.initialized) {
@@ -198,12 +210,17 @@ export class AIService {
 		const instructions = SYSTEM_PROMPT + '\n\n' + contextParts.join('\n');
 
 		logService.info('[gitbbon-chat][System Prompt]', instructions);
-		logService.info(`[gitbbon-chat][aiService] Starting agent: ${modelName}`);
+		logService.info(`[gitbbon-chat][aiService] Starting streamText: ${modelName}`);
 
-		// Run agent with phase indicators
+		// Set up AbortController for cancellation
+		const abortController = new AbortController();
+		this.currentAbortController = abortController;
+
+		// Run streamText with tool loop
 		const agentPromise = (async () => {
 			const thinkingId = generateToolId();
 			const thinkingStart = Date.now();
+			let hasToolCalls = false;
 
 			try {
 				// Phase 1: Thinking
@@ -215,20 +232,19 @@ export class AIService {
 				});
 				logService.info('[gitbbon-chat][Phase] Thinking...');
 
-				let hasToolCalls = false;
-
-				const agent = new ToolLoopAgent({
+				const result = streamText({
 					model: modelName,
-					instructions,
+					system: instructions,
+					messages: messages as any,
 					tools,
+					stopWhen: stepCountIs(10),
+					abortSignal: abortController.signal,
 					onStepFinish: (event) => {
-						// Log every step change
 						logService.info('[gitbbon-chat][Agent Step] Step Finished', {
 							text: event.text ? event.text.slice(0, 100) + '...' : undefined,
-							tools: event.toolCalls?.map(t => t.toolName).join(', ') || 'None'
+							tools: event.toolCalls?.map((t: any) => t.toolName).join(', ') || 'None'
 						});
 
-						// Tool calls detected - update thinking status
 						if (event.toolCalls?.length) {
 							if (!hasToolCalls) {
 								hasToolCalls = true;
@@ -242,24 +258,46 @@ export class AIService {
 								logService.info('[gitbbon-chat][Phase] Tool Execution Started');
 							}
 
-							// Log tool calls
-							event.toolCalls.forEach(call => {
-								logService.info(`[gitbbon-chat][Tool Call] ${call.toolName}`, (call as any).args);
+							event.toolCalls.forEach((call: any) => {
+								logService.info(`[gitbbon-chat][Tool Call] ${call.toolName}`, call.args);
 							});
 
-							// Log tool results
 							if (event.toolResults) {
-								event.toolResults.forEach(result => {
-									logService.info(`[gitbbon-chat][Tool Result] ${result.toolName}`, (result as any).result);
+								event.toolResults.forEach((toolResult: any) => {
+									logService.info(`[gitbbon-chat][Tool Result] ${toolResult.toolName}`, toolResult.result);
 								});
 							}
 						}
-					}
+					},
+					onAbort: () => {
+						logService.info('[gitbbon-chat][aiService] Stream aborted');
+					},
 				});
 
-				const result = await agent.generate({ prompt: userInput });
+				// Stream text token by token
+				for await (const textChunk of result.textStream) {
+					if (abortController.signal.aborted) break;
 
-				// If no tool calls, end thinking phase
+					// End thinking phase on first text chunk
+					if (!hasToolCalls) {
+						hasToolCalls = true;
+						channel.push({
+							type: 'tool-end',
+							id: thinkingId,
+							toolName: 'Thinking...',
+							duration: Date.now() - thinkingStart,
+							success: true,
+						});
+					}
+
+					if (textChunk) {
+						channel.push({ type: 'text', content: textChunk });
+					}
+				}
+
+				logService.info('[gitbbon-chat][AI Response] Streaming complete');
+
+				// If no text was ever streamed, end thinking phase
 				if (!hasToolCalls) {
 					channel.push({
 						type: 'tool-end',
@@ -268,45 +306,30 @@ export class AIService {
 						duration: Date.now() - thinkingStart,
 						success: true,
 					});
-					logService.info('[gitbbon-chat][Phase] Thinking Complete (No Tools Used)');
 				}
-
-				// Phase 2: Writing response (if we had tool calls)
-				if (hasToolCalls && result.text) {
-					const writingId = generateToolId();
-					channel.push({
-						type: 'tool-start',
-						id: writingId,
-						toolName: 'Writing response...',
-						timestamp: Date.now(),
-					});
-					logService.info('[gitbbon-chat][Phase] Writing Response');
-					// Small delay to show the phase
-					await new Promise(r => setTimeout(r, 100));
+			} catch (error: any) {
+				if (error?.name === 'AbortError' || abortController.signal.aborted) {
+					logService.info('[gitbbon-chat][aiService] Stream cancelled');
 					channel.push({
 						type: 'tool-end',
-						id: writingId,
-						toolName: 'Writing response...',
-						duration: 100,
+						id: thinkingId,
+						toolName: 'Thinking...',
+						duration: Date.now() - thinkingStart,
 						success: true,
 					});
+				} else {
+					logService.error('[gitbbon-chat][aiService] streamText failed:', error);
+					channel.push({
+						type: 'tool-end',
+						id: thinkingId,
+						toolName: 'Thinking...',
+						duration: Date.now() - thinkingStart,
+						success: false,
+					});
+					channel.push({ type: 'text', content: 'An error occurred.' });
 				}
-
-				if (result.text) {
-					logService.info('[gitbbon-chat][AI Response]', result.text.slice(0, 200) + '...');
-					channel.push({ type: 'text', content: result.text });
-				}
-			} catch (error) {
-				logService.error('[gitbbon-chat][aiService] Agent failed:', error);
-				channel.push({
-					type: 'tool-end',
-					id: thinkingId,
-					toolName: 'Thinking...',
-					duration: Date.now() - thinkingStart,
-					success: false,
-				});
-				channel.push({ type: 'text', content: 'An error occurred.' });
 			} finally {
+				this.currentAbortController = null;
 				channel.finish();
 			}
 		})();

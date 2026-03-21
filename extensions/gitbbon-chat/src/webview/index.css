@@ -323,6 +323,17 @@ body {
 	transform: translateX(2px);
 }
 
+/* Stop 버튼 스타일 */
+.chat-submit-btn.stop {
+	background: var(--vscode-errorForeground, #f44747);
+	color: var(--vscode-editor-background, #fff);
+}
+
+.chat-submit-btn.stop:hover {
+	opacity: 0.85;
+	transform: scale(1.1);
+}
+
 /* Tool Status Line - 한 줄 표시 */
 .tool-status-line {
 	padding: 4px 12px;

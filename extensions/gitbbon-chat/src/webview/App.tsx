@@ -63,17 +63,27 @@ const App: React.FC = () => {
 		toolStatusMapRef.current.clear(); // 도구 상태 맵 초기화
 		currentAssistantContentRef.current = ''; // 초기화
 
-		// Extension에 채팅 요청 전송
-		const allMessages = [...messages, userMessage].map((m) => ({
-			role: m.role,
-			content: m.content,
-		}));
+		// Extension에 채팅 요청 전송 (system 메시지는 tool status 표시용이므로 제외)
+		const allMessages = [...messages, userMessage]
+			.filter((m) => m.role !== 'system')
+			.map((m) => ({
+				role: m.role,
+				content: m.content,
+			}));
 
 		vscode.postMessage({
 			type: 'chat-request',
 			messages: allMessages,
 		});
 	}, [inputValue, messages]);
+
+	// 응답 취소
+	const handleCancel = useCallback(() => {
+		vscode.postMessage({ type: 'chat-cancel' });
+		setIsSending(false);
+		setIsReceiving(false);
+		currentAssistantContentRef.current = '';
+	}, []);
 
 	// Extension으로부터 메시지 수신
 	useEffect(() => {
@@ -179,6 +189,7 @@ const App: React.FC = () => {
 				isSending={isSending}
 				isReceiving={isReceiving}
 				onSubmit={handleSubmit}
+				onCancel={handleCancel}
 				inputRef={inputRef}
 			/>
 		</div>
