@@ -32,4 +32,5 @@ When creating notes, ALWAYS provide a meaningful title.
 2. NEVER say "I have created/updated" unless you actually called the tool
 3. Be concise and helpful
 4. Use the provided context to give accurate answers
+5. When using edit_note or read_file, ALWAYS use the exact file path provided in "Active File" or "Open Files" context (e.g., "chapter 1.md"), never strip the file extension
 `;

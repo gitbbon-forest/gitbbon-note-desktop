@@ -15,7 +15,9 @@ export class ContextService {
 	}
 
 	/**
-	 * Helper to get relative path or label for the active editor
+	 * Helper to get relative path for the active editor.
+	 * Uses the actual file path (with extension) instead of the UI display label
+	 * to avoid issues where labels omit the file extension (e.g., "chapter 1" instead of "chapter 1.md").
 	 */
 	public static getActiveFileName(): string {
 		let fileName = 'None';
@@ -24,7 +26,12 @@ export class ContextService {
 			fileName = vscode.workspace.asRelativePath(activeEditor.document.uri);
 		} else if (this.isGitbbonEditor()) {
 			const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
-			fileName = activeTab?.label || 'Milkdown Doc';
+			// Use the actual URI path instead of tab.label (which may omit the file extension)
+			if (activeTab?.input instanceof vscode.TabInputCustom) {
+				fileName = vscode.workspace.asRelativePath(activeTab.input.uri);
+			} else {
+				fileName = activeTab?.label || 'Milkdown Doc';
+			}
 		}
 		console.log('[gitbbon-chat][Context] Active File Name:', fileName);
 		return fileName;
@@ -143,12 +150,24 @@ export class ContextService {
 	}
 
 	/**
-	 * Get list of open tabs
+	 * Get list of open tabs with their actual file paths (including extension).
+	 * Falls back to tab.label only when a URI is not available.
 	 */
 	public static getOpenTabs(): string[] {
 		const tabs = vscode.window.tabGroups.all
 			.flatMap(group => group.tabs)
-			.map(tab => tab.label);
+			.map(tab => {
+				// TabInputText: standard text editor
+				if (tab.input instanceof vscode.TabInputText) {
+					return vscode.workspace.asRelativePath(tab.input.uri);
+				}
+				// TabInputCustom: Gitbbon / Milkdown custom editor
+				if (tab.input instanceof vscode.TabInputCustom) {
+					return vscode.workspace.asRelativePath(tab.input.uri);
+				}
+				// Fallback for other tab types (e.g., terminal, webview)
+				return tab.label;
+			});
 		console.log('[gitbbon-chat][Context] Open Tabs:', tabs.join(', '));
 		return tabs;
 	}
