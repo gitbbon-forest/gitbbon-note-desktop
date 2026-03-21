@@ -75,8 +75,13 @@ const App: React.FC = () => {
 		if (!trimmedInput) return;
 
 		setInputValue('');
+		// IME(한글 등) 조합 후 submit 시 마지막 글자가 textarea에 남는 버그 수정:
+		// React 상태 초기화와 함께 textarea DOM 값도 직접 비워서 IME 잔여 문자를 제거
+		if (inputRef.current) {
+			inputRef.current.value = '';
+		}
 		sendChatRequest(trimmedInput, messages);
-	}, [inputValue, messages, sendChatRequest]);
+	}, [inputValue, messages, sendChatRequest, inputRef]);
 
 	// 재시도
 	const handleRetry = useCallback(() => {

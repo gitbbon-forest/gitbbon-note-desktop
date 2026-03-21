@@ -8,6 +8,7 @@ interface ChatInputProps {
 	onSubmit: (e: React.FormEvent) => void;
 	onCancel: () => void;
 	inputRef?: React.RefObject<HTMLTextAreaElement | null>;
+	onCompositionChange?: (isComposing: boolean) => void;
 }
 
 // 화살표 전송 아이콘 SVG
@@ -39,10 +40,12 @@ const StopIcon = () => (
 	</svg>
 );
 
-const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSending, isReceiving, onSubmit, onCancel, inputRef }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSending, isReceiving, onSubmit, onCancel, inputRef, onCompositionChange }) => {
 	const internalRef = useRef<HTMLTextAreaElement>(null);
 	const textareaRef = inputRef || internalRef;
 	const isLoading = isSending || isReceiving;
+	// IME 조합 중 여부를 추적 (한글 등 CJK 입력 시 발생하는 타이밍 문제 방지)
+	const isComposingRef = useRef(false);
 
 	// 텍스트 영역 자동 높이 조절
 	React.useLayoutEffect(() => {
@@ -59,9 +62,23 @@ const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSend
 		}
 	}, [inputValue, textareaRef]);
 
+	// IME 조합 시작 핸들러
+	const handleCompositionStart = () => {
+		isComposingRef.current = true;
+		onCompositionChange?.(true);
+	};
+
+	// IME 조합 종료 핸들러
+	const handleCompositionEnd = () => {
+		isComposingRef.current = false;
+		onCompositionChange?.(false);
+	};
+
 	// Enter로 전송, Shift+Enter로 줄바꿈 (처리 중에도 입력은 가능하지만 전송은 불가)
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+		// isComposingRef로 IME 조합 중 여부를 직접 확인
+		// (nativeEvent.isComposing은 브라우저/OS에 따라 타이밍이 다를 수 있음)
+		if (e.key === 'Enter' && !e.shiftKey && !isComposingRef.current && !e.nativeEvent.isComposing) {
 			e.preventDefault();
 			// 로딩 중이 아니고 입력값이 있을 때만 전송
 			if (!isLoading && inputValue.trim()) {
@@ -88,6 +105,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSend
 					value={inputValue}
 					onChange={(e) => setInputValue(e.target.value)}
 					onKeyDown={handleKeyDown}
+					onCompositionStart={handleCompositionStart}
+					onCompositionEnd={handleCompositionEnd}
 					placeholder="메시지를 입력하세요..."
 					className="chat-input-field"
 					rows={1}
