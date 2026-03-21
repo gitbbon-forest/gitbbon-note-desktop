@@ -108,6 +108,17 @@ const App: React.FC = () => {
 		currentAssistantContentRef.current = '';
 	}, []);
 
+	// 새 대화 시작
+	const handleNewChat = useCallback(() => {
+		setMessages([]);
+		setInputValue('');
+		setIsSending(false);
+		setIsReceiving(false);
+		currentAssistantContentRef.current = '';
+		toolStatusMapRef.current.clear();
+		lastUserMessageRef.current = '';
+	}, []);
+
 	// Extension으로부터 메시지 수신
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
@@ -218,6 +229,20 @@ const App: React.FC = () => {
 
 	return (
 		<div className="chat-container">
+			<div className="chat-header">
+				<span className="chat-header-title">Gitbbon Chat</span>
+				<button
+					className="new-chat-btn"
+					onClick={handleNewChat}
+					title="새 대화 시작"
+					disabled={isSending || isReceiving}
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+						<path d="M12 5v14M5 12h14"/>
+					</svg>
+					새 대화
+				</button>
+			</div>
 			<MessageList messages={messages} isLoading={isSending || isReceiving} onRetry={handleRetry} />
 			<ChatInput
 				inputValue={inputValue}
