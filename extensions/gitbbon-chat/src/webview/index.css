@@ -169,20 +169,32 @@ body {
 	text-decoration: underline;
 }
 
+/* #20: Table scroll wrapper */
+.message-bubble.assistant .message-content .table-wrapper {
+	overflow-x: auto;
+	margin-bottom: 12px;
+}
+
 .message-bubble.assistant .message-content table {
 	border-spacing: 0;
 	border-collapse: collapse;
-	margin-bottom: 12px;
 	width: 100%;
 }
 
-.message-bubble.assistant .message-content table th,
+/* #19: Table header styling */
+.message-bubble.assistant .message-content table th {
+	padding: 6px 13px;
+	border: 1px solid var(--vscode-widget-border);
+	background-color: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.05));
+	font-weight: 600;
+}
+
 .message-bubble.assistant .message-content table td {
 	padding: 6px 13px;
 	border: 1px solid var(--vscode-widget-border);
 }
 
-.message-bubble.assistant .message-content table tr:nth-child(2n) {
+.message-bubble.assistant .message-content table tbody tr:nth-child(2n) {
 	background-color: var(--vscode-keybindingTable-rowsBackground);
 }
 

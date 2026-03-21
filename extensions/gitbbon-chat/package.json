@@ -90,8 +90,7 @@
   },
   "dependencies": {
 "ai": "^6.0.3",
-    "deep-chat": "^2.3.0",
-    "dotenv": "^17.2.3",
+"dotenv": "^17.2.3",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",

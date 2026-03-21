@@ -134,7 +134,14 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, onRetry 
 								{m.role === 'assistant' ? (
 									<ReactMarkdown
 										remarkPlugins={[remarkGfm]}
-										components={{ pre: CopyableCodeBlock }}
+										components={{
+										pre: CopyableCodeBlock,
+										table: ({ children, ...props }) => (
+											<div className="table-wrapper">
+												<table {...props}>{children}</table>
+											</div>
+										),
+									}}
 									>
 										{m.content}
 									</ReactMarkdown>

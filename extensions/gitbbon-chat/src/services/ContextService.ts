@@ -1,13 +1,5 @@
 import * as vscode from 'vscode';
 
-
-export interface EditorContext {
-	activeFile: string;
-	selection: string | null;
-	cursorContext: string | null;
-	openTabs: string[];
-}
-
 export class ContextService {
 	private static SELECTION_LIMIT = 1000;
 
