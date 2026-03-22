@@ -1,4 +1,6 @@
 .DS_Store
+.claude/settings.local.json
+.claude-bak/
 .cache
 npm-debug.log
 Thumbs.db
