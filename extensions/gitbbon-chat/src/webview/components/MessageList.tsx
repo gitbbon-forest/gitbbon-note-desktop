@@ -1,13 +1,102 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import type { SyntaxHighlighterProps } from 'react-syntax-highlighter';
 
-const CopyableCodeBlock: React.FC<React.HTMLAttributes<HTMLPreElement>> = ({ children, ...props }) => {
+// VS Code 테마 변수와 연동되는 커스텀 스타일 (CSS 변수로 덮어씀)
+const vscodeStyle: { [key: string]: React.CSSProperties } = {
+	'pre[class*="language-"]': {
+		background: 'var(--vscode-textCodeBlock-background)',
+		color: 'var(--vscode-editor-foreground)',
+		fontFamily: 'var(--vscode-editor-font-family, monospace)',
+		fontSize: '0.9em',
+		margin: 0,
+		padding: '12px',
+		borderRadius: '6px',
+		overflow: 'auto',
+	},
+	'code[class*="language-"]': {
+		background: 'transparent',
+		color: 'var(--vscode-editor-foreground)',
+		fontFamily: 'var(--vscode-editor-font-family, monospace)',
+	},
+	// Keywords
+	keyword: { color: 'var(--vscode-symbolIcon-keywordForeground, #569cd6)' },
+	'control-flow': { color: 'var(--vscode-symbolIcon-keywordForeground, #c586c0)' },
+	// Strings
+	string: { color: 'var(--vscode-debugTokenExpression-string, #ce9178)' },
+	'template-string': { color: 'var(--vscode-debugTokenExpression-string, #ce9178)' },
+	// Comments
+	comment: { color: 'var(--vscode-editorGhostText-foreground, #6a9955)', fontStyle: 'italic' },
+	// Numbers
+	number: { color: 'var(--vscode-debugTokenExpression-number, #b5cea8)' },
+	// Functions
+	function: { color: 'var(--vscode-symbolIcon-functionForeground, #dcdcaa)' },
+	'function-variable': { color: 'var(--vscode-symbolIcon-functionForeground, #dcdcaa)' },
+	// Classes/Types
+	'class-name': { color: 'var(--vscode-symbolIcon-classForeground, #4ec9b0)' },
+	builtin: { color: 'var(--vscode-symbolIcon-classForeground, #4ec9b0)' },
+	// Operators
+	operator: { color: 'var(--vscode-foreground, #d4d4d4)' },
+	// Punctuation
+	punctuation: { color: 'var(--vscode-foreground, #d4d4d4)' },
+	// Properties
+	property: { color: 'var(--vscode-symbolIcon-propertyForeground, #9cdcfe)' },
+	// Parameters
+	parameter: { color: 'var(--vscode-symbolIcon-variableForeground, #9cdcfe)' },
+	// Booleans
+	boolean: { color: 'var(--vscode-debugTokenExpression-boolean, #569cd6)' },
+	// Tags (HTML/JSX)
+	tag: { color: 'var(--vscode-symbolIcon-colorForeground, #4ec9b0)' },
+	'attr-name': { color: 'var(--vscode-symbolIcon-propertyForeground, #9cdcfe)' },
+	'attr-value': { color: 'var(--vscode-debugTokenExpression-string, #ce9178)' },
+};
+
+interface SyntaxHighlightedCodeProps {
+	inline?: boolean;
+	className?: string;
+	children?: React.ReactNode;
+}
+
+const SyntaxHighlightedCode: React.FC<SyntaxHighlightedCodeProps> = ({
+	inline,
+	className,
+	children,
+}) => {
+	const match = /language-(\w+)/.exec(className ?? '');
+	const language = match ? match[1] : '';
+	const codeText = String(children).replace(/\n$/, '');
+
+	if (inline || !match) {
+		return <code className={className}>{children}</code>;
+	}
+
+	return (
+		<SyntaxHighlighter
+			style={vscodeStyle as SyntaxHighlighterProps['style']}
+			language={language}
+			PreTag="div"
+			customStyle={{
+				margin: 0,
+				padding: '12px',
+				background: 'var(--vscode-textCodeBlock-background)',
+				borderRadius: '6px',
+				fontSize: '0.9em',
+				lineHeight: '1.45',
+			}}
+		>
+			{codeText}
+		</SyntaxHighlighter>
+	);
+};
+
+const CopyableCodeBlock: React.FC<React.HTMLAttributes<HTMLPreElement> & { children?: React.ReactNode }> = ({ children, ...props }) => {
 	const [copied, setCopied] = useState(false);
-	const preRef = useRef<HTMLPreElement>(null);
+	const wrapperRef = useRef<HTMLDivElement>(null);
 
 	const handleCopy = useCallback(() => {
-		const text = preRef.current?.textContent ?? '';
+		const text = wrapperRef.current?.textContent ?? '';
 		navigator.clipboard.writeText(text).then(() => {
 			setCopied(true);
 			setTimeout(() => setCopied(false), 2000);
@@ -15,11 +104,11 @@ const CopyableCodeBlock: React.FC<React.HTMLAttributes<HTMLPreElement>> = ({ chi
 	}, []);
 
 	return (
-		<div className="code-block-wrapper">
+		<div className="code-block-wrapper" ref={wrapperRef}>
 			<button className="code-copy-btn" onClick={handleCopy} title="Copy code">
 				{copied ? 'Copied!' : 'Copy'}
 			</button>
-			<pre ref={preRef} {...props}>{children}</pre>
+			<div {...(props as React.HTMLAttributes<HTMLDivElement>)}>{children}</div>
 		</div>
 	);
 };
@@ -136,6 +225,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, onRetry 
 										remarkPlugins={[remarkGfm]}
 										components={{
 										pre: CopyableCodeBlock,
+										code: SyntaxHighlightedCode,
 										table: ({ children, ...props }) => (
 											<div className="table-wrapper">
 												<table {...props}>{children}</table>

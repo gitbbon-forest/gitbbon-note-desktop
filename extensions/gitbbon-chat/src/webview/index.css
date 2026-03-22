@@ -258,6 +258,7 @@ body {
 /* Code Block Copy Button */
 .code-block-wrapper {
 	position: relative;
+	margin-bottom: 16px;
 }
 
 .code-copy-btn {
@@ -494,6 +495,28 @@ body {
 
 .tool-arg-value {
 	color: var(--vscode-foreground);
+}
+
+/* #11: Syntax Highlighting - react-syntax-highlighter VS Code 테마 연동 */
+.code-block-wrapper > div {
+	margin: 0 !important;
+	border-radius: 6px !important;
+	overflow: auto !important;
+}
+
+/* 인라인 코드 (code without pre) */
+.message-bubble.assistant .message-content :not(pre) > code {
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 0.9em;
+	padding: 0.2em 0.4em;
+	border-radius: 4px;
+	background-color: var(--vscode-textCodeBlock-background);
+	color: var(--vscode-editor-foreground);
+}
+
+/* SyntaxHighlighter 내부 스타일 오버라이드 - VS Code 변수 연동 */
+.message-bubble.assistant .message-content .code-block-wrapper span[style] {
+	font-family: var(--vscode-editor-font-family, monospace) !important;
 }
 
 /* Error Message */
