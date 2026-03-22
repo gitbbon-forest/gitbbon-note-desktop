@@ -29,12 +29,7 @@
         "priority": "default",
         "selector": [
           {
-            "filenamePattern": "*.md",
-            "scheme": "file"
-          },
-          {
-            "filenamePattern": "*",
-            "scheme": "untitled"
+            "filenamePattern": "*.md"
           }
         ]
       }
