@@ -393,14 +393,23 @@ body {
 }
 
 .tool-accordion-summary::before {
-	content: '> ';
-	font-size: 0.7em;
-	transition: transform 0.15s ease;
+	content: '';
 	display: inline-block;
+	width: 5px;
+	height: 5px;
+	border-right: 1.5px solid currentColor;
+	border-top: 1.5px solid currentColor;
+	transform: rotate(45deg);
+	margin-right: 6px;
+	margin-bottom: 1px;
+	transition: transform 0.15s ease;
+	vertical-align: middle;
+	flex-shrink: 0;
 }
 
 .tool-accordion[open] .tool-accordion-summary::before {
-	content: 'v ';
+	transform: rotate(135deg);
+	margin-bottom: 3px;
 }
 
 .tool-accordion-detail {
