@@ -154,9 +154,10 @@ ${detail.after}
 				changes: z.array(z.object({
 					oldText: z.string(),
 					newText: z.string()
-				})).optional().describe('For update: text replacements')
+				})).optional().describe('For update: text replacements'),
+				mode: z.enum(['direct', 'suggestion']).optional().default('direct').describe('For update: "direct" applies changes immediately, "suggestion" shows tracked changes (ins/del marks) that the user can accept or reject')
 			}),
-			execute: async ({ action, filePath, title, content, changes }) => {
+			execute: async ({ action, filePath, title, content, changes, mode }) => {
 				return withProgress('edit_note', { action, filePath }, emitter, async () => {
 					try {
 						switch (action) {
@@ -165,7 +166,7 @@ ${detail.after}
 								return await ContextService.createNote(filePath, content, title);
 							case 'update':
 								if (!changes?.length) return 'Error: changes required.';
-								await ContextService.applySuggestions(filePath, changes, 'direct');
+								await ContextService.applySuggestions(filePath, changes, mode ?? 'direct');
 								return `Updated: ${filePath}`;
 							case 'delete':
 								return await ContextService.deleteNote(filePath);
