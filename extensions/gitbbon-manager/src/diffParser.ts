@@ -136,8 +136,8 @@ export class DiffParser {
 
 			// 1. Create: 순수 추가
 			if (!hasDeleted && hasAdded) {
-				// 줄바꿈을 먼저 시각적 기호로 치환 (빈 줄 추가도 감지하기 위해)
-				const displayContent = addedString.replace(/\n/g, '↵').trim();
+				// HTML 태그 제거 후 줄바꿈을 시각적 기호로 치환 (빈 줄 추가도 감지하기 위해)
+				const displayContent = addedString.replace(/<[^>]*>/g, '').replace(/\n/g, '↵').trim();
 				if (displayContent.length === 0) {
 					return null;
 				}
@@ -146,8 +146,8 @@ export class DiffParser {
 
 			// 2. Delete: 순수 삭제
 			if (hasDeleted && !hasAdded) {
-				// 줄바꿈을 먼저 시각적 기호로 치환
-				const displayContent = deletedString.replace(/\n/g, '↵').trim();
+				// HTML 태그 제거 후 줄바꿈을 시각적 기호로 치환
+				const displayContent = deletedString.replace(/<[^>]*>/g, '').replace(/\n/g, '↵').trim();
 				if (displayContent.length === 0) {
 					return null;
 				}
@@ -177,8 +177,8 @@ export class DiffParser {
 
 			// 추가된 부분이 있으면 Update (추가 우선)
 			if (addedPart.length > 0) {
-				// 앞뒤 공백 제거하되, 중간 공백은 유지
-				const trimmed = addedPart.trim();
+				// HTML 태그 제거 후 앞뒤 공백 제거하되, 중간 공백은 유지
+				const trimmed = addedPart.replace(/<[^>]*>/g, '').trim();
 				if (trimmed.length > 0) {
 					return `Update: ${trimmed.substring(0, maxLength)}`;
 				}
@@ -186,7 +186,7 @@ export class DiffParser {
 
 			// 삭제된 부분만 있으면 Delete
 			if (deletedPart.length > 0) {
-				const trimmed = deletedPart.trim();
+				const trimmed = deletedPart.replace(/<[^>]*>/g, '').trim();
 				if (trimmed.length > 0) {
 					return `Delete: ${trimmed.substring(0, maxLength)}`;
 				}

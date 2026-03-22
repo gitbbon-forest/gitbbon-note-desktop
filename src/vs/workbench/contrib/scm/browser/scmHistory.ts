@@ -564,7 +564,9 @@ export function toHistoryItemHoverContent(markdownRendererService: IMarkdownRend
 	const disposables = new DisposableStore();
 
 	if (historyItem.tooltip === undefined) {
-		return { content: historyItem.message, disposables };
+		// Strip HTML br tags to prevent them from displaying as literal text
+		const sanitizedMessage = historyItem.message.replace(/<br\s*\/?>/gi, '\n');
+		return { content: sanitizedMessage, disposables };
 	}
 
 	if (isMarkdownString(historyItem.tooltip)) {
