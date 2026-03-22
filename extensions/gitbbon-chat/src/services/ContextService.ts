@@ -2,6 +2,38 @@ import * as vscode from 'vscode';
 
 export class ContextService {
 	private static SELECTION_LIMIT = 1000;
+	private static EDITOR_COMMAND_TIMEOUT_MS = 3000;
+	private static EDITOR_COMMAND_MAX_RETRIES = 2;
+
+	/**
+	 * Execute a VS Code command with timeout and retry logic.
+	 * Retries up to maxRetries times before throwing.
+	 */
+	private static async executeCommandWithRetry<T>(
+		command: string,
+		timeoutMs: number = ContextService.EDITOR_COMMAND_TIMEOUT_MS,
+		maxRetries: number = ContextService.EDITOR_COMMAND_MAX_RETRIES
+	): Promise<T | null> {
+		for (let attempt = 0; attempt <= maxRetries; attempt++) {
+			try {
+				const result = await Promise.race<T | null>([
+					vscode.commands.executeCommand<T>(command),
+					new Promise<null>((_, reject) =>
+						setTimeout(() => reject(new Error(`Command timed out after ${timeoutMs}ms`)), timeoutMs)
+					)
+				]);
+				return result;
+			} catch (e) {
+				const isLastAttempt = attempt === maxRetries;
+				if (isLastAttempt) {
+					console.warn(`[gitbbon-chat][Context] Command '${command}' failed after ${maxRetries + 1} attempts:`, e);
+					return null;
+				}
+				console.warn(`[gitbbon-chat][Context] Command '${command}' attempt ${attempt + 1} failed, retrying...`, e);
+			}
+		}
+		return null;
+	}
 
 	/**
 	 * Checks if Gitbbon Custom Editor (Milkdown) is active.
@@ -15,7 +47,9 @@ export class ContextService {
 	}
 
 	/**
-	 * Helper to get relative path or label for the active editor
+	 * Helper to get relative path for the active editor.
+	 * Uses the actual file path (with extension) instead of the UI display label
+	 * to avoid issues where labels omit the file extension (e.g., "chapter 1" instead of "chapter 1.md").
 	 */
 	public static getActiveFileName(): string {
 		let fileName = 'None';
@@ -24,7 +58,12 @@ export class ContextService {
 			fileName = vscode.workspace.asRelativePath(activeEditor.document.uri);
 		} else if (this.isGitbbonEditor()) {
 			const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
-			fileName = activeTab?.label || 'Milkdown Doc';
+			// Use the actual URI path instead of tab.label (which may omit the file extension)
+			if (activeTab?.input instanceof vscode.TabInputCustom) {
+				fileName = vscode.workspace.asRelativePath(activeTab.input.uri);
+			} else {
+				fileName = activeTab?.label || 'Milkdown Doc';
+			}
 		}
 		console.log('[gitbbon-chat][Context] Active File Name:', fileName);
 		return fileName;
@@ -61,24 +100,20 @@ export class ContextService {
 
 		// 2. Milkdown Editor
 		if (this.isGitbbonEditor()) {
-			try {
-				// Try getting selection detail (text + context)
-				interface SelectionDetail { text: string; before: string; after: string }
-				const detail = await vscode.commands.executeCommand<SelectionDetail | null>('gitbbon.editor.getSelectionDetail');
+			// Try getting selection detail (text + context) with timeout + retry
+			interface SelectionDetail { text: string; before: string; after: string }
+			const detail = await this.executeCommandWithRetry<SelectionDetail>('gitbbon.editor.getSelectionDetail');
 
-				if (detail && detail.text) {
-					console.log('[gitbbon-chat][Context] Selection (Milkdown):', JSON.stringify(detail));
-					return detail;
-				}
+			if (detail && detail.text) {
+				console.log('[gitbbon-chat][Context] Selection (Milkdown):', JSON.stringify(detail));
+				return detail;
+			}
 
-				// Fallback to old getSelection if detail fails (backwards compatibility)
-				const selection = await vscode.commands.executeCommand<string | null>('gitbbon.editor.getSelection');
-				if (selection && selection.length > 0) {
-					console.log('[gitbbon-chat][Context] Selection (Milkdown Fallback):', selection);
-					return { text: selection, before: '', after: '' };
-				}
-			} catch (e) {
-				console.warn('[gitbbon-chat][Context] Failed to get selection from milkdown:', e);
+			// Fallback to old getSelection if detail fails (backwards compatibility)
+			const selection = await this.executeCommandWithRetry<string>('gitbbon.editor.getSelection');
+			if (selection && selection.length > 0) {
+				console.log('[gitbbon-chat][Context] Selection (Milkdown Fallback):', selection);
+				return { text: selection, before: '', after: '' };
 			}
 		}
 
@@ -98,13 +133,9 @@ export class ContextService {
 
 		// 2. Milkdown Editor
 		if (this.isGitbbonEditor()) {
-			try {
-				const content = await vscode.commands.executeCommand<string | null>('gitbbon.editor.getContent');
-				if (content) {
-					return content;
-				}
-			} catch (e) {
-				console.warn('[gitbbon-chat][Context] Failed to get content from milkdown:', e);
+			const content = await this.executeCommandWithRetry<string>('gitbbon.editor.getContent');
+			if (content) {
+				return content;
 			}
 		}
 
@@ -127,14 +158,10 @@ export class ContextService {
 		}
 
 		if (this.isGitbbonEditor()) {
-			try {
-				const context = await vscode.commands.executeCommand<string | null>('gitbbon.editor.getCursorContext');
-				if (context && context.length > 0) {
-					console.log('[gitbbon-chat][Context] Cursor Context (Milkdown):', context);
-					return context;
-				}
-			} catch (e) {
-				console.warn('[gitbbon-chat][Context] Failed to get cursor context from milkdown:', e);
+			const context = await this.executeCommandWithRetry<string>('gitbbon.editor.getCursorContext');
+			if (context && context.length > 0) {
+				console.log('[gitbbon-chat][Context] Cursor Context (Milkdown):', context);
+				return context;
 			}
 		}
 
@@ -143,30 +170,87 @@ export class ContextService {
 	}
 
 	/**
-	 * Get list of open tabs
+	 * Get list of open tabs with their actual file paths (including extension).
+	 * Falls back to tab.label only when a URI is not available.
 	 */
 	public static getOpenTabs(): string[] {
 		const tabs = vscode.window.tabGroups.all
 			.flatMap(group => group.tabs)
-			.map(tab => tab.label);
+			.map(tab => {
+				// TabInputText: standard text editor
+				if (tab.input instanceof vscode.TabInputText) {
+					return vscode.workspace.asRelativePath(tab.input.uri);
+				}
+				// TabInputCustom: Gitbbon / Milkdown custom editor
+				if (tab.input instanceof vscode.TabInputCustom) {
+					return vscode.workspace.asRelativePath(tab.input.uri);
+				}
+				// Fallback for other tab types (e.g., terminal, webview)
+				return tab.label;
+			});
 		console.log('[gitbbon-chat][Context] Open Tabs:', tabs.join(', '));
 		return tabs;
 	}
 
 	/**
+	 * Convert a file path string to a vscode.Uri.
+	 * Handles both absolute and relative (workspace-relative) paths.
+	 */
+	private static pathToUri(filePath: string): vscode.Uri {
+		if (filePath.startsWith('/') || filePath.match(/^[a-zA-Z]:\\/)) {
+			return vscode.Uri.file(filePath);
+		}
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (!workspaceFolders || workspaceFolders.length === 0) {
+			throw new Error("No workspace folders open");
+		}
+		return vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
+	}
+
+	/**
+	 * Resolve a file path to a vscode.Uri, with automatic .md extension fallback.
+	 *
+	 * When the AI agent omits the file extension (e.g., sends "chapter 1" instead of
+	 * "chapter 1.md"), this method detects that the path has no extension and
+	 * automatically tries appending ".md" before giving up.
+	 *
+	 * This is the single source of truth for file resolution — used by readFile,
+	 * applySuggestions, and deleteNote.
+	 */
+	private static async resolveFileUri(filePath: string): Promise<vscode.Uri> {
+		const uri = this.pathToUri(filePath);
+
+		// If the path already has a file extension, trust it
+		const hasExtension = /\.[a-zA-Z0-9]+$/.test(filePath);
+		if (hasExtension) {
+			return uri;
+		}
+
+		// No extension detected — try the path as-is first
+		try {
+			await vscode.workspace.fs.stat(uri);
+			return uri;
+		} catch {
+			// Not found without extension — try with .md (the default note format)
+			const mdPath = filePath + '.md';
+			const mdUri = this.pathToUri(mdPath);
+			try {
+				await vscode.workspace.fs.stat(mdUri);
+				console.log(`[gitbbon-chat][Context] Resolved "${filePath}" -> "${mdPath}" (auto-appended .md)`);
+				return mdUri;
+			} catch {
+				// Neither variant exists — throw with both attempted paths
+				throw new Error(`File not found: "${filePath}" (also tried "${mdPath}")`);
+			}
+		}
+	}
+
+	/**
 	 * Reads a specific file from the workspace.
+	 * Automatically appends .md if the path has no extension and the file is not found.
 	 */
 	public static async readFile(filePath: string): Promise<string> {
-		let fileUri: vscode.Uri;
-		if (filePath.startsWith('/') || filePath.match(/^[a-zA-Z]:\\/)) {
-			fileUri = vscode.Uri.file(filePath);
-		} else {
-			const workspaceFolders = vscode.workspace.workspaceFolders;
-			if (!workspaceFolders || workspaceFolders.length === 0) {
-				throw new Error("No workspace folders open");
-			}
-			fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
-		}
+		const fileUri = await this.resolveFileUri(filePath);
 
 		const readData = await vscode.workspace.fs.readFile(fileUri);
 		const content = Buffer.from(readData).toString('utf-8');
@@ -178,11 +262,6 @@ export class ContextService {
 	 * Apply suggestions to a file using Gitbbon Editor's inline suggestion feature.
 	 * If the file is not open, it opens it.
 	 * If it's a markdown file, it tries to use the Gitbbon Editor.
-	 */
-	/**
-	 * Apply suggestions to a file using Gitbbon Editor's inline suggestion feature.
-	 * If the file is not open, it opens it.
-	 * If it's a markdown file, it tries to use the Gitbbon Editor.
 	 * @param mode 'direct' (immediate change) or 'suggestion' (ins/del marks)
 	 */
 	public static async applySuggestions(filePath: string, changes: { oldText: string; newText: string }[], mode: 'direct' | 'suggestion' = 'direct'): Promise<void> {
@@ -190,24 +269,15 @@ export class ContextService {
 			throw new Error("File path is required.");
 		}
 
-		// 1. Resolve URI
-		let uri: vscode.Uri;
-		if (filePath.startsWith('/') || filePath.match(/^[a-zA-Z]:\\/)) {
-			uri = vscode.Uri.file(filePath);
-		} else {
-			const workspaceFolders = vscode.workspace.workspaceFolders;
-			if (!workspaceFolders || workspaceFolders.length === 0) {
-				throw new Error("No workspace folders open");
-			}
-			uri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
-		}
+		// 1. Resolve URI (auto-appends .md if needed)
+		const uri = await this.resolveFileUri(filePath);
 
 		// 2. Open Document (User must see the changes to approve)
 		// Use 'vscode.open' command which respects default editor settings.
 		// If it's a .md file and Gitbbon Editor is default, it will open with it.
 		await vscode.commands.executeCommand('vscode.open', uri);
 
-		// 3. Wait for editor to be active (200ms × 20 = 4초)
+		// 3. Wait for editor to be active (200ms x 20 = 4 seconds)
 		let editorReady = false;
 		for (let i = 0; i < 20; i++) {
 			const activeEditor = vscode.window.activeTextEditor;
@@ -265,6 +335,9 @@ export class ContextService {
 			throw new Error("File path is required.");
 		}
 
+		// Ensure .md extension for new notes
+		const normalizedPath = /\.[a-zA-Z0-9]+$/.test(filePath) ? filePath : filePath + '.md';
+
 		// Build final content with YAML frontmatter if title is provided
 		let finalContent = content;
 		if (title) {
@@ -272,16 +345,7 @@ export class ContextService {
 		}
 
 		// Resolve URI
-		let uri: vscode.Uri;
-		if (filePath.startsWith('/') || filePath.match(/^[a-zA-Z]:\\/)) {
-			uri = vscode.Uri.file(filePath);
-		} else {
-			const workspaceFolders = vscode.workspace.workspaceFolders;
-			if (!workspaceFolders || workspaceFolders.length === 0) {
-				throw new Error("No workspace folders open");
-			}
-			uri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
-		}
+		const uri = this.pathToUri(normalizedPath);
 
 		// Create parent directories if needed
 		const parentDir = vscode.Uri.joinPath(uri, '..');
@@ -303,23 +367,15 @@ export class ContextService {
 
 	/**
 	 * Delete a note file.
+	 * Automatically appends .md if the path has no extension and the file is not found.
 	 */
 	public static async deleteNote(filePath: string): Promise<string> {
 		if (!filePath) {
 			throw new Error("File path is required.");
 		}
 
-		// Resolve URI
-		let uri: vscode.Uri;
-		if (filePath.startsWith('/') || filePath.match(/^[a-zA-Z]:\\/)) {
-			uri = vscode.Uri.file(filePath);
-		} else {
-			const workspaceFolders = vscode.workspace.workspaceFolders;
-			if (!workspaceFolders || workspaceFolders.length === 0) {
-				throw new Error("No workspace folders open");
-			}
-			uri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
-		}
+		// Resolve URI (auto-appends .md if needed)
+		const uri = await this.resolveFileUri(filePath);
 
 		await vscode.workspace.fs.delete(uri);
 		return `Deleted: ${vscode.workspace.asRelativePath(uri)}`;

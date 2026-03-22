@@ -75,8 +75,13 @@ const App: React.FC = () => {
 		if (!trimmedInput) return;
 
 		setInputValue('');
+		// IME(한글 등) 조합 후 submit 시 마지막 글자가 textarea에 남는 버그 수정:
+		// React 상태 초기화와 함께 textarea DOM 값도 직접 비워서 IME 잔여 문자를 제거
+		if (inputRef.current) {
+			inputRef.current.value = '';
+		}
 		sendChatRequest(trimmedInput, messages);
-	}, [inputValue, messages, sendChatRequest]);
+	}, [inputValue, messages, sendChatRequest, inputRef]);
 
 	// 재시도
 	const handleRetry = useCallback(() => {
@@ -106,6 +111,17 @@ const App: React.FC = () => {
 		setIsSending(false);
 		setIsReceiving(false);
 		currentAssistantContentRef.current = '';
+	}, []);
+
+	// 새 대화 시작
+	const handleNewChat = useCallback(() => {
+		setMessages([]);
+		setInputValue('');
+		setIsSending(false);
+		setIsReceiving(false);
+		currentAssistantContentRef.current = '';
+		toolStatusMapRef.current.clear();
+		lastUserMessageRef.current = '';
 	}, []);
 
 	// Extension으로부터 메시지 수신
@@ -218,6 +234,20 @@ const App: React.FC = () => {
 
 	return (
 		<div className="chat-container">
+			<div className="chat-header">
+				<span className="chat-header-title">Gitbbon Chat</span>
+				<button
+					className="new-chat-btn"
+					onClick={handleNewChat}
+					title="새 대화 시작"
+					disabled={isSending || isReceiving}
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+						<path d="M12 5v14M5 12h14"/>
+					</svg>
+					새 대화
+				</button>
+			</div>
 			<MessageList messages={messages} isLoading={isSending || isReceiving} onRetry={handleRetry} />
 			<ChatInput
 				inputValue={inputValue}
