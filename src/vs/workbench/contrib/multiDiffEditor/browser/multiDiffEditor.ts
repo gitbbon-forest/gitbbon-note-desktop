@@ -201,8 +201,9 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 					}));
 				}
 
-				// Content
-				DOM.append(box, DOM.$('.message-content')).textContent = content;
+				// Content: strip HTML br tags to prevent them from displaying as literal text
+				const sanitizedContent = content.replace(/<br\s*\/?>/gi, '\n');
+				DOM.append(box, DOM.$('.message-content')).textContent = sanitizedContent;
 			};
 
 			// Show Left (Original) and Right (Modified)

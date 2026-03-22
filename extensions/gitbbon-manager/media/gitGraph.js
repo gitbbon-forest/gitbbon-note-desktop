@@ -464,10 +464,11 @@
 			return `<span class="${className}">${icon}${escapeHtml(displayName)}</span>`;
 		}).join('');
 
-		// Message
+		// Message: strip HTML br tags before escaping to prevent literal display
+		const cleanMessage = commit.message.replace(/<br\s*\/?>/gi, ' ');
 		const messageDiv = document.createElement('div');
 		messageDiv.className = 'commit-message';
-		messageDiv.innerHTML = refsHtml + escapeHtml(commit.message);
+		messageDiv.innerHTML = refsHtml + escapeHtml(cleanMessage);
 		infoCell.appendChild(messageDiv);
 
 		row.appendChild(infoCell);
