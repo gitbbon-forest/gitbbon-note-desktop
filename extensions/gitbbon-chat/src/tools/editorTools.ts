@@ -154,9 +154,16 @@ ${detail.after}
 				changes: z.array(z.object({
 					oldText: z.string(),
 					newText: z.string()
-				})).optional().describe('For update: text replacements')
+				})).optional().describe('For update: text replacements'),
+				mode: z.enum(['direct', 'suggestion']).optional().default('direct').describe(
+					'How to apply the edit:\n' +
+					'- "suggestion": REQUIRED when the target file has a YAML frontmatter header (starts with ---). \n' +
+					'- "direct": Use only for plain-text files without YAML/markdown, or when the user gives a clear imperative command ("fix", "apply", "change") on a non-markdown file.\n' +
+					'Default: "direct", but override to "suggestion" for any .md file.'
+				)
 			}),
-			execute: async ({ action, filePath, title, content, changes }) => {
+			execute: async ({ action, filePath, title, content, changes, mode }) => {
+
 				return withProgress('edit_note', { action, filePath }, emitter, async () => {
 					try {
 						switch (action) {
@@ -165,7 +172,7 @@ ${detail.after}
 								return await ContextService.createNote(filePath, content, title);
 							case 'update':
 								if (!changes?.length) return 'Error: changes required.';
-								await ContextService.applySuggestions(filePath, changes, 'direct');
+								await ContextService.applySuggestions(filePath, changes, mode || 'direct');
 								return `Updated: ${filePath}`;
 							case 'delete':
 								return await ContextService.deleteNote(filePath);
