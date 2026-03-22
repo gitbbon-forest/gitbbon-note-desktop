@@ -2,6 +2,38 @@ import * as vscode from 'vscode';
 
 export class ContextService {
 	private static SELECTION_LIMIT = 1000;
+	private static EDITOR_COMMAND_TIMEOUT_MS = 3000;
+	private static EDITOR_COMMAND_MAX_RETRIES = 2;
+
+	/**
+	 * Execute a VS Code command with timeout and retry logic.
+	 * Retries up to maxRetries times before throwing.
+	 */
+	private static async executeCommandWithRetry<T>(
+		command: string,
+		timeoutMs: number = ContextService.EDITOR_COMMAND_TIMEOUT_MS,
+		maxRetries: number = ContextService.EDITOR_COMMAND_MAX_RETRIES
+	): Promise<T | null> {
+		for (let attempt = 0; attempt <= maxRetries; attempt++) {
+			try {
+				const result = await Promise.race<T | null>([
+					vscode.commands.executeCommand<T>(command),
+					new Promise<null>((_, reject) =>
+						setTimeout(() => reject(new Error(`Command timed out after ${timeoutMs}ms`)), timeoutMs)
+					)
+				]);
+				return result;
+			} catch (e) {
+				const isLastAttempt = attempt === maxRetries;
+				if (isLastAttempt) {
+					console.warn(`[gitbbon-chat][Context] Command '${command}' failed after ${maxRetries + 1} attempts:`, e);
+					return null;
+				}
+				console.warn(`[gitbbon-chat][Context] Command '${command}' attempt ${attempt + 1} failed, retrying...`, e);
+			}
+		}
+		return null;
+	}
 
 	/**
 	 * Checks if Gitbbon Custom Editor (Milkdown) is active.
@@ -68,24 +100,20 @@ export class ContextService {
 
 		// 2. Milkdown Editor
 		if (this.isGitbbonEditor()) {
-			try {
-				// Try getting selection detail (text + context)
-				interface SelectionDetail { text: string; before: string; after: string }
-				const detail = await vscode.commands.executeCommand<SelectionDetail | null>('gitbbon.editor.getSelectionDetail');
+			// Try getting selection detail (text + context) with timeout + retry
+			interface SelectionDetail { text: string; before: string; after: string }
+			const detail = await this.executeCommandWithRetry<SelectionDetail>('gitbbon.editor.getSelectionDetail');
 
-				if (detail && detail.text) {
-					console.log('[gitbbon-chat][Context] Selection (Milkdown):', JSON.stringify(detail));
-					return detail;
-				}
+			if (detail && detail.text) {
+				console.log('[gitbbon-chat][Context] Selection (Milkdown):', JSON.stringify(detail));
+				return detail;
+			}
 
-				// Fallback to old getSelection if detail fails (backwards compatibility)
-				const selection = await vscode.commands.executeCommand<string | null>('gitbbon.editor.getSelection');
-				if (selection && selection.length > 0) {
-					console.log('[gitbbon-chat][Context] Selection (Milkdown Fallback):', selection);
-					return { text: selection, before: '', after: '' };
-				}
-			} catch (e) {
-				console.warn('[gitbbon-chat][Context] Failed to get selection from milkdown:', e);
+			// Fallback to old getSelection if detail fails (backwards compatibility)
+			const selection = await this.executeCommandWithRetry<string>('gitbbon.editor.getSelection');
+			if (selection && selection.length > 0) {
+				console.log('[gitbbon-chat][Context] Selection (Milkdown Fallback):', selection);
+				return { text: selection, before: '', after: '' };
 			}
 		}
 
@@ -105,13 +133,9 @@ export class ContextService {
 
 		// 2. Milkdown Editor
 		if (this.isGitbbonEditor()) {
-			try {
-				const content = await vscode.commands.executeCommand<string | null>('gitbbon.editor.getContent');
-				if (content) {
-					return content;
-				}
-			} catch (e) {
-				console.warn('[gitbbon-chat][Context] Failed to get content from milkdown:', e);
+			const content = await this.executeCommandWithRetry<string>('gitbbon.editor.getContent');
+			if (content) {
+				return content;
 			}
 		}
 
@@ -134,14 +158,10 @@ export class ContextService {
 		}
 
 		if (this.isGitbbonEditor()) {
-			try {
-				const context = await vscode.commands.executeCommand<string | null>('gitbbon.editor.getCursorContext');
-				if (context && context.length > 0) {
-					console.log('[gitbbon-chat][Context] Cursor Context (Milkdown):', context);
-					return context;
-				}
-			} catch (e) {
-				console.warn('[gitbbon-chat][Context] Failed to get cursor context from milkdown:', e);
+			const context = await this.executeCommandWithRetry<string>('gitbbon.editor.getCursorContext');
+			if (context && context.length > 0) {
+				console.log('[gitbbon-chat][Context] Cursor Context (Milkdown):', context);
+				return context;
 			}
 		}
 
