@@ -450,6 +450,14 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		webviewPanel: vscode.WebviewPanel,
 		_token: vscode.CancellationToken
 	): Promise<void> {
+		// Non-markdown files should not be opened with Gitbbon Editor
+		const isMarkdown = document.uri.scheme === 'untitled' || document.uri.fsPath.toLowerCase().endsWith('.md');
+		if (!isMarkdown) {
+			webviewPanel.dispose();
+			await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default');
+			return;
+		}
+
 		// Webview 옵션 설정
 		webviewPanel.webview.options = {
 			enableScripts: true,
