@@ -19,11 +19,12 @@ const App: React.FC = () => {
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const currentAssistantContentRef = useRef(''); // 스트리밍 콘텐츠 추적용
 	const toolStatusMapRef = useRef<Map<string, { name: string; args?: Record<string, unknown> }>>(new Map());
+	const lastUserMessageRef = useRef<string>(''); // 마지막 사용자 메시지 저장 (재시도용)
 
 	// 메시지 ID 생성
 	const generateId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-	// 도구 상태를 텍스트로 변환
+	// 도구 상태를 구조화된 JSON으로 변환
 	const formatToolStatus = (
 		type: 'start' | 'end',
 		name: string,
@@ -31,40 +32,30 @@ const App: React.FC = () => {
 		duration?: number,
 		success?: boolean
 	): string => {
-		const argsText = args && Object.keys(args).length > 0
-			? ` ${Object.values(args).map(v => typeof v === 'string' ? v.slice(0, 40) : String(v)).join(', ')}`
-			: '';
-
-		if (type === 'start') {
-			return `⏳ ${name}${argsText}`;
-		} else {
-			const icon = success ? '✅' : '❌';
-			const timeText = duration !== undefined ? ` (${(duration / 1000).toFixed(1)}s)` : '';
-			return `${icon} ${name}${argsText}${timeText}`;
-		}
+		return JSON.stringify({
+			toolName: name,
+			args: args,
+			isRunning: type === 'start',
+			duration: duration,
+			success: success,
+		});
 	};
 
-	// 메시지 전송
-	const handleSubmit = useCallback((e: React.FormEvent) => {
-		e.preventDefault();
-		const trimmedInput = inputValue.trim();
-		if (!trimmedInput) return;
-
-		// 사용자 메시지 추가
+	// 메시지 전송 (재시도 시에도 사용)
+	const sendChatRequest = useCallback((userContent: string, currentMessages: ChatMessage[]) => {
 		const userMessage: ChatMessage = {
 			id: generateId(),
 			role: 'user',
-			content: trimmedInput,
+			content: userContent,
 		};
 
 		setMessages((prev) => [...prev, userMessage]);
-		setInputValue('');
-		setIsSending(true); // 전송 시작
-		toolStatusMapRef.current.clear(); // 도구 상태 맵 초기화
-		currentAssistantContentRef.current = ''; // 초기화
+		setIsSending(true);
+		toolStatusMapRef.current.clear();
+		currentAssistantContentRef.current = '';
+		lastUserMessageRef.current = userContent;
 
-		// Extension에 채팅 요청 전송 (system 메시지는 tool status 표시용이므로 제외)
-		const allMessages = [...messages, userMessage]
+		const allMessages = [...currentMessages, userMessage]
 			.filter((m) => m.role !== 'system')
 			.map((m) => ({
 				role: m.role,
@@ -75,7 +66,39 @@ const App: React.FC = () => {
 			type: 'chat-request',
 			messages: allMessages,
 		});
-	}, [inputValue, messages]);
+	}, []);
+
+	// 메시지 전송
+	const handleSubmit = useCallback((e: React.FormEvent) => {
+		e.preventDefault();
+		const trimmedInput = inputValue.trim();
+		if (!trimmedInput) return;
+
+		setInputValue('');
+		sendChatRequest(trimmedInput, messages);
+	}, [inputValue, messages, sendChatRequest]);
+
+	// 재시도
+	const handleRetry = useCallback(() => {
+		if (!lastUserMessageRef.current) return;
+
+		// 마지막 에러 메시지 제거
+		setMessages((prev) => {
+			const filtered = prev.filter((m) => m.role !== 'system' || !m.content.startsWith('{"error":'));
+			// 마지막 사용자 메시지도 제거 (재전송하므로)
+			const lastUserIdx = filtered.findLastIndex((m) => m.role === 'user');
+			if (lastUserIdx >= 0) {
+				return filtered.slice(0, lastUserIdx);
+			}
+			return filtered;
+		});
+
+		// 재전송 시 현재 messages에서 에러와 마지막 user 메시지 제외
+		setMessages((prev) => {
+			sendChatRequest(lastUserMessageRef.current, prev);
+			return prev;
+		});
+	}, [sendChatRequest]);
 
 	// 응답 취소
 	const handleCancel = useCallback(() => {
@@ -95,6 +118,7 @@ const App: React.FC = () => {
 					// 도구 진행 상황을 한 줄 메시지로 표시
 					const toolEvent = message.event;
 					setIsSending(false);
+					setIsReceiving(true);
 
 					if (toolEvent.type === 'tool-start') {
 						// 시작 메시지 추가 및 ID 저장
@@ -159,6 +183,18 @@ const App: React.FC = () => {
 					});
 					break;
 
+				case 'chat-error':
+					// 에러 메시지 수신
+					setIsSending(false);
+					setIsReceiving(false);
+					currentAssistantContentRef.current = '';
+					setMessages(prev => [...prev, {
+						id: generateId(),
+						role: 'system' as const,
+						content: JSON.stringify({ error: true, message: message.message })
+					}]);
+					break;
+
 				case 'chat-done':
 					setIsSending(false);
 					setIsReceiving(false);
@@ -182,7 +218,7 @@ const App: React.FC = () => {
 
 	return (
 		<div className="chat-container">
-			<MessageList messages={messages} isLoading={isSending || isReceiving} />
+			<MessageList messages={messages} isLoading={isSending || isReceiving} onRetry={handleRetry} />
 			<ChatInput
 				inputValue={inputValue}
 				setInputValue={setInputValue}

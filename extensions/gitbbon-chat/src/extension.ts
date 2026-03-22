@@ -91,10 +91,9 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 
 		if (!this.aiService.hasApiKey()) {
 			logService.warn('Missing API Key');
-			this._webviewView.webview.postMessage({ type: 'chat-done' });
 			this._webviewView.webview.postMessage({
-				type: 'chat-chunk',
-				chunk: 'API 키가 설정되지 않았습니다. 입력 프롬프트를 확인해주세요.'
+				type: 'chat-error',
+				message: 'API 키가 설정되지 않았습니다. Settings에서 API 키를 설정해주세요.'
 			});
 			this._webviewView.webview.postMessage({ type: 'chat-done' });
 			return;
@@ -128,8 +127,8 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 		} catch (error) {
 			logService.error('Chat failed:', error);
 			this._webviewView.webview.postMessage({
-				type: 'chat-chunk',
-				chunk: '모든 AI 모델 호출에 실패했습니다.'
+				type: 'chat-error',
+				message: 'AI 응답 중 오류가 발생했습니다. 네트워크 연결을 확인하고 다시 시도해주세요.'
 			});
 			this._webviewView.webview.postMessage({ type: 'chat-done' });
 		}

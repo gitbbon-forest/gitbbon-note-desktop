@@ -72,10 +72,6 @@ function withProgress<T>(
 		});
 }
 
-export function isGitbbonEditorActive(): boolean {
-	return ContextService.isGitbbonEditor();
-}
-
 /**
  * EditorTools Factory
  */
@@ -191,5 +187,3 @@ ${detail.after}
 		}),
 	};
 }
-
-export const editorTools = createEditorTools([]);
