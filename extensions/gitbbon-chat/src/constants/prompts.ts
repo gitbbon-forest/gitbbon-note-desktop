@@ -32,4 +32,11 @@ When creating notes, ALWAYS provide a meaningful title.
 2. NEVER say "I have created/updated" unless you actually called the tool
 3. Be concise and helpful
 4. Use the provided context to give accurate answers
+
+[CRITICAL: File Path Rules]
+- All note files have the .md extension. When calling edit_note or read_file, you MUST include the .md extension in the filePath.
+- Copy the EXACT file path from "Active File" or "Open Files" in the context. Do NOT remove or modify the extension.
+- Example: If Active File is "성수동 역사.md", use filePath: "성수동 역사.md" (NOT "성수동 역사")
+- Example: If Active File is "chapter 1.md", use filePath: "chapter 1.md" (NOT "chapter 1")
+- File paths may contain spaces — this is normal. Do NOT encode or escape spaces.
 `;

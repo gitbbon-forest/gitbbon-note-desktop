@@ -129,9 +129,9 @@ ${detail.after}
 		}),
 
 		read_file: tool({
-			description: 'Read the content of a specific file. Use for "that file" or search results.',
+			description: 'Read the content of a specific file. Use for "that file" or search results. IMPORTANT: include the .md extension for note files.',
 			inputSchema: z.object({
-				filePath: z.string().describe('File path (relative or absolute)'),
+				filePath: z.string().describe('File path with extension (e.g., "notes/chapter 1.md"). Include .md for note files.'),
 			}),
 			execute: async ({ filePath }) => {
 				return withProgress('read_file', { filePath }, emitter, async () => {
@@ -145,10 +145,10 @@ ${detail.after}
 		}),
 
 		edit_note: tool({
-			description: 'Create, Update, or Delete a note file.',
+			description: 'Create, Update, or Delete a note file. IMPORTANT: filePath MUST include the .md extension (e.g., "chapter 1.md", not "chapter 1").',
 			inputSchema: z.object({
 				action: z.enum(['create', 'update', 'delete']).describe('Action type'),
-				filePath: z.string().describe('File path'),
+				filePath: z.string().describe('File path with extension (e.g., "notes/chapter 1.md"). MUST include .md extension.'),
 				title: z.string().optional().describe('For create: Note title (will be placed in YAML frontmatter)'),
 				content: z.string().optional().describe('For create: Note body content (without frontmatter)'),
 				changes: z.array(z.object({
