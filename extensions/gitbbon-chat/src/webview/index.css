@@ -258,6 +258,7 @@ body {
 /* Code Block Copy Button */
 .code-block-wrapper {
 	position: relative;
+	margin-bottom: 16px;
 }
 
 .code-copy-btn {
