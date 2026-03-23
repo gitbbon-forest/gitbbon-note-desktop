@@ -59,6 +59,11 @@
         "command": "gitbbon.chat.setApiKey",
         "title": "Set API Key",
         "category": "Gitbbon Chat"
+      },
+      {
+        "command": "gitbbon.chat.selectBackend",
+        "title": "백엔드 선택 (API / Ollama)",
+        "category": "Gitbbon Chat"
       }
     ],
     "keybindings": [

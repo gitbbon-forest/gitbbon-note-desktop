@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { type ModelMessage } from 'ai';
 import { AIService } from './services/aiService';
 import { logService } from './services/logService';
+import { ollamaService } from './services/ollamaService';
 
 class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = 'gitbbon.chat';
@@ -65,6 +66,10 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 			} else if (message.type === 'chat-cancel') {
 				this.aiService.cancelCurrentStream();
 				webviewView.webview.postMessage({ type: 'chat-done' });
+			} else if (message.type === 'select-backend') {
+				await this._handleSelectBackend(webviewView);
+			} else if (message.type === 'setup-ollama') {
+				await setupOllama(this.aiService, webviewView);
 			}
 		});
 
@@ -79,24 +84,48 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
+	private async _handleSelectBackend(webviewView: vscode.WebviewView): Promise<void> {
+		const current = await this.aiService.getBackend();
+		const items = [
+			{ label: `$(cloud) Vercel AI Gateway (API)`, description: current === 'api' ? '현재 선택됨' : '', value: 'api' as const },
+			{ label: `$(server) Ollama (로컬 LLM)`, description: current === 'ollama' ? '현재 선택됨' : '', value: 'ollama' as const },
+		];
+
+		const picked = await vscode.window.showQuickPick(items, {
+			placeHolder: '채팅 백엔드를 선택하세요',
+			title: '백엔드 선택',
+		});
+
+		if (!picked) return;
+
+		await this.aiService.setBackend(picked.value);
+		webviewView.webview.postMessage({ type: 'backend-changed', backend: picked.value });
+
+		if (picked.value === 'ollama') {
+			await setupOllama(this.aiService, webviewView);
+		}
+	}
+
 	private async _handleChatMessage(messages: ModelMessage[]): Promise<void> {
 		if (!this._webviewView) {
 			return;
 		}
 
+		// Check backend - Ollama doesn't need an API key
+		const backend = await this.aiService.getBackend();
+		if (backend !== 'ollama') {
+			// Ensure AI Service is initialized (loads keys)
+			await this.aiService.ensureInitialized();
 
-
-		// Ensure AI Service is initialized (loads keys)
-		await this.aiService.ensureInitialized();
-
-		if (!this.aiService.hasApiKey()) {
-			logService.warn('Missing API Key');
-			this._webviewView.webview.postMessage({
-				type: 'chat-error',
-				message: 'API 키가 설정되지 않았습니다. Settings에서 API 키를 설정해주세요.'
-			});
-			this._webviewView.webview.postMessage({ type: 'chat-done' });
-			return;
+			if (!this.aiService.hasApiKey()) {
+				logService.warn('Missing API Key');
+				this._webviewView.webview.postMessage({
+					type: 'chat-error',
+					message: 'API 키가 설정되지 않았습니다. Settings에서 API 키를 설정해주세요.'
+				});
+				this._webviewView.webview.postMessage({ type: 'chat-done' });
+				return;
+			}
 		}
 
 		try {
@@ -154,6 +183,52 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 </body>
 </html>`;
 	}
+}
+
+async function setupOllama(aiService: AIService, webviewView: vscode.WebviewView): Promise<void> {
+	const post = (step: string, detail: string, progress?: number) => {
+		webviewView.webview.postMessage({ type: 'ollama-status', step, detail, progress });
+	};
+
+	post('checking', 'Ollama 확인 중...');
+
+	const running = await ollamaService.isRunning();
+	if (!running) {
+		const installed = await ollamaService.isInstalled();
+		if (!installed) {
+			post('installing', 'Ollama 설치 중...');
+			try {
+				await ollamaService.install();
+			} catch {
+				post('error', 'Ollama 자동 설치에 실패했습니다.\n\n• macOS (Homebrew): brew install ollama\n• 공식 설치: https://ollama.com/download\n• 설치 후 터미널에서: ollama serve');
+				return;
+			}
+		}
+		try {
+			await ollamaService.startServer();
+		} catch {
+			post('error', 'Ollama 서버를 시작하지 못했습니다. 터미널에서 "ollama serve" 를 실행해주세요.');
+			return;
+		}
+	}
+
+	const hw = await ollamaService.detectHardware();
+	const model = ollamaService.selectModel(hw);
+	const installedModels = await ollamaService.getInstalledModels();
+
+	if (!installedModels.includes(model)) {
+		post('pulling', `모델 다운로드 중... ${model}`, 0);
+		try {
+			await ollamaService.pullModel(model, (pct) => {
+				post('pulling', `모델 다운로드 중... ${model}`, pct);
+			});
+		} catch {
+			post('error', `모델 다운로드에 실패했습니다. 터미널에서 "ollama pull ${model}" 을 실행해주세요.`);
+			return;
+		}
+	}
+
+	post('ready', `준비 완료: ${model}`);
 }
 
 function getNonce() {
@@ -221,6 +296,18 @@ export function activate(context: vscode.ExtensionContext): void {
 				await vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
 				// 포맷된 텍스트 전송
 				provider.sendTextToChat(formattedText);
+			}
+		})
+	);
+
+	// 백엔드 선택 커맨드
+	context.subscriptions.push(
+		vscode.commands.registerCommand('gitbbon.chat.selectBackend', async () => {
+			const webviewView = (provider as any)._webviewView as vscode.WebviewView | undefined;
+			if (webviewView) {
+				await (provider as any)._handleSelectBackend(webviewView);
+			} else {
+				vscode.window.showWarningMessage('채팅 패널을 먼저 열어주세요.');
 			}
 		})
 	);

@@ -5,6 +5,7 @@ import { ContextService } from './ContextService';
 import { SYSTEM_PROMPT } from '../constants/prompts';
 import { type StreamEvent, type ToolStartEvent, type ToolEndEvent, generateToolId } from '../types';
 import { logService } from './logService';
+import { ollamaService } from './ollamaService';
 
 /**
  * Event Channel for real-time streaming
@@ -54,6 +55,16 @@ export class AIService {
 	private currentAbortController: AbortController | null = null;
 
 	constructor(private readonly secrets: vscode.SecretStorage) { }
+
+	public async getBackend(): Promise<'api' | 'ollama'> {
+		const stored = await this.secrets.get('CHAT_BACKEND');
+		return (stored === 'ollama') ? 'ollama' : 'api';
+	}
+
+	public async setBackend(backend: 'api' | 'ollama'): Promise<void> {
+		await this.secrets.store('CHAT_BACKEND', backend);
+		logService.info(`[gitbbon-chat][aiService] Backend set to: ${backend}`);
+	}
 
 	/**
 	 * Cancel the current streaming response
@@ -142,6 +153,12 @@ export class AIService {
 	 * Real-time streaming with LLM phase indicators
 	 */
 	public async *streamAgentChat(messages: ModelMessage[]): AsyncGenerator<StreamEvent, void, unknown> {
+		const backend = await this.getBackend();
+		if (backend === 'ollama') {
+			yield* this._streamOllamaChat(messages);
+			return;
+		}
+
 		await this.ensureInitialized();
 		if (!this.apiKey) throw new Error('No API Key');
 
@@ -343,5 +360,37 @@ export class AIService {
 
 	public async *streamChat(messages: ModelMessage[]): AsyncGenerator<StreamEvent, void, unknown> {
 		yield* this.streamAgentChat(messages);
+	}
+
+	private async *_streamOllamaChat(messages: ModelMessage[]): AsyncGenerator<StreamEvent, void, unknown> {
+		const thinkingId = generateToolId();
+		const thinkingStart = Date.now();
+
+		yield { type: 'tool-start', id: thinkingId, toolName: 'Thinking...', timestamp: thinkingStart };
+
+		const msgList = messages.map(m => ({
+			role: m.role as string,
+			content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+		}));
+
+		let first = true;
+		try {
+			for await (const chunk of ollamaService.streamChat(msgList)) {
+				if (first) {
+					first = false;
+					yield { type: 'tool-end', id: thinkingId, toolName: 'Thinking...', duration: Date.now() - thinkingStart, success: true };
+				}
+				if (chunk) {
+					yield { type: 'text', content: chunk };
+				}
+			}
+			if (first) {
+				yield { type: 'tool-end', id: thinkingId, toolName: 'Thinking...', duration: Date.now() - thinkingStart, success: true };
+			}
+		} catch (error) {
+			logService.error('[gitbbon-chat][ollamaService] streamChat failed:', error);
+			yield { type: 'tool-end', id: thinkingId, toolName: 'Thinking...', duration: Date.now() - thinkingStart, success: false };
+			yield { type: 'text', content: 'Ollama 연결에 실패했습니다. Ollama가 실행 중인지 확인해주세요.' };
+		}
 	}
 }
