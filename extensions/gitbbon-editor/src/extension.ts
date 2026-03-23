@@ -41,6 +41,13 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 
 			if (uri) {
+				// Only open .md files (and untitled) with Gitbbon Editor
+				const isMarkdown = uri.scheme === 'untitled' || uri.fsPath.toLowerCase().endsWith('.md');
+				if (!isMarkdown) {
+					vscode.window.showWarningMessage('Gitbbon Editor only supports Markdown (.md) files.');
+					await vscode.commands.executeCommand('vscode.open', uri);
+					return;
+				}
 				await vscode.commands.executeCommand('vscode.openWith', uri, 'gitbbon.editor');
 			}
 		}
