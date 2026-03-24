@@ -3,6 +3,7 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
+import 'source-map-support/register';
 import * as vscode from 'vscode';
 import { GitbbonEditorProvider } from './editorProvider';
 import { logService } from './services/logService';
