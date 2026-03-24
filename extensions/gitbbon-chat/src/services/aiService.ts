@@ -172,8 +172,9 @@ export class AIService {
 
 		// Resolve model: Ollama returns a LanguageModel object; API backend uses a gateway string ID
 		let model: any;
+		let ollamaModelName = '';
 		if (backend === 'ollama') {
-			const ollamaModelName = await ollamaService.getSelectedModel();
+			ollamaModelName = await ollamaService.getSelectedModel();
 			logService.info(`[gitbbon-chat][aiService] Ollama backend: model=${ollamaModelName}`);
 			const ollamaProvider = createOpenAI({ baseURL: 'http://localhost:11434/v1', apiKey: 'ollama' });
 			model = ollamaProvider(ollamaModelName);
@@ -232,7 +233,13 @@ export class AIService {
 
 		const instructions = SYSTEM_PROMPT + '\n\n' + contextParts.join('\n');
 
-		logService.info('[gitbbon-chat][System Prompt]', instructions);
+		// Ollama thinking 모델 최적화: qwen3 등 thinking 모델은 /no_think로 비활성화
+		let finalInstructions = instructions;
+		if (backend === 'ollama' && ollamaModelName.toLowerCase().includes('qwen')) {
+			finalInstructions = '/no_think\n\n' + instructions;
+		}
+
+		logService.info('[gitbbon-chat][System Prompt]', finalInstructions);
 		logService.info(`[gitbbon-chat][aiService] Starting streamText: ${typeof model === 'string' ? model : (model as any).modelId ?? 'ollama'}`);
 
 		// Set up AbortController for cancellation
@@ -257,7 +264,7 @@ export class AIService {
 
 				const result = streamText({
 					model,
-					system: instructions,
+					system: finalInstructions,
 					messages: messages as any,
 					tools,
 					stopWhen: stepCountIs(10),
