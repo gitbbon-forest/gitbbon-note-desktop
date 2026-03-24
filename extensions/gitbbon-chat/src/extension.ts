@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { type ModelMessage } from 'ai';
 import { AIService } from './services/aiService';
 import { logService } from './services/logService';
-import { ollamaService } from './services/ollamaService';
+import { ollamaService, MODEL_SIZES_GB } from './services/ollamaService';
 
 class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = 'gitbbon.chat';
@@ -229,6 +229,35 @@ async function setupOllama(aiService: AIService, webviewView: vscode.WebviewView
 		const hw = await ollamaService.detectHardware();
 		model = ollamaService.selectModel(hw);
 		logService.info(`[gitbbon-chat][setupOllama] no installed models, will pull: ${model}`);
+
+		// 다운로드 전 사용자 확인
+		const modelSizeGB = MODEL_SIZES_GB[model] ?? null;
+		const freeDiskGB = await ollamaService.getFreeDiskGB();
+
+		const sizeInfo = modelSizeGB !== null ? `${modelSizeGB.toFixed(1)}GB` : '크기 미확인';
+		const diskInfo = freeDiskGB !== Infinity ? `여유 공간: ${freeDiskGB.toFixed(1)}GB` : '여유 공간: 확인 불가';
+		const diskWarning = modelSizeGB !== null && freeDiskGB < modelSizeGB + 1
+			? `\n⚠️ 여유 공간이 부족할 수 있습니다.`
+			: '';
+
+		logService.info(`[gitbbon-chat][setupOllama] confirm pull: model=${model}, size=${sizeInfo}, ${diskInfo}`);
+
+		const answer = await vscode.window.showInformationMessage(
+			`Ollama 모델을 다운로드합니다`,
+			{
+				modal: true,
+				detail: `모델: ${model}\n다운로드 크기: ${sizeInfo}\n${diskInfo}${diskWarning}\n\n계속하시겠습니까?`,
+			},
+			'다운로드',
+			'취소'
+		);
+
+		if (answer !== '다운로드') {
+			logService.info('[gitbbon-chat][setupOllama] user cancelled pull');
+			post('error', '모델 다운로드가 취소되었습니다.\n터미널에서 원하는 모델을 직접 설치할 수 있습니다:\nollama pull <모델명>');
+			return;
+		}
+
 		post('pulling', `모델 다운로드 중... ${model}`, 0);
 		try {
 			await ollamaService.pullModel(model, (pct) => {

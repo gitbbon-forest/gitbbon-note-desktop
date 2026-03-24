@@ -22,6 +22,19 @@ interface Message {
   content: string;
 }
 
+// 모델별 대략적인 다운로드 크기 (GB)
+export const MODEL_SIZES_GB: Record<string, number> = {
+  'llama3.1:8b':  4.7,
+  'llama3.2:3b':  2.0,
+  'llama3.2:1b':  1.3,
+  'gemma2:2b':    1.6,
+  'gemma2:9b':    5.5,
+  'phi3:mini':    2.2,
+  'mistral:7b':   4.1,
+  'qwen2.5:7b':   4.7,
+  'qwen2.5:3b':   2.0,
+};
+
 export class OllamaService {
   private readonly baseUrl = 'http://localhost:11434';
 
@@ -153,6 +166,21 @@ export class OllamaService {
         resolve([]);
       });
     });
+  }
+
+  async getFreeDiskGB(): Promise<number> {
+    try {
+      const { stdout } = await execAsync('df -k / | tail -1');
+      const parts = stdout.trim().split(/\s+/);
+      // df -k 출력: Filesystem 1K-blocks Used Available Use% Mountpoint
+      const availableKB = parseInt(parts[3], 10);
+      const freeGB = availableKB / (1024 * 1024);
+      logService.info(`[ollamaService] getFreeDiskGB: ${freeGB.toFixed(1)}GB`);
+      return freeGB;
+    } catch (err) {
+      logService.warn('[ollamaService] getFreeDiskGB: failed to detect', err);
+      return Infinity;
+    }
   }
 
   async pullModel(model: string, onProgress: (pct: number) => void): Promise<void> {
