@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { streamText, stepCountIs, type ModelMessage } from 'ai';
-import { createOllama } from 'ollama-ai-provider';
+import { createOpenAI } from '@ai-sdk/openai';
 import { createEditorTools } from '../tools/editorTools';
 import { ContextService } from './ContextService';
 import { SYSTEM_PROMPT } from '../constants/prompts';
@@ -175,7 +175,7 @@ export class AIService {
 		if (backend === 'ollama') {
 			const ollamaModelName = await ollamaService.getSelectedModel();
 			logService.info(`[gitbbon-chat][aiService] Ollama backend: model=${ollamaModelName}`);
-			const ollamaProvider = createOllama({ baseURL: 'http://localhost:11434/api' });
+			const ollamaProvider = createOpenAI({ baseURL: 'http://localhost:11434/v1', apiKey: 'ollama' });
 			model = ollamaProvider(ollamaModelName);
 		} else {
 			await this.ensureInitialized();
