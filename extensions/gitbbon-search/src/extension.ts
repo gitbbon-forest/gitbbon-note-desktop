@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'source-map-support/register';
+import 'source-map-support/register.js';
 import * as vscode from 'vscode';
 import { searchService } from './services/searchService.js';
 import { FileWatcher, GitWatcher } from './watchers/fileWatcher.js';
