@@ -137,6 +137,12 @@ const App: React.FC = () => {
 		// byok는 아직 미구현 — 선택만 저장
 	}, []);
 
+	// gitbbon custom: 모델 선택 변경 시 extension에 저장
+	const handleModelSelect = useCallback((model: string) => {
+		setSelectedModel(model);
+		vscode.postMessage({ type: 'save-selected-model', model });
+	}, []);
+
 	// 새 대화 시작
 	const handleNewChat = useCallback(() => {
 		setMessages([]);
@@ -160,8 +166,17 @@ const App: React.FC = () => {
 
 				case 'backend-changed':
 					setCurrentBackend(message.backend as 'api' | 'ollama');
+					// gitbbon custom: 저장된 backend로 modelType UI 복원
+					setModelType(message.backend === 'ollama' ? 'ondevice' : 'gitbbon');
 					if (message.backend !== 'ollama') {
 						setOllamaStatus(null);
+					}
+					break;
+
+				// gitbbon custom: 저장된 선택 모델 복원
+				case 'selected-model':
+					if (message.model) {
+						setSelectedModel(message.model);
 					}
 					break;
 
@@ -317,7 +332,7 @@ const App: React.FC = () => {
 				modelType={modelType}
 				setModelType={handleModelTypeChange}
 				selectedModel={selectedModel}
-				setSelectedModel={setSelectedModel}
+				setSelectedModel={handleModelSelect}
 				ollamaModels={ollamaModels.length > 0 ? ollamaModels : FALLBACK_OLLAMA_MODELS}
 			/>
 		</div>

@@ -76,8 +76,25 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 				webviewView.webview.postMessage({ type: 'ollama-models', models });
 			} else if (message.type === 'setup-ollama') {
 				await setupOllama(this.aiService, webviewView);
+			} else if (message.type === 'save-selected-model') {
+				// gitbbon custom: 온디바이스 모델 선택값 저장
+				await this._context.globalState.update('SELECTED_OLLAMA_MODEL', message.model);
 			}
 		});
+
+		// gitbbon custom: 웹뷰 init 시 저장된 backend 및 선택된 모델 복원
+		(async () => {
+			const savedBackend = await this.aiService.getBackend();
+			webviewView.webview.postMessage({ type: 'backend-changed', backend: savedBackend });
+			if (savedBackend === 'ollama') {
+				const models = await ollamaService.getInstalledModels();
+				webviewView.webview.postMessage({ type: 'ollama-models', models });
+				const savedModel = this._context.globalState.get<string>('SELECTED_OLLAMA_MODEL', '');
+				if (savedModel) {
+					webviewView.webview.postMessage({ type: 'selected-model', model: savedModel });
+				}
+			}
+		})();
 
 		// 대기 중인 텍스트가 있으면 삽입
 		if (this._pendingText) {
