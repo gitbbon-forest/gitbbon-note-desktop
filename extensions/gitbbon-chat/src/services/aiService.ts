@@ -141,9 +141,46 @@ export class AIService {
 	/**
 	 * Real-time streaming with LLM phase indicators
 	 */
+	/**
+	 * Check if an error is a GatewayAuthenticationError (API key missing/invalid)
+	 */
+	private isGatewayAuthError(error: any): boolean {
+		return (
+			error?.name === 'GatewayAuthenticationError' ||
+			error?.constructor?.name === 'GatewayAuthenticationError' ||
+			(typeof error?.message === 'string' && error.message.includes('Unauthenticated request to AI Gateway'))
+		);
+	}
+
+	/**
+	 * Reset API key state and prompt user for re-entry
+	 */
+	private async handleApiKeyFailure(): Promise<boolean> {
+		logService.warn('[gitbbon-chat][aiService] API key invalid or missing, prompting user...');
+		this.apiKey = undefined;
+		this.initialized = false;
+		process.env.AI_GATEWAY_API_KEY = '';
+
+		vscode.window.showWarningMessage(
+			'API 키가 유효하지 않습니다. 새 API 키를 입력해주세요.'
+		);
+
+		const success = await this.promptForApiKey();
+		if (success) {
+			this.initialized = true;
+		}
+		return success;
+	}
+
 	public async *streamAgentChat(messages: ModelMessage[]): AsyncGenerator<StreamEvent, void, unknown> {
 		await this.ensureInitialized();
-		if (!this.apiKey) throw new Error('No API Key');
+		if (!this.apiKey) {
+			const keyProvided = await this.promptForApiKey();
+			if (!keyProvided || !this.apiKey) {
+				yield { type: 'text', content: 'API 키가 설정되지 않았습니다. 채팅을 시작하려면 API 키를 입력해주세요.\n\n명령 팔레트에서 `Gitbbon Chat: Set API Key`를 실행하거나 다시 메시지를 보내주세요.' };
+				return;
+			}
+		}
 
 		const lastMessage = messages[messages.length - 1];
 		const userInput = typeof lastMessage.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage.content);
@@ -317,6 +354,22 @@ export class AIService {
 						duration: Date.now() - thinkingStart,
 						success: true,
 					});
+				} else if (this.isGatewayAuthError(error)) {
+					logService.warn('[gitbbon-chat][aiService] GatewayAuthenticationError detected:', error.message);
+					channel.push({
+						type: 'tool-end',
+						id: thinkingId,
+						toolName: 'Thinking...',
+						duration: Date.now() - thinkingStart,
+						success: false,
+					});
+
+					const keyUpdated = await this.handleApiKeyFailure();
+					if (keyUpdated) {
+						channel.push({ type: 'text', content: 'API 키가 업데이트되었습니다. 메시지를 다시 보내주세요.' });
+					} else {
+						channel.push({ type: 'text', content: 'API 키가 설정되지 않았습니다. 채팅을 사용하려면 유효한 API 키를 입력해주세요.' });
+					}
 				} else {
 					logService.error('[gitbbon-chat][aiService] streamText failed:', error);
 					channel.push({
@@ -326,7 +379,7 @@ export class AIService {
 						duration: Date.now() - thinkingStart,
 						success: false,
 					});
-					channel.push({ type: 'text', content: 'An error occurred.' });
+					channel.push({ type: 'text', content: `오류가 발생했습니다: ${error?.message || 'Unknown error'}` });
 				}
 			} finally {
 				this.currentAbortController = null;
