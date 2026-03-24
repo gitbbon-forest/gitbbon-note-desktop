@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
-import { streamText, stepCountIs, type ModelMessage } from 'ai';
+import { streamText, stepCountIs, type ModelMessage, type LanguageModel, type ToolSet, type TypedToolCall, type TypedToolResult } from 'ai';
+import { createOpenAI } from '@ai-sdk/openai';
 import { createEditorTools } from '../tools/editorTools';
 import { ContextService } from './ContextService';
 import { SYSTEM_PROMPT } from '../constants/prompts';
 import { type StreamEvent, type ToolStartEvent, type ToolEndEvent, generateToolId } from '../types';
 import { logService } from './logService';
+import { ollamaService } from './ollamaService';
 
 /**
  * Event Channel for real-time streaming
@@ -54,6 +56,16 @@ export class AIService {
 	private currentAbortController: AbortController | null = null;
 
 	constructor(private readonly secrets: vscode.SecretStorage) { }
+
+	public async getBackend(): Promise<'api' | 'ollama'> {
+		const stored = await this.secrets.get('CHAT_BACKEND');
+		return (stored === 'ollama') ? 'ollama' : 'api';
+	}
+
+	public async setBackend(backend: 'api' | 'ollama'): Promise<void> {
+		await this.secrets.store('CHAT_BACKEND', backend);
+		logService.info(`[gitbbon-chat][aiService] Backend set to: ${backend}`);
+	}
 
 	/**
 	 * Cancel the current streaming response
@@ -173,12 +185,15 @@ export class AIService {
 	}
 
 	public async *streamAgentChat(messages: ModelMessage[]): AsyncGenerator<StreamEvent, void, unknown> {
-		await this.ensureInitialized();
-		if (!this.apiKey) {
-			const keyProvided = await this.promptForApiKey();
-			if (!keyProvided || !this.apiKey) {
-				yield { type: 'text', content: 'API 키가 설정되지 않았습니다. 채팅을 시작하려면 API 키를 입력해주세요.\n\n명령 팔레트에서 `Gitbbon Chat: Set API Key`를 실행하거나 다시 메시지를 보내주세요.' };
-				return;
+		const backend = await this.getBackend();
+		if (backend !== 'ollama') {
+			await this.ensureInitialized();
+			if (!this.apiKey) {
+				const keyProvided = await this.promptForApiKey();
+				if (!keyProvided || !this.apiKey) {
+					yield { type: 'text', content: 'API 키가 설정되지 않았습니다. 채팅을 시작하려면 API 키를 입력해주세요.\n\n명령 팔레트에서 `Gitbbon Chat: Set API Key`를 실행하거나 다시 메시지를 보내주세요.' };
+					return;
+				}
 			}
 		}
 
@@ -195,7 +210,17 @@ export class AIService {
 		};
 
 		const tools = createEditorTools(messages, emitter);
-		const modelName = 'google/gemini-3-pro';
+
+		// Resolve model: Ollama returns a LanguageModel object; API backend uses a gateway string ID
+		let model: LanguageModel | string;
+		if (backend === 'ollama') {
+			const ollamaModelName = await ollamaService.getSelectedModel();
+			logService.info(`[gitbbon-chat][aiService] Ollama backend: model=${ollamaModelName}`);
+			const ollamaProvider = createOpenAI({ baseURL: 'http://localhost:11434/v1', apiKey: 'ollama' });
+			model = ollamaProvider.chat(ollamaModelName);
+		} else {
+			model = 'google/gemini-3-pro';
+		}
 
 		// Context collection
 		const activeFile = ContextService.getActiveFileName();
@@ -247,7 +272,7 @@ export class AIService {
 		const instructions = SYSTEM_PROMPT + '\n\n' + contextParts.join('\n');
 
 		logService.info('[gitbbon-chat][System Prompt]', instructions);
-		logService.info(`[gitbbon-chat][aiService] Starting streamText: ${modelName}`);
+		logService.info(`[gitbbon-chat][aiService] Starting streamText: ${typeof model === 'string' ? model : (typeof model === 'object' && model !== null && 'modelId' in model ? (model as { modelId: string }).modelId : 'ollama')}`);
 
 		// Set up AbortController for cancellation
 		const abortController = new AbortController();
@@ -270,16 +295,16 @@ export class AIService {
 				logService.info('[gitbbon-chat][Phase] Thinking...');
 
 				const result = streamText({
-					model: modelName,
+					model,
 					system: instructions,
-					messages: messages as any,
+					messages: messages as ModelMessage[],
 					tools,
 					stopWhen: stepCountIs(10),
 					abortSignal: abortController.signal,
 					onStepFinish: (event) => {
 						logService.info('[gitbbon-chat][Agent Step] Step Finished', {
 							text: event.text ? event.text.slice(0, 100) + '...' : undefined,
-							tools: event.toolCalls?.map((t: any) => t.toolName).join(', ') || 'None'
+							tools: event.toolCalls?.map((t: TypedToolCall<ToolSet>) => t.toolName).join(', ') || 'None'
 						});
 
 						if (event.toolCalls?.length) {
@@ -295,13 +320,13 @@ export class AIService {
 								logService.info('[gitbbon-chat][Phase] Tool Execution Started');
 							}
 
-							event.toolCalls.forEach((call: any) => {
-								logService.info(`[gitbbon-chat][Tool Call] ${call.toolName}`, call.args);
+							event.toolCalls.forEach((call: TypedToolCall<ToolSet>) => {
+								logService.info(`[gitbbon-chat][Tool Call] ${call.toolName}`, call.input);
 							});
 
 							if (event.toolResults) {
-								event.toolResults.forEach((toolResult: any) => {
-									logService.info(`[gitbbon-chat][Tool Result] ${toolResult.toolName}`, toolResult.result);
+								event.toolResults.forEach((toolResult: TypedToolResult<ToolSet>) => {
+									logService.info(`[gitbbon-chat][Tool Result] ${toolResult.toolName}`, toolResult.output);
 								});
 							}
 						}
@@ -344,8 +369,8 @@ export class AIService {
 						success: true,
 					});
 				}
-			} catch (error: any) {
-				if (error?.name === 'AbortError' || abortController.signal.aborted) {
+			} catch (error: unknown) {
+				if ((error as Error)?.name === 'AbortError' || abortController.signal.aborted) {
 					logService.info('[gitbbon-chat][aiService] Stream cancelled');
 					channel.push({
 						type: 'tool-end',
@@ -397,4 +422,5 @@ export class AIService {
 	public async *streamChat(messages: ModelMessage[]): AsyncGenerator<StreamEvent, void, unknown> {
 		yield* this.streamAgentChat(messages);
 	}
+
 }

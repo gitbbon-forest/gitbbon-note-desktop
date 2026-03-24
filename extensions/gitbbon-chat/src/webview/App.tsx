@@ -16,6 +16,8 @@ const App: React.FC = () => {
 	const [inputValue, setInputValue] = useState('');
 	const [isSending, setIsSending] = useState(false); // 전송 중 상태
 	const [isReceiving, setIsReceiving] = useState(false); // 수신 중 상태
+	const [currentBackend, setCurrentBackend] = useState<'api' | 'ollama'>('api');
+	const [ollamaStatus, setOllamaStatus] = useState<{ step: string; detail: string; progress?: number } | null>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const currentAssistantContentRef = useRef(''); // 스트리밍 콘텐츠 추적용
 	const toolStatusMapRef = useRef<Map<string, { name: string; args?: Record<string, unknown> }>>(new Map());
@@ -130,6 +132,17 @@ const App: React.FC = () => {
 			const message = event.data;
 
 			switch (message.type) {
+				case 'ollama-status':
+					setOllamaStatus({ step: message.step, detail: message.detail, progress: message.progress });
+					break;
+
+				case 'backend-changed':
+					setCurrentBackend(message.backend as 'api' | 'ollama');
+					if (message.backend !== 'ollama') {
+						setOllamaStatus(null);
+					}
+					break;
+
 				case 'chat-tool-status': {
 					// 도구 진행 상황을 한 줄 메시지로 표시
 					const toolEvent = message.event;
@@ -236,18 +249,41 @@ const App: React.FC = () => {
 		<div className="chat-container">
 			<div className="chat-header">
 				<span className="chat-header-title">Gitbbon Chat</span>
-				<button
-					className="new-chat-btn"
-					onClick={handleNewChat}
-					title="새 대화 시작"
-					disabled={isSending || isReceiving}
-				>
-					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-						<path d="M12 5v14M5 12h14"/>
-					</svg>
-					새 대화
-				</button>
+				<div className="chat-header-actions">
+					<button
+						className="backend-select-btn"
+						onClick={() => vscode.postMessage({ type: 'select-backend' })}
+						title={`백엔드: ${currentBackend === 'ollama' ? 'Ollama (로컬)' : 'API'}`}
+					>
+						⚙️
+					</button>
+					<button
+						className="new-chat-btn"
+						onClick={handleNewChat}
+						title="새 대화 시작"
+						disabled={isSending || isReceiving}
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+							<path d="M12 5v14M5 12h14"/>
+						</svg>
+						새 대화
+					</button>
+				</div>
 			</div>
+			{ollamaStatus && ollamaStatus.step !== 'ready' && (
+				<div className={`ollama-banner ollama-banner--${ollamaStatus.step}`}>
+					{ollamaStatus.step === 'checking' && <span>Ollama 확인 중...</span>}
+					{ollamaStatus.step === 'installing' && <span>Ollama 설치 중...</span>}
+					{ollamaStatus.step === 'pulling' && (
+						<span>모델 다운로드 중... {ollamaStatus.progress ?? 0}%</span>
+					)}
+					{ollamaStatus.step === 'error' && (
+						<div className="ollama-error">
+							<pre>{ollamaStatus.detail}</pre>
+						</div>
+					)}
+				</div>
+			)}
 			<MessageList messages={messages} isLoading={isSending || isReceiving} onRetry={handleRetry} />
 			<ChatInput
 				inputValue={inputValue}

@@ -110,9 +110,11 @@
     "@milkdown/react": "^7.17.3",
     "@milkdown/theme-nord": "^7.5.1",
     "@milkdown/utils": "^7.17.3",
+    "@types/source-map-support": "^0.5.10",
     "prosemirror-search": "^1.1.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
+    "source-map-support": "^0.5.21",
     "yaml": "^2.3.4"
   },
   "devDependencies": {

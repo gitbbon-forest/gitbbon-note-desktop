@@ -15,9 +15,7 @@
 		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		"typeRoots": [
-			"."
-		]
+		"typeRoots": []
 	},
 	"include": [
 		"./**/*.ts",
