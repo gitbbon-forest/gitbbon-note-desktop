@@ -233,13 +233,7 @@ export class AIService {
 
 		const instructions = SYSTEM_PROMPT + '\n\n' + contextParts.join('\n');
 
-		// Ollama thinking 모델 최적화: qwen3 등 thinking 모델은 /no_think로 비활성화
-		let finalInstructions = instructions;
-		if (backend === 'ollama' && ollamaModelName.toLowerCase().includes('qwen')) {
-			finalInstructions = '/no_think\n\n' + instructions;
-		}
-
-		logService.info('[gitbbon-chat][System Prompt]', finalInstructions);
+		logService.info('[gitbbon-chat][System Prompt]', instructions);
 		logService.info(`[gitbbon-chat][aiService] Starting streamText: ${typeof model === 'string' ? model : (model as any).modelId ?? 'ollama'}`);
 
 		// Set up AbortController for cancellation
@@ -264,7 +258,7 @@ export class AIService {
 
 				const result = streamText({
 					model,
-					system: finalInstructions,
+					system: instructions,
 					messages: messages as any,
 					tools,
 					stopWhen: stepCountIs(10),
@@ -305,6 +299,11 @@ export class AIService {
 				});
 
 				// Stream text token by token
+				// <think> 블록 파싱 상태
+				let thinkBuffer = '';
+				let isInThinkBlock = false;
+				let thinkProcessed = false;
+
 				for await (const textChunk of result.textStream) {
 					if (abortController.signal.aborted) break;
 
@@ -320,9 +319,66 @@ export class AIService {
 						});
 					}
 
-					if (textChunk) {
+					if (!textChunk) continue;
+
+					// <think> 블록 처리 (아직 처리 전인 경우만)
+					if (!thinkProcessed) {
+						thinkBuffer += textChunk;
+
+						// 상태 머신으로 파싱
+						while (thinkBuffer.length > 0) {
+							if (!isInThinkBlock) {
+								const startIdx = thinkBuffer.indexOf('<think>');
+								if (startIdx === -1) {
+									// think 태그 없음 - 일반 텍스트 (단, 부분 매치 가능성 체크)
+									const possiblePartial = ['<', '<t', '<th', '<thi', '<thin', '<think'];
+									const mightBePartial = possiblePartial.some(p => thinkBuffer.endsWith(p));
+									if (mightBePartial) break; // 더 기다림
+									// 일반 텍스트로 emit
+									channel.push({ type: 'text', content: thinkBuffer });
+									thinkBuffer = '';
+									thinkProcessed = true;
+									break;
+								}
+								// think 태그 앞의 텍스트
+								const before = thinkBuffer.slice(0, startIdx);
+								if (before) channel.push({ type: 'text', content: before });
+								thinkBuffer = thinkBuffer.slice(startIdx + '<think>'.length);
+								isInThinkBlock = true;
+							} else {
+								// think 블록 내부
+								const endIdx = thinkBuffer.indexOf('</think>');
+								if (endIdx === -1) {
+									// 아직 닫히지 않음 - thinking-content emit
+									if (thinkBuffer.length > 0) {
+										channel.push({ type: 'thinking-content', content: thinkBuffer });
+										thinkBuffer = '';
+									}
+									break;
+								}
+								// think 블록 종료
+								const thinkContent = thinkBuffer.slice(0, endIdx);
+								if (thinkContent) channel.push({ type: 'thinking-content', content: thinkContent });
+								thinkBuffer = thinkBuffer.slice(endIdx + '</think>'.length);
+								isInThinkBlock = false;
+								thinkProcessed = true;
+								// </think> 뒤의 텍스트가 있으면 일반 텍스트로
+								if (thinkBuffer.length > 0) {
+									channel.push({ type: 'text', content: thinkBuffer });
+									thinkBuffer = '';
+								}
+								break;
+							}
+						}
+					} else {
+						// think 블록 처리 완료 - 일반 텍스트
 						channel.push({ type: 'text', content: textChunk });
 					}
+				}
+
+				// 루프 종료 후 버퍼 처리
+				if (thinkBuffer.length > 0) {
+					channel.push({ type: isInThinkBlock ? 'thinking-content' : 'text', content: thinkBuffer });
 				}
 
 				logService.info('[gitbbon-chat][AI Response] Streaming complete');

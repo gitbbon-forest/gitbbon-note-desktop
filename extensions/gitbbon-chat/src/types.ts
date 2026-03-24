@@ -28,7 +28,12 @@ export interface TextEvent {
 	content: string;
 }
 
-export type StreamEvent = ToolStartEvent | ToolEndEvent | TextEvent;
+export interface ThinkingContentEvent {
+	type: 'thinking-content';
+	content: string;
+}
+
+export type StreamEvent = ToolStartEvent | ToolEndEvent | TextEvent | ThinkingContentEvent;
 
 /**
  * Tool Event Emitter interface

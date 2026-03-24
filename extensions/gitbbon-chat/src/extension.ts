@@ -141,6 +141,13 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 							event: event
 						});
 						break;
+					case 'thinking-content':
+						// thinking 내용 전송
+						this._webviewView.webview.postMessage({
+							type: 'chat-thinking-content',
+							content: event.content
+						});
+						break;
 					case 'text':
 						// AI 응답 텍스트 전송
 						this._webviewView.webview.postMessage({

@@ -16,6 +16,7 @@ const App: React.FC = () => {
 	const [inputValue, setInputValue] = useState('');
 	const [isSending, setIsSending] = useState(false); // 전송 중 상태
 	const [isReceiving, setIsReceiving] = useState(false); // 수신 중 상태
+	const [thinkingContent, setThinkingContent] = useState(''); // thinking 내용
 	const [currentBackend, setCurrentBackend] = useState<'api' | 'ollama'>('api');
 	const [ollamaStatus, setOllamaStatus] = useState<{ step: string; detail: string; progress?: number } | null>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -55,6 +56,7 @@ const App: React.FC = () => {
 		setIsSending(true);
 		toolStatusMapRef.current.clear();
 		currentAssistantContentRef.current = '';
+		setThinkingContent('');
 		lastUserMessageRef.current = userContent;
 
 		const allMessages = [...currentMessages, userMessage]
@@ -113,6 +115,7 @@ const App: React.FC = () => {
 		setIsSending(false);
 		setIsReceiving(false);
 		currentAssistantContentRef.current = '';
+		setThinkingContent('');
 	}, []);
 
 	// 새 대화 시작
@@ -122,6 +125,7 @@ const App: React.FC = () => {
 		setIsSending(false);
 		setIsReceiving(false);
 		currentAssistantContentRef.current = '';
+		setThinkingContent('');
 		toolStatusMapRef.current.clear();
 		lastUserMessageRef.current = '';
 	}, []);
@@ -230,6 +234,10 @@ const App: React.FC = () => {
 					currentAssistantContentRef.current = '';
 					break;
 
+				case 'chat-thinking-content':
+					setThinkingContent(prev => prev + message.content);
+					break;
+
 				case 'insertText':
 					if (message.text) {
 						setInputValue((prev) => prev + message.text);
@@ -284,7 +292,7 @@ const App: React.FC = () => {
 					)}
 				</div>
 			)}
-			<MessageList messages={messages} isLoading={isSending || isReceiving} onRetry={handleRetry} />
+			<MessageList messages={messages} isLoading={isSending || isReceiving} onRetry={handleRetry} thinkingContent={thinkingContent} />
 			<ChatInput
 				inputValue={inputValue}
 				setInputValue={setInputValue}

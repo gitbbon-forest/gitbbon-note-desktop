@@ -123,6 +123,7 @@ interface MessageListProps {
 	messages: ChatMessage[];
 	isLoading: boolean;
 	onRetry?: () => void;
+	thinkingContent?: string;
 }
 
 // system 메시지 content를 파싱하여 tool status 또는 error인지 판별
@@ -188,7 +189,7 @@ const ErrorMessage: React.FC<{ message: string; onRetry?: () => void }> = ({ mes
 	);
 };
 
-const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, onRetry }) => {
+const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, onRetry, thinkingContent }) => {
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 
 	// Auto scroll to bottom when messages change
@@ -249,6 +250,12 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, onRetry 
 				<div className="message-wrapper assistant">
 					<div className="message-bubble assistant">
 						<strong>AI:</strong> <span className="loading-text">생각 중...</span>
+					{thinkingContent && (
+						<details className="thinking-block" open>
+							<summary>추론 과정 보기</summary>
+							<pre className="thinking-content">{thinkingContent}</pre>
+						</details>
+					)}
 					</div>
 				</div>
 			)}
