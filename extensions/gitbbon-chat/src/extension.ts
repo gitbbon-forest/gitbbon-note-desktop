@@ -219,12 +219,16 @@ async function setupOllama(aiService: AIService, webviewView: vscode.WebviewView
 		logService.info('[gitbbon-chat][setupOllama] Ollama already running');
 	}
 
-	const hw = await ollamaService.detectHardware();
-	const model = ollamaService.selectModel(hw);
 	const installedModels = await ollamaService.getInstalledModels();
-	logService.info(`[gitbbon-chat][setupOllama] target model=${model}, installedModels=[${installedModels.join(', ')}]`);
 
-	if (!installedModels.includes(model)) {
+	let model: string;
+	if (installedModels.length > 0) {
+		model = installedModels[0];
+		logService.info(`[gitbbon-chat][setupOllama] using existing model: ${model} (installedModels=[${installedModels.join(', ')}])`);
+	} else {
+		const hw = await ollamaService.detectHardware();
+		model = ollamaService.selectModel(hw);
+		logService.info(`[gitbbon-chat][setupOllama] no installed models, will pull: ${model}`);
 		post('pulling', `모델 다운로드 중... ${model}`, 0);
 		try {
 			await ollamaService.pullModel(model, (pct) => {
@@ -235,8 +239,6 @@ async function setupOllama(aiService: AIService, webviewView: vscode.WebviewView
 			post('error', `모델 다운로드에 실패했습니다. 터미널에서 "ollama pull ${model}" 을 실행해주세요.`);
 			return;
 		}
-	} else {
-		logService.info(`[gitbbon-chat][setupOllama] model already installed: ${model}`);
 	}
 
 	post('ready', `준비 완료: ${model}`);
