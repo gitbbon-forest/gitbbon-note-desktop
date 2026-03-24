@@ -187,18 +187,22 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 
 async function setupOllama(aiService: AIService, webviewView: vscode.WebviewView): Promise<void> {
 	const post = (step: string, detail: string, progress?: number) => {
+		logService.info(`[gitbbon-chat][setupOllama] step=${step} ${progress !== undefined ? `progress=${progress}%` : ''} ${detail}`);
 		webviewView.webview.postMessage({ type: 'ollama-status', step, detail, progress });
 	};
 
+	logService.info('[gitbbon-chat][setupOllama] starting');
 	post('checking', 'Ollama 확인 중...');
 
 	const running = await ollamaService.isRunning();
 	if (!running) {
+		logService.info('[gitbbon-chat][setupOllama] Ollama not running, checking install');
 		const installed = await ollamaService.isInstalled();
 		if (!installed) {
 			post('installing', 'Ollama 설치 중...');
 			try {
 				await ollamaService.install();
+				logService.info('[gitbbon-chat][setupOllama] install complete');
 			} catch {
 				post('error', 'Ollama 자동 설치에 실패했습니다.\n\n• macOS (Homebrew): brew install ollama\n• 공식 설치: https://ollama.com/download\n• 설치 후 터미널에서: ollama serve');
 				return;
@@ -206,15 +210,19 @@ async function setupOllama(aiService: AIService, webviewView: vscode.WebviewView
 		}
 		try {
 			await ollamaService.startServer();
+			logService.info('[gitbbon-chat][setupOllama] server started');
 		} catch {
 			post('error', 'Ollama 서버를 시작하지 못했습니다. 터미널에서 "ollama serve" 를 실행해주세요.');
 			return;
 		}
+	} else {
+		logService.info('[gitbbon-chat][setupOllama] Ollama already running');
 	}
 
 	const hw = await ollamaService.detectHardware();
 	const model = ollamaService.selectModel(hw);
 	const installedModels = await ollamaService.getInstalledModels();
+	logService.info(`[gitbbon-chat][setupOllama] target model=${model}, installedModels=[${installedModels.join(', ')}]`);
 
 	if (!installedModels.includes(model)) {
 		post('pulling', `모델 다운로드 중... ${model}`, 0);
@@ -222,10 +230,13 @@ async function setupOllama(aiService: AIService, webviewView: vscode.WebviewView
 			await ollamaService.pullModel(model, (pct) => {
 				post('pulling', `모델 다운로드 중... ${model}`, pct);
 			});
+			logService.info(`[gitbbon-chat][setupOllama] pull complete: ${model}`);
 		} catch {
 			post('error', `모델 다운로드에 실패했습니다. 터미널에서 "ollama pull ${model}" 을 실행해주세요.`);
 			return;
 		}
+	} else {
+		logService.info(`[gitbbon-chat][setupOllama] model already installed: ${model}`);
 	}
 
 	post('ready', `준비 완료: ${model}`);

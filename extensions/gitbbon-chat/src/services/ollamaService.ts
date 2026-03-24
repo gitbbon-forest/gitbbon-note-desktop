@@ -28,11 +28,17 @@ export class OllamaService {
   async isRunning(): Promise<boolean> {
     return new Promise((resolve) => {
       const req = http.get(`${this.baseUrl}/api/tags`, (res) => {
-        resolve(res.statusCode === 200);
+        const result = res.statusCode === 200;
+        logService.info(`[ollamaService] isRunning: ${result} (status ${res.statusCode})`);
+        resolve(result);
         res.resume();
       });
-      req.on('error', () => resolve(false));
+      req.on('error', (err) => {
+        logService.info(`[ollamaService] isRunning: false (${err.message})`);
+        resolve(false);
+      });
       req.setTimeout(2000, () => {
+        logService.info('[ollamaService] isRunning: false (timeout)');
         req.destroy();
         resolve(false);
       });
@@ -41,35 +47,42 @@ export class OllamaService {
 
   async isInstalled(): Promise<boolean> {
     try {
-      await execAsync('which ollama');
+      const { stdout } = await execAsync('which ollama');
+      logService.info(`[ollamaService] isInstalled: true (${stdout.trim()})`);
       return true;
     } catch {
       const paths = ['/usr/local/bin/ollama', '/opt/homebrew/bin/ollama', '/usr/bin/ollama'];
       for (const p of paths) {
         try {
           await execAsync(`test -f ${p}`);
+          logService.info(`[ollamaService] isInstalled: true (${p})`);
           return true;
         } catch { /* continue */ }
       }
+      logService.info('[ollamaService] isInstalled: false');
       return false;
     }
   }
 
   async install(): Promise<void> {
     const platform = os.platform();
+    logService.info(`[ollamaService] install: starting on platform=${platform}`);
     if (platform === 'darwin' || platform === 'linux') {
       try {
         await execAsync('curl -fsSL https://ollama.com/install.sh | sh', { timeout: 120000 });
-        logService.info('[ollamaService] Ollama installed successfully');
-      } catch {
+        logService.info('[ollamaService] install: success');
+      } catch (err) {
+        logService.error('[ollamaService] install: failed', err);
         throw new Error('INSTALL_FAILED');
       }
     } else {
+      logService.warn(`[ollamaService] install: unsupported platform=${platform}`);
       throw new Error('INSTALL_FAILED');
     }
   }
 
   async startServer(): Promise<void> {
+    logService.info('[ollamaService] startServer: spawning ollama serve');
     spawn('ollama', ['serve'], {
       detached: true,
       stdio: 'ignore',
@@ -77,11 +90,13 @@ export class OllamaService {
 
     for (let i = 0; i < 10; i++) {
       await new Promise((r) => setTimeout(r, 1000));
+      logService.info(`[ollamaService] startServer: waiting... (${i + 1}/10)`);
       if (await this.isRunning()) {
-        logService.info('[ollamaService] Server started');
+        logService.info('[ollamaService] startServer: ready');
         return;
       }
     }
+    logService.error('[ollamaService] startServer: timed out after 10s');
     throw new Error('Server failed to start');
   }
 
@@ -100,17 +115,21 @@ export class OllamaService {
       }
     } catch { /* GPU detection is best-effort */ }
 
+    logService.info(`[ollamaService] detectHardware: RAM=${ramGB.toFixed(1)}GB, GPU=${hasGPU}`);
     return { ramGB, hasGPU };
   }
 
   selectModel(hardware: HardwareInfo): string {
+    let model: string;
     if (hardware.ramGB >= 16 && hardware.hasGPU) {
-      return 'llama3.1:8b';
+      model = 'llama3.1:8b';
     } else if (hardware.ramGB >= 8) {
-      return 'llama3.2:3b';
+      model = 'llama3.2:3b';
     } else {
-      return 'gemma2:2b';
+      model = 'gemma2:2b';
     }
+    logService.info(`[ollamaService] selectModel: ${model} (RAM=${hardware.ramGB.toFixed(1)}GB, GPU=${hardware.hasGPU})`);
+    return model;
   }
 
   async getInstalledModels(): Promise<string[]> {
@@ -121,16 +140,23 @@ export class OllamaService {
         res.on('end', () => {
           try {
             const json = JSON.parse(data);
-            resolve((json.models || []).map((m: any) => m.name as string));
+            const models = (json.models || []).map((m: any) => m.name as string);
+            logService.info(`[ollamaService] getInstalledModels: [${models.join(', ')}]`);
+            resolve(models);
           } catch {
+            logService.warn('[ollamaService] getInstalledModels: parse error, returning []');
             resolve([]);
           }
         });
-      }).on('error', () => resolve([]));
+      }).on('error', (err) => {
+        logService.warn(`[ollamaService] getInstalledModels: error (${err.message}), returning []`);
+        resolve([]);
+      });
     });
   }
 
   async pullModel(model: string, onProgress: (pct: number) => void): Promise<void> {
+    logService.info(`[ollamaService] pullModel: starting ${model}`);
     return new Promise((resolve, reject) => {
       const body = JSON.stringify({ name: model, stream: true });
       const options: http.RequestOptions = {
@@ -159,16 +185,23 @@ export class OllamaService {
                 onProgress(pct);
               }
               if (json.status === 'success') {
+                logService.info(`[ollamaService] pullModel: ${model} complete`);
                 onProgress(100);
               }
             } catch { /* skip */ }
           }
         });
         res.on('end', () => resolve());
-        res.on('error', reject);
+        res.on('error', (err) => {
+          logService.error(`[ollamaService] pullModel: ${model} error`, err);
+          reject(err);
+        });
       });
 
-      req.on('error', reject);
+      req.on('error', (err) => {
+        logService.error(`[ollamaService] pullModel: request error`, err);
+        reject(err);
+      });
       req.write(body);
       req.end();
     });
@@ -178,6 +211,7 @@ export class OllamaService {
     const models = await this.getInstalledModels();
     const hw = await this.detectHardware();
     const model = models.length > 0 ? models[0] : this.selectModel(hw);
+    logService.info(`[ollamaService] streamChat: using model=${model}, messages=${messages.length}`);
 
     const body = JSON.stringify({
       model,
@@ -214,11 +248,20 @@ export class OllamaService {
             } catch { /* skip */ }
           }
         });
-        res.on('end', () => resolve(results));
-        res.on('error', reject);
+        res.on('end', () => {
+          logService.info(`[ollamaService] streamChat: received ${results.length} chunks`);
+          resolve(results);
+        });
+        res.on('error', (err) => {
+          logService.error('[ollamaService] streamChat: response error', err);
+          reject(err);
+        });
       });
 
-      req.on('error', reject);
+      req.on('error', (err) => {
+        logService.error('[ollamaService] streamChat: request error', err);
+        reject(err);
+      });
       req.write(body);
       req.end();
     });

@@ -365,6 +365,7 @@ export class AIService {
 	private async *_streamOllamaChat(messages: ModelMessage[]): AsyncGenerator<StreamEvent, void, unknown> {
 		const thinkingId = generateToolId();
 		const thinkingStart = Date.now();
+		logService.info(`[gitbbon-chat][aiService] _streamOllamaChat: start, messages=${messages.length}`);
 
 		yield { type: 'tool-start', id: thinkingId, toolName: 'Thinking...', timestamp: thinkingStart };
 
@@ -374,21 +375,27 @@ export class AIService {
 		}));
 
 		let first = true;
+		let chunkCount = 0;
 		try {
 			for await (const chunk of ollamaService.streamChat(msgList)) {
 				if (first) {
 					first = false;
+					logService.info(`[gitbbon-chat][aiService] _streamOllamaChat: first chunk received (${Date.now() - thinkingStart}ms)`);
 					yield { type: 'tool-end', id: thinkingId, toolName: 'Thinking...', duration: Date.now() - thinkingStart, success: true };
 				}
 				if (chunk) {
+					chunkCount++;
 					yield { type: 'text', content: chunk };
 				}
 			}
 			if (first) {
+				logService.warn('[gitbbon-chat][aiService] _streamOllamaChat: no chunks received');
 				yield { type: 'tool-end', id: thinkingId, toolName: 'Thinking...', duration: Date.now() - thinkingStart, success: true };
+			} else {
+				logService.info(`[gitbbon-chat][aiService] _streamOllamaChat: complete, chunks=${chunkCount}, duration=${Date.now() - thinkingStart}ms`);
 			}
 		} catch (error) {
-			logService.error('[gitbbon-chat][ollamaService] streamChat failed:', error);
+			logService.error('[gitbbon-chat][aiService] _streamOllamaChat: failed', error);
 			yield { type: 'tool-end', id: thinkingId, toolName: 'Thinking...', duration: Date.now() - thinkingStart, success: false };
 			yield { type: 'text', content: 'Ollama 연결에 실패했습니다. Ollama가 실행 중인지 확인해주세요.' };
 		}
