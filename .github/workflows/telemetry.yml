@@ -1,5 +1,7 @@
 name: 'Telemetry'
-on: pull_request
+# gitbbon custom: 비활성화 - vscode 내부 텔레메트리 검사, gitbbon에 불필요
+on:
+  workflow_dispatch:
 permissions: {}
 jobs:
   check-metadata:

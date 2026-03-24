@@ -1,6 +1,8 @@
 name: Prevent package-lock.json changes in PRs
 
-on: pull_request
+# gitbbon custom: 비활성화 - microsoft/vscode 레포 권한 조회로 gitbbon에서 오작동
+on:
+  workflow_dispatch:
 permissions: {}
 
 jobs:

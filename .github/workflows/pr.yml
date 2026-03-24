@@ -1,10 +1,8 @@
 name: Code OSS
 
+# gitbbon custom: vscode OSS CI 비활성화 - gitbbon에서는 불필요, upstream merge 시 복원
 on:
-  pull_request:
-    branches:
-      - main
-      - 'release/*'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
