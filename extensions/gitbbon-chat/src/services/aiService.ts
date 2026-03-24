@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { streamText, stepCountIs, type ModelMessage } from 'ai';
+import { createOllama } from 'ollama-ai-provider';
 import { createEditorTools } from '../tools/editorTools';
 import { ContextService } from './ContextService';
 import { SYSTEM_PROMPT } from '../constants/prompts';
@@ -154,13 +155,6 @@ export class AIService {
 	 */
 	public async *streamAgentChat(messages: ModelMessage[]): AsyncGenerator<StreamEvent, void, unknown> {
 		const backend = await this.getBackend();
-		if (backend === 'ollama') {
-			yield* this._streamOllamaChat(messages);
-			return;
-		}
-
-		await this.ensureInitialized();
-		if (!this.apiKey) throw new Error('No API Key');
 
 		const lastMessage = messages[messages.length - 1];
 		const userInput = typeof lastMessage.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage.content);
@@ -175,7 +169,19 @@ export class AIService {
 		};
 
 		const tools = createEditorTools(messages, emitter);
-		const modelName = 'google/gemini-3-pro';
+
+		// Resolve model: Ollama returns a LanguageModel object; API backend uses a gateway string ID
+		let model: any;
+		if (backend === 'ollama') {
+			const ollamaModelName = await ollamaService.getSelectedModel();
+			logService.info(`[gitbbon-chat][aiService] Ollama backend: model=${ollamaModelName}`);
+			const ollamaProvider = createOllama({ baseURL: 'http://localhost:11434/api' });
+			model = ollamaProvider(ollamaModelName);
+		} else {
+			await this.ensureInitialized();
+			if (!this.apiKey) throw new Error('No API Key');
+			model = 'google/gemini-3-pro';
+		}
 
 		// Context collection
 		const activeFile = ContextService.getActiveFileName();
@@ -227,7 +233,7 @@ export class AIService {
 		const instructions = SYSTEM_PROMPT + '\n\n' + contextParts.join('\n');
 
 		logService.info('[gitbbon-chat][System Prompt]', instructions);
-		logService.info(`[gitbbon-chat][aiService] Starting streamText: ${modelName}`);
+		logService.info(`[gitbbon-chat][aiService] Starting streamText: ${typeof model === 'string' ? model : (model as any).modelId ?? 'ollama'}`);
 
 		// Set up AbortController for cancellation
 		const abortController = new AbortController();
@@ -250,7 +256,7 @@ export class AIService {
 				logService.info('[gitbbon-chat][Phase] Thinking...');
 
 				const result = streamText({
-					model: modelName,
+					model,
 					system: instructions,
 					messages: messages as any,
 					tools,
@@ -362,42 +368,4 @@ export class AIService {
 		yield* this.streamAgentChat(messages);
 	}
 
-	private async *_streamOllamaChat(messages: ModelMessage[]): AsyncGenerator<StreamEvent, void, unknown> {
-		const thinkingId = generateToolId();
-		const thinkingStart = Date.now();
-		logService.info(`[gitbbon-chat][aiService] _streamOllamaChat: start, messages=${messages.length}`);
-
-		yield { type: 'tool-start', id: thinkingId, toolName: 'Thinking...', timestamp: thinkingStart };
-
-		const msgList = messages.map(m => ({
-			role: m.role as string,
-			content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-		}));
-
-		let first = true;
-		let chunkCount = 0;
-		try {
-			for await (const chunk of ollamaService.streamChat(msgList)) {
-				if (first) {
-					first = false;
-					logService.info(`[gitbbon-chat][aiService] _streamOllamaChat: first chunk received (${Date.now() - thinkingStart}ms)`);
-					yield { type: 'tool-end', id: thinkingId, toolName: 'Thinking...', duration: Date.now() - thinkingStart, success: true };
-				}
-				if (chunk) {
-					chunkCount++;
-					yield { type: 'text', content: chunk };
-				}
-			}
-			if (first) {
-				logService.warn('[gitbbon-chat][aiService] _streamOllamaChat: no chunks received');
-				yield { type: 'tool-end', id: thinkingId, toolName: 'Thinking...', duration: Date.now() - thinkingStart, success: true };
-			} else {
-				logService.info(`[gitbbon-chat][aiService] _streamOllamaChat: complete, chunks=${chunkCount}, duration=${Date.now() - thinkingStart}ms`);
-			}
-		} catch (error) {
-			logService.error('[gitbbon-chat][aiService] _streamOllamaChat: failed', error);
-			yield { type: 'tool-end', id: thinkingId, toolName: 'Thinking...', duration: Date.now() - thinkingStart, success: false };
-			yield { type: 'text', content: 'Ollama 연결에 실패했습니다. Ollama가 실행 중인지 확인해주세요.' };
-		}
-	}
 }

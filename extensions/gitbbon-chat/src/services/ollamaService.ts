@@ -145,6 +145,20 @@ export class OllamaService {
     return model;
   }
 
+  /**
+   * 현재 사용할 모델명을 반환한다.
+   * 이미 설치된 모델이 있으면 첫 번째 모델을, 없으면 하드웨어 기반으로 선정한다.
+   */
+  async getSelectedModel(): Promise<string> {
+    const models = await this.getInstalledModels();
+    if (models.length > 0) {
+      logService.info(`[ollamaService] getSelectedModel: using installed model=${models[0]}`);
+      return models[0];
+    }
+    const hw = await this.detectHardware();
+    return this.selectModel(hw);
+  }
+
   async getInstalledModels(): Promise<string[]> {
     return new Promise((resolve) => {
       http.get(`${this.baseUrl}/api/tags`, (res) => {
