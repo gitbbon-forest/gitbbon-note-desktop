@@ -238,7 +238,7 @@ suite('ParameterHintsModel', () => {
 		});
 	});
 
-	test('Provider should be retriggered if already active', async () => {
+	test('Provider should be retriggered if already active (with delay and multiple trigger chars)', async () => {
 		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const editor = createMockEditor('');

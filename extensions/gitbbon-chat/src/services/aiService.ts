@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { streamText, stepCountIs, type ModelMessage } from 'ai';
+import { streamText, stepCountIs, type ModelMessage, type LanguageModel, type ToolSet, type TypedToolCall, type TypedToolResult } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createEditorTools } from '../tools/editorTools';
 import { ContextService } from './ContextService';
@@ -171,12 +171,12 @@ export class AIService {
 		const tools = createEditorTools(messages, emitter);
 
 		// Resolve model: Ollama returns a LanguageModel object; API backend uses a gateway string ID
-		let model: any;
+		let model: LanguageModel | string;
 		if (backend === 'ollama') {
 			const ollamaModelName = await ollamaService.getSelectedModel();
 			logService.info(`[gitbbon-chat][aiService] Ollama backend: model=${ollamaModelName}`);
 			const ollamaProvider = createOpenAI({ baseURL: 'http://localhost:11434/v1', apiKey: 'ollama' });
-			model = ollamaProvider(ollamaModelName);
+			model = ollamaProvider.chat(ollamaModelName);
 		} else {
 			await this.ensureInitialized();
 			if (!this.apiKey) throw new Error('No API Key');
@@ -233,7 +233,7 @@ export class AIService {
 		const instructions = SYSTEM_PROMPT + '\n\n' + contextParts.join('\n');
 
 		logService.info('[gitbbon-chat][System Prompt]', instructions);
-		logService.info(`[gitbbon-chat][aiService] Starting streamText: ${typeof model === 'string' ? model : (model as any).modelId ?? 'ollama'}`);
+		logService.info(`[gitbbon-chat][aiService] Starting streamText: ${typeof model === 'string' ? model : (typeof model === 'object' && model !== null && 'modelId' in model ? (model as { modelId: string }).modelId : 'ollama')}`);
 
 		// Set up AbortController for cancellation
 		const abortController = new AbortController();
@@ -258,14 +258,14 @@ export class AIService {
 				const result = streamText({
 					model,
 					system: instructions,
-					messages: messages as any,
+					messages: messages as ModelMessage[],
 					tools,
 					stopWhen: stepCountIs(10),
 					abortSignal: abortController.signal,
 					onStepFinish: (event) => {
 						logService.info('[gitbbon-chat][Agent Step] Step Finished', {
 							text: event.text ? event.text.slice(0, 100) + '...' : undefined,
-							tools: event.toolCalls?.map((t: any) => t.toolName).join(', ') || 'None'
+							tools: event.toolCalls?.map((t: TypedToolCall<ToolSet>) => t.toolName).join(', ') || 'None'
 						});
 
 						if (event.toolCalls?.length) {
@@ -281,13 +281,13 @@ export class AIService {
 								logService.info('[gitbbon-chat][Phase] Tool Execution Started');
 							}
 
-							event.toolCalls.forEach((call: any) => {
-								logService.info(`[gitbbon-chat][Tool Call] ${call.toolName}`, call.args);
+							event.toolCalls.forEach((call: TypedToolCall<ToolSet>) => {
+								logService.info(`[gitbbon-chat][Tool Call] ${call.toolName}`, call.input);
 							});
 
 							if (event.toolResults) {
-								event.toolResults.forEach((toolResult: any) => {
-									logService.info(`[gitbbon-chat][Tool Result] ${toolResult.toolName}`, toolResult.result);
+								event.toolResults.forEach((toolResult: TypedToolResult<ToolSet>) => {
+									logService.info(`[gitbbon-chat][Tool Result] ${toolResult.toolName}`, toolResult.output);
 								});
 							}
 						}
@@ -330,8 +330,8 @@ export class AIService {
 						success: true,
 					});
 				}
-			} catch (error: any) {
-				if (error?.name === 'AbortError' || abortController.signal.aborted) {
+			} catch (error: unknown) {
+				if ((error as Error)?.name === 'AbortError' || abortController.signal.aborted) {
 					logService.info('[gitbbon-chat][aiService] Stream cancelled');
 					channel.push({
 						type: 'tool-end',
