@@ -184,7 +184,7 @@ export class AIService {
 		return success;
 	}
 
-	public async *streamAgentChat(messages: ModelMessage[]): AsyncGenerator<StreamEvent, void, unknown> {
+	public async *streamAgentChat(messages: ModelMessage[], selectedModel?: string): AsyncGenerator<StreamEvent, void, unknown> {
 		const backend = await this.getBackend();
 		if (backend !== 'ollama') {
 			await this.ensureInitialized();
@@ -214,8 +214,9 @@ export class AIService {
 		// Resolve model: Ollama returns a LanguageModel object; API backend uses a gateway string ID
 		let model: LanguageModel | string;
 		if (backend === 'ollama') {
-			const ollamaModelName = await ollamaService.getSelectedModel();
-			logService.info(`[gitbbon-chat][aiService] Ollama backend: model=${ollamaModelName}`);
+			// gitbbon custom: UI에서 선택한 모델을 우선 사용, 없으면 설치된 첫 번째 모델 또는 하드웨어 기반 선택
+			const ollamaModelName = selectedModel || await ollamaService.getSelectedModel();
+			logService.info(`[gitbbon-chat][aiService] Ollama backend: model=${ollamaModelName} (selectedModel=${selectedModel || 'none'})`);
 			const ollamaProvider = createOpenAI({ baseURL: 'http://localhost:11434/v1', apiKey: 'ollama' });
 			model = ollamaProvider.chat(ollamaModelName);
 		} else {
@@ -419,8 +420,8 @@ export class AIService {
 		await agentPromise;
 	}
 
-	public async *streamChat(messages: ModelMessage[]): AsyncGenerator<StreamEvent, void, unknown> {
-		yield* this.streamAgentChat(messages);
+	public async *streamChat(messages: ModelMessage[], selectedModel?: string): AsyncGenerator<StreamEvent, void, unknown> {
+		yield* this.streamAgentChat(messages, selectedModel);
 	}
 
 }
