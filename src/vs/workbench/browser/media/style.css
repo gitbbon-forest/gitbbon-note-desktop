@@ -21,7 +21,9 @@
 	align-items: center;
 	gap: 16px;
 	pointer-events: none; /* Let clicks pass through the layer itself */
-	z-index: 10000;
+	/* gitbbon custom: z-index를 낮춰 Command Palette(2550) 등 오버레이 메뉴 아래에 위치하도록 수정 (Issue #52) */
+	/* 기존: z-index: 10000; */
+	z-index: 1000;
 }
 
 .gitbbon-floating-widget {
