@@ -322,17 +322,16 @@ body {
 	gap: 8px;
 }
 
-/* gitbbon custom: 모델타입/모델명 셀렉트박스 영역 */
+/* gitbbon custom: 모델타입/모델명 셀렉트박스 영역 - 컨텐츠 크기만큼만 차지하도록 수정 (#50) */
 .chat-model-selects {
 	display: flex;
 	gap: 4px;
-	flex: 1;
-	min-width: 0;
+	flex: none;
 }
 
 .chat-model-select {
-	flex: 1;
-	min-width: 0;
+	width: fit-content;
+	max-width: 180px;
 	padding: 2px 4px;
 	border: 1px solid var(--vscode-widget-border);
 	border-radius: 4px;
