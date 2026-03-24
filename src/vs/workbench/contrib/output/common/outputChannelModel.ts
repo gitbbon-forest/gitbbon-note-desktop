@@ -200,6 +200,9 @@ class FileContentProvider extends Disposable implements IContentProvider {
 			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 				throw error;
 			}
+			// gitbbon fix: Issue #35 - 파일이 삭제된 경우 etag를 초기화하여
+			// 파일이 다시 생성될 때 변경이 즉시 감지되도록 함
+			this.etag = undefined;
 		}
 	}
 
