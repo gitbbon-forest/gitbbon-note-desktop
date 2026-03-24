@@ -380,7 +380,7 @@ export class AIService {
 						success: true,
 					});
 				} else if (this.isGatewayAuthError(error)) {
-					logService.warn('[gitbbon-chat][aiService] GatewayAuthenticationError detected:', error.message);
+					logService.warn('[gitbbon-chat][aiService] GatewayAuthenticationError detected:', (error as Error).message);
 					channel.push({
 						type: 'tool-end',
 						id: thinkingId,
@@ -404,7 +404,7 @@ export class AIService {
 						duration: Date.now() - thinkingStart,
 						success: false,
 					});
-					channel.push({ type: 'text', content: `오류가 발생했습니다: ${error?.message || 'Unknown error'}` });
+					channel.push({ type: 'text', content: `오류가 발생했습니다: ${(error as Error)?.message || 'Unknown error'}` });
 				}
 			} finally {
 				this.currentAbortController = null;
