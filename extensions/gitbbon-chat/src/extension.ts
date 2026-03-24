@@ -68,7 +68,12 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 				this.aiService.cancelCurrentStream();
 				webviewView.webview.postMessage({ type: 'chat-done' });
 			} else if (message.type === 'select-backend') {
-				await this._handleSelectBackend(webviewView);
+				// gitbbon custom: 웹뷰 셀렉트박스에서 직접 backend 값을 받아 처리 (QuickPick 제거)
+				await this._handleSelectBackend(webviewView, message.backend as 'api' | 'ollama');
+			} else if (message.type === 'get-ollama-models') {
+				// gitbbon custom: 웹뷰에서 ollama 설치 모델 목록 요청
+				const models = await ollamaService.getInstalledModels();
+				webviewView.webview.postMessage({ type: 'ollama-models', models });
 			} else if (message.type === 'setup-ollama') {
 				await setupOllama(this.aiService, webviewView);
 			}
@@ -85,25 +90,16 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
-	private async _handleSelectBackend(webviewView: vscode.WebviewView): Promise<void> {
-		const current = await this.aiService.getBackend();
-		const items = [
-			{ label: `$(cloud) Vercel AI Gateway (API)`, description: current === 'api' ? '현재 선택됨' : '', value: 'api' as const },
-			{ label: `$(server) Ollama (로컬 LLM)`, description: current === 'ollama' ? '현재 선택됨' : '', value: 'ollama' as const },
-		];
+	// gitbbon custom: QuickPick 제거 - 웹뷰 셀렉트박스에서 backend 값을 직접 수신
+	private async _handleSelectBackend(webviewView: vscode.WebviewView, backend: 'api' | 'ollama'): Promise<void> {
+		await this.aiService.setBackend(backend);
+		webviewView.webview.postMessage({ type: 'backend-changed', backend });
 
-		const picked = await vscode.window.showQuickPick(items, {
-			placeHolder: '채팅 백엔드를 선택하세요',
-			title: '백엔드 선택',
-		});
-
-		if (!picked) return;
-
-		await this.aiService.setBackend(picked.value);
-		webviewView.webview.postMessage({ type: 'backend-changed', backend: picked.value });
-
-		if (picked.value === 'ollama') {
+		if (backend === 'ollama') {
 			await setupOllama(this.aiService, webviewView);
+			// ollama 모델 목록도 함께 전송
+			const models = await ollamaService.getInstalledModels();
+			webviewView.webview.postMessage({ type: 'ollama-models', models });
 		}
 	}
 

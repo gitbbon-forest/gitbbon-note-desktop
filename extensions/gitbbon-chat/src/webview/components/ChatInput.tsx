@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import type { ModelType } from '../App';
 
 interface ChatInputProps {
 	inputValue: string;
@@ -9,6 +10,12 @@ interface ChatInputProps {
 	onCancel: () => void;
 	inputRef?: React.RefObject<HTMLTextAreaElement | null>;
 	onCompositionChange?: (isComposing: boolean) => void;
+	// gitbbon custom: 모델타입/모델명 셀렉트박스용 props
+	modelType: ModelType;
+	setModelType: (type: ModelType) => void;
+	selectedModel: string;
+	setSelectedModel: (model: string) => void;
+	ollamaModels: string[];
 }
 
 // 화살표 전송 아이콘 SVG
@@ -40,7 +47,7 @@ const StopIcon = () => (
 	</svg>
 );
 
-const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSending, isReceiving, onSubmit, onCancel, inputRef, onCompositionChange }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSending, isReceiving, onSubmit, onCancel, inputRef, onCompositionChange, modelType, setModelType, selectedModel, setSelectedModel, ollamaModels }) => {
 	const internalRef = useRef<HTMLTextAreaElement>(null);
 	const textareaRef = inputRef || internalRef;
 	const isLoading = isSending || isReceiving;
@@ -112,6 +119,35 @@ const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSend
 					rows={1}
 				/>
 				<div className="chat-input-actions">
+					{/* gitbbon custom: 모델타입/모델명 셀렉트박스 */}
+					<div className="chat-model-selects">
+						<select
+							className="chat-model-select"
+							value={modelType}
+							onChange={(e) => setModelType(e.target.value as ModelType)}
+							disabled={isLoading}
+							aria-label="모델 타입"
+						>
+							<option value="gitbbon">Gitbbon AI</option>
+							<option value="ondevice">온디바이스 (무료)</option>
+							<option value="byok">BYOK</option>
+						</select>
+						<select
+							className="chat-model-select"
+							value={selectedModel}
+							onChange={(e) => setSelectedModel(e.target.value)}
+							disabled={isLoading || modelType !== 'ondevice'}
+							aria-label="모델 이름"
+						>
+							{modelType === 'ondevice' ? (
+								ollamaModels.map((m) => <option key={m} value={m}>{m}</option>)
+							) : modelType === 'byok' ? (
+								<option value="">준비 중</option>
+							) : (
+								<option value="">기본 모델</option>
+							)}
+						</select>
+					</div>
 					{isLoading ? (
 						<button
 							type="button"

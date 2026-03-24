@@ -314,10 +314,49 @@ body {
 	border-color: var(--vscode-focusBorder);
 }
 
-/* Chat Input Actions - 버튼 영역 */
+/* Chat Input Actions - 셀렉트박스 + 버튼 영역 */
 .chat-input-actions {
 	display: flex;
-	justify-content: flex-end;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+/* gitbbon custom: 모델타입/모델명 셀렉트박스 영역 */
+.chat-model-selects {
+	display: flex;
+	gap: 4px;
+	flex: 1;
+	min-width: 0;
+}
+
+.chat-model-select {
+	flex: 1;
+	min-width: 0;
+	padding: 2px 4px;
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	font-family: inherit;
+	font-size: 0.78em;
+	cursor: pointer;
+	outline: none;
+	appearance: auto;
+	opacity: 0.8;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-model-select:hover:not(:disabled) {
+	border-color: var(--vscode-focusBorder);
+	opacity: 1;
+}
+
+.chat-model-select:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
 }
 
 .chat-input-field {

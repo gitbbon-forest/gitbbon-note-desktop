@@ -11,6 +11,12 @@ import ChatInput from './components/ChatInput';
 // VS Code API 인터페이스
 const vscode = acquireVsCodeApi();
 
+// gitbbon custom: 모델타입 UI 레이블 타입 (셀렉트박스용)
+export type ModelType = 'gitbbon' | 'ondevice' | 'byok';
+
+// ollama 모델명 폴백 목록 (설치된 모델 없을 때 사용)
+const FALLBACK_OLLAMA_MODELS = ['llama3.1:8b', 'llama3.2:3b', 'llama3.2:1b', 'gemma2:2b', 'gemma2:9b', 'phi3:mini', 'mistral:7b', 'qwen2.5:7b', 'qwen2.5:3b'];
+
 const App: React.FC = () => {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [inputValue, setInputValue] = useState('');
@@ -18,6 +24,10 @@ const App: React.FC = () => {
 	const [isReceiving, setIsReceiving] = useState(false); // 수신 중 상태
 	const [currentBackend, setCurrentBackend] = useState<'api' | 'ollama'>('api');
 	const [ollamaStatus, setOllamaStatus] = useState<{ step: string; detail: string; progress?: number } | null>(null);
+	// gitbbon custom: 채팅 입력창 셀렉트박스용 상태
+	const [modelType, setModelType] = useState<ModelType>('gitbbon');
+	const [selectedModel, setSelectedModel] = useState<string>('');
+	const [ollamaModels, setOllamaModels] = useState<string[]>([]);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const currentAssistantContentRef = useRef(''); // 스트리밍 콘텐츠 추적용
 	const toolStatusMapRef = useRef<Map<string, { name: string; args?: Record<string, unknown> }>>(new Map());
@@ -115,6 +125,18 @@ const App: React.FC = () => {
 		currentAssistantContentRef.current = '';
 	}, []);
 
+	// gitbbon custom: 모델타입 셀렉트 변경 시 백엔드 전환 메시지 전송
+	const handleModelTypeChange = useCallback((type: ModelType) => {
+		setModelType(type);
+		setSelectedModel('');
+		if (type === 'ondevice') {
+			vscode.postMessage({ type: 'select-backend', backend: 'ollama' });
+		} else if (type === 'gitbbon') {
+			vscode.postMessage({ type: 'select-backend', backend: 'api' });
+		}
+		// byok는 아직 미구현 — 선택만 저장
+	}, []);
+
 	// 새 대화 시작
 	const handleNewChat = useCallback(() => {
 		setMessages([]);
@@ -141,6 +163,11 @@ const App: React.FC = () => {
 					if (message.backend !== 'ollama') {
 						setOllamaStatus(null);
 					}
+					break;
+
+				// gitbbon custom: extension에서 ollama 설치 모델 목록 수신
+				case 'ollama-models':
+					setOllamaModels(message.models as string[]);
 					break;
 
 				case 'chat-tool-status': {
@@ -250,13 +277,7 @@ const App: React.FC = () => {
 			<div className="chat-header">
 				<span className="chat-header-title">Gitbbon Chat</span>
 				<div className="chat-header-actions">
-					<button
-						className="backend-select-btn"
-						onClick={() => vscode.postMessage({ type: 'select-backend' })}
-						title={`백엔드: ${currentBackend === 'ollama' ? 'Ollama (로컬)' : 'API'}`}
-					>
-						⚙️
-					</button>
+					{/* gitbbon custom: ⚙️ 버튼 제거 - 모델 설정이 채팅 입력창 셀렉트박스로 이동 */}
 					<button
 						className="new-chat-btn"
 						onClick={handleNewChat}
@@ -293,6 +314,11 @@ const App: React.FC = () => {
 				onSubmit={handleSubmit}
 				onCancel={handleCancel}
 				inputRef={inputRef}
+				modelType={modelType}
+				setModelType={handleModelTypeChange}
+				selectedModel={selectedModel}
+				setSelectedModel={setSelectedModel}
+				ollamaModels={ollamaModels.length > 0 ? ollamaModels : FALLBACK_OLLAMA_MODELS}
 			/>
 		</div>
 	);
