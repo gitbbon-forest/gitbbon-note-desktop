@@ -21,9 +21,42 @@
 - 문서 수정 시 변경 이력을 명확히 남길 것
 - 불명확한 부분은 임의로 판단하지 말고 사용자에게 질문할 것
 - 작업 진행상황을 자주 사용자에게 알리고, 한글로 답변한다.
-- 나중에 vscode-oss와 병합을 대비하기 위해서 코어의 변경사항에는 ```// gitbbon custom: <수정 이유>```와 같이 주석을 달아야 한다. 코드 삭제는 주석 처리하고, 수정 시에도 원본을 주석으로 남기고 수정된 코드를 작성한다. 주석 처리된 코드에도 반드시 ```// gitbbon custom: <이유>```를 명시해야 한다.
 - 진행상황을 한국어로 자주 공유한다.
 - 작업이 끝난 후에는 어떻게 결과를 확인할 수 있는지 알려준다. (예: npm run start; 혹은 npm run start:fresh..)
+
+---
+
+## ⚠️ [필수] VSCode 코어 수정 시 주석 규칙
+
+> **이 규칙을 어기면 추후 vscode-oss 업스트림 병합이 불가능해질 수 있습니다. 반드시 준수하세요.**
+
+VSCode OSS 코어(`src/` 디렉터리 등 VS Code 원본 소스)를 수정할 때는 **항상** 아래 규칙을 따른다:
+
+### 규칙 요약
+
+| 작업 유형 | 처리 방법 |
+|-----------|-----------|
+| 코드 **추가** | 추가 코드 위에 `// gitbbon custom: <수정 이유>` 주석 |
+| 코드 **수정** | 원본을 주석으로 보존하고 수정 코드 작성. 두 곳 모두 `// gitbbon custom: <이유>` 명시 |
+| 코드 **삭제** | 삭제하지 말고 주석 처리. 해당 주석에 `// gitbbon custom: <이유>` 명시 |
+
+### 예시
+
+```typescript
+// gitbbon custom: 노트 저장 시 gitbbon 확장으로 이벤트 전달 필요
+gitbbonNoteService.onSave(document);
+
+// gitbbon custom: 기존 단축키 비활성화 (gitbbon 단축키와 충돌)
+// keybindingService.registerDefault(keybinding);
+const keybinding = overrideKeybinding; // gitbbon custom: gitbbon 커스텀 단축키로 대체
+```
+
+### 핵심 원칙
+- `// gitbbon custom: <수정 이유>` 형식을 정확히 지킨다
+- 수정 이유는 **구체적으로** 작성한다 (예: "노트 자동저장 트리거", "사이드바 패널 위치 고정")
+- 코어 수정은 **최소화**하고, 가급적 동일 파일 내에서 **모아서 위치**시킨다
+
+---
 
 ### 4. 유닛 테스트 (Unit Testing)
 **프레임워크:** Mocha (Pure Node.js 환경)
