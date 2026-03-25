@@ -122,6 +122,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			logService.info('Really Final Result:', result);
 			if (result.success) {
 				await gitGraphProvider.refresh();
+				// gitbbon custom: 커밋 완료 후 로딩 아이콘 명시적 제거 (Issue #59 - 로딩 스피너 미제거 버그)
+				vscode.commands.executeCommand('_gitbbon.upsertFloatingWidget', {
+					id: 'gitbbon-main',
+					icon: '',  // 로딩 아이콘 클리어
+					label: 'Committed',
+					tooltip: 'All changes committed',
+					priority: 10,
+					dimmed: true
+				});
 				// Notify Gitbbon Editor of committed status
 				vscode.commands.executeCommand('gitbbon.editor.sendStatusUpdate', 'committed');
 				// Trigger Sync after really final commit (Silent mode)
