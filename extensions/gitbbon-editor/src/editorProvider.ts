@@ -702,25 +702,27 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 					// [New] Webview에서 saveStatus 변경 알림
 					case 'saveStatusChanged':
 						if (message.status === 'unsaved') {
-							// Save 버튼 진하게 표시
+							// gitbbon custom: 버튼 텍스트 변경 (Issue #59): Save → Commit
+							// Commit 버튼 진하게 표시
 							vscode.commands.executeCommand('_gitbbon.upsertFloatingWidget', {
 								id: 'gitbbon-main',
 								type: 'button',
 								icon: 'codicon codicon-check',
-								label: 'Save',
-								tooltip: 'Unsaved changes - click to save',
+								label: 'Commit',
+								tooltip: 'Unsaved changes - click to commit',
 								command: 'gitbbon.manager.reallyFinal',
 								priority: 10,
 								dimmed: false
 							});
 						} else if (message.status === 'committed') {
-							// Saved 버튼 흐리게 표시
+							// gitbbon custom: 버튼 텍스트 변경 (Issue #59): Saved → Committed
+							// Committed 버튼 흐리게 표시
 							vscode.commands.executeCommand('_gitbbon.upsertFloatingWidget', {
 								id: 'gitbbon-main',
 								type: 'button',
 								icon: 'codicon codicon-check',
-								label: 'Saved',
-								tooltip: 'All changes saved',
+								label: 'Committed',
+								tooltip: 'All changes committed',
 								priority: 10,
 								dimmed: true
 							});
