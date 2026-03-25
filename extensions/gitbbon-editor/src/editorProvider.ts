@@ -708,7 +708,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 								id: 'gitbbon-main',
 								type: 'button',
 								// gitbbon custom: 아이콘 제거, label lowercase 변경 (Issue #59 추가 요구사항)
-								label: 'commit',
+								label: 'Commit',
 								tooltip: 'Unsaved changes - click to commit',
 								command: 'gitbbon.manager.reallyFinal',
 								priority: 10,
@@ -721,7 +721,8 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 								id: 'gitbbon-main',
 								type: 'button',
 								// gitbbon custom: 아이콘 제거, label lowercase 변경 (Issue #59 추가 요구사항)
-								label: 'committed',
+								label: 'Committed',
+								icon: '',  // gitbbon custom: 로딩 아이콘 클리어 (Issue #59 - 커밋 후 스피너 미제거 버그)
 								tooltip: 'All changes committed',
 								priority: 10,
 								dimmed: true

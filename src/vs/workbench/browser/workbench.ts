@@ -418,7 +418,8 @@ export class Workbench extends Layout {
 			this.floatingWidgets.set(args.id, {
 				type: args.type || 'button',
 				label: args.label ?? existing?.label,
-				icon: args.icon ?? existing?.icon,
+				// gitbbon custom: 빈 문자열('')로 icon 클리어 가능하도록 수정 (Issue #59 - 커밋 후 로딩 스피너 미제거 버그)
+				icon: args.icon !== undefined ? (args.icon || undefined) : existing?.icon,
 				tooltip: args.tooltip ?? existing?.tooltip,
 				command: args.command ?? existing?.command,
 				priority: args.priority ?? existing?.priority ?? 0,
@@ -434,10 +435,10 @@ export class Workbench extends Layout {
 		// gitbbon custom: 초기 위젯 설정 (Issue #59 추가 요구사항): 아이콘 제거, 텍스트 lowercase 변경
 		// Initialize Single Main Widget (committed state, dimmed)
 		// gitbbon custom: icon 필드 제거 (Issue #59 추가 요구사항 - 아이콘 없애기)
-		console.log('[debug:#59] floating widget icon removed, label:', 'committed');
+		console.log('[debug:#59] floating widget icon removed, label:', 'Committed');
 		this.floatingWidgets.set('gitbbon-main', {
 			type: 'button',
-			label: 'committed',
+			label: 'Committed',
 			tooltip: 'All changes saved',
 			priority: 10,
 			dimmed: true
