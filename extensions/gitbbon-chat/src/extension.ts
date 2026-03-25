@@ -83,7 +83,11 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 		});
 
 		// gitbbon custom: 웹뷰 init 시 저장된 backend 및 선택된 모델 복원
-		(async () => {
+		// 웹뷰 React 마운트 완료를 기다린 후 복원 메시지 전송 (race condition 방지)
+		webviewView.webview.onDidReceiveMessage(async (msg: { type: string }) => {
+			if (msg.type !== 'webview-ready') {
+				return;
+			}
 			const savedBackend = await this.aiService.getBackend();
 			webviewView.webview.postMessage({ type: 'backend-changed', backend: savedBackend });
 			if (savedBackend === 'ollama') {
@@ -94,7 +98,7 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 					webviewView.webview.postMessage({ type: 'selected-model', model: savedModel });
 				}
 			}
-		})();
+		});
 
 		// 대기 중인 텍스트가 있으면 삽입
 		if (this._pendingText) {

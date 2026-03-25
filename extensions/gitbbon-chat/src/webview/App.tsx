@@ -154,6 +154,11 @@ const App: React.FC = () => {
 		lastUserMessageRef.current = '';
 	}, []);
 
+	// gitbbon custom: 마운트 완료 후 extension에 준비 신호 전송 (race condition 방지)
+	useEffect(() => {
+		vscode.postMessage({ type: 'webview-ready' });
+	}, []);
+
 	// Extension으로부터 메시지 수신
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
@@ -183,6 +188,15 @@ const App: React.FC = () => {
 				// gitbbon custom: extension에서 ollama 설치 모델 목록 수신
 				case 'ollama-models':
 					setOllamaModels(message.models as string[]);
+					// gitbbon custom: selectedModel이 비어있으면 첫 번째 모델 자동 선택 및 저장
+					setSelectedModel((prev: string) => {
+						const models = message.models as string[];
+						if (!prev && models.length > 0) {
+							vscode.postMessage({ type: 'save-selected-model', model: models[0] });
+							return models[0];
+						}
+						return prev;
+					});
 					break;
 
 				case 'chat-tool-status': {
