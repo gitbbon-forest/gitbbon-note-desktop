@@ -131,7 +131,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					priority: 10,
 					dimmed: true
 				});
-				console.log('[debug:#59] icon cleared, label:', 'Committed');
 				// Notify Gitbbon Editor of committed status
 				vscode.commands.executeCommand('gitbbon.editor.sendStatusUpdate', 'committed');
 				// Trigger Sync after really final commit (Silent mode)

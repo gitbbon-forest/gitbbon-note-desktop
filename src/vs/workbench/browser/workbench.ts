@@ -435,7 +435,6 @@ export class Workbench extends Layout {
 		// gitbbon custom: 초기 위젯 설정 (Issue #59 추가 요구사항): 아이콘 제거, 텍스트 lowercase 변경
 		// Initialize Single Main Widget (committed state, dimmed)
 		// gitbbon custom: icon 필드 제거 (Issue #59 추가 요구사항 - 아이콘 없애기)
-		console.log('[debug:#59] floating widget icon removed, label:', 'Committed');
 		this.floatingWidgets.set('gitbbon-main', {
 			type: 'button',
 			label: 'Committed',
