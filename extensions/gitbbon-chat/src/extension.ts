@@ -63,7 +63,9 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 		// 웹뷰에서 메시지 수신
 		webviewView.webview.onDidReceiveMessage(async (message) => {
 			if (message.type === 'chat-request') {
-				await this._handleChatMessage(message.messages);
+				// gitbbon custom: UI 선택 모델 추출
+				const { messages: chatMessages, selectedModel } = message;
+				await this._handleChatMessage(chatMessages, selectedModel);
 			} else if (message.type === 'chat-cancel') {
 				this.aiService.cancelCurrentStream();
 				webviewView.webview.postMessage({ type: 'chat-done' });
@@ -124,7 +126,7 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
-	private async _handleChatMessage(messages: ModelMessage[]): Promise<void> {
+	private async _handleChatMessage(messages: ModelMessage[], selectedModel?: string): Promise<void> {
 		if (!this._webviewView) {
 			return;
 		}
@@ -147,7 +149,8 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 		}
 
 		try {
-			const stream = this.aiService.streamAgentChat(messages);
+			// gitbbon custom: UI 선택 모델을 aiService에 전달
+			const stream = this.aiService.streamAgentChat(messages, selectedModel);
 
 			for await (const event of stream) {
 				switch (event.type) {

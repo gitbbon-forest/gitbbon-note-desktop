@@ -74,11 +74,13 @@ const App: React.FC = () => {
 				content: m.content,
 			}));
 
+		// gitbbon custom: 선택된 모델을 extension에 전달
 		vscode.postMessage({
 			type: 'chat-request',
 			messages: allMessages,
+			selectedModel,
 		});
-	}, []);
+	}, [selectedModel]);
 
 	// 메시지 전송
 	const handleSubmit = useCallback((e: React.FormEvent) => {
@@ -124,6 +126,15 @@ const App: React.FC = () => {
 		setIsReceiving(false);
 		currentAssistantContentRef.current = '';
 	}, []);
+
+	// gitbbon custom: ollamaModels 변경 시 selectedModel 동기화
+	useEffect(() => {
+		if (modelType === 'ondevice' && ollamaModels.length > 0) {
+			if (!ollamaModels.includes(selectedModel)) {
+				setSelectedModel(ollamaModels[0]);
+			}
+		}
+	}, [ollamaModels, modelType]);
 
 	// gitbbon custom: 모델타입 셀렉트 변경 시 백엔드 전환 메시지 전송
 	const handleModelTypeChange = useCallback((type: ModelType) => {
