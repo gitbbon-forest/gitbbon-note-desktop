@@ -26,20 +26,20 @@
 	z-index: 1000;
 }
 
+/* gitbbon custom: 여백 축소, min-width 제거, gap 제거 (Issue #59 추가 요구사항 - 아이콘 없애기) */
+/* 기존: padding: 10px 20px; gap: 10px; min-width: 140px; */
 .gitbbon-floating-widget {
 	pointer-events: auto; /* Enable clicks on widgets */
 	display: flex;
 	flex-direction: row; /* Icon and label side by side */
 	align-items: center;
-	padding: 10px 20px;
+	padding: 10px 12px;
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 	border-radius: 6px;
 	cursor: pointer;
-	gap: 10px;
 	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 	transition: background-color 0.2s ease;
-	min-width: 140px; /* Ensure consistent width for short labels */
 	justify-content: center; /* Center content */
 }
 
@@ -47,10 +47,11 @@
 	background-color: var(--vscode-button-hoverBackground);
 }
 
+/* gitbbon custom: text-transform uppercase 제거 (Issue #59 추가 요구사항 - lowercase 'commit' 표시) */
+/* 기존: text-transform: uppercase; */
 .gitbbon-floating-widget span.label {
 	font-size: 11px;
 	font-weight: 600;
-	text-transform: uppercase;
 }
 
 /* Dimmed state (no pending changes) */

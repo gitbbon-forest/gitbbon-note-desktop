@@ -431,12 +431,13 @@ export class Workbench extends Layout {
 			this.appLogService.info('[Gitbbon] _gitbbon.removeFloatingWidget called', args);
 		});
 
-		// gitbbon custom: 초기 위젯 레이블 변경 (Issue #59): Saved → Committed
-		// Initialize Single Main Widget (Committed state, dimmed)
+		// gitbbon custom: 초기 위젯 설정 (Issue #59 추가 요구사항): 아이콘 제거, 텍스트 lowercase 변경
+		// Initialize Single Main Widget (committed state, dimmed)
+		// gitbbon custom: icon 필드 제거 (Issue #59 추가 요구사항 - 아이콘 없애기)
+		console.log('[debug:#59] floating widget icon removed, label:', 'committed');
 		this.floatingWidgets.set('gitbbon-main', {
 			type: 'button',
-			icon: 'codicon codicon-check',
-			label: 'Committed',
+			label: 'committed',
 			tooltip: 'All changes saved',
 			priority: 10,
 			dimmed: true
