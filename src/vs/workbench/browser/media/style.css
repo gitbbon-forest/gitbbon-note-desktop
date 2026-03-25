@@ -31,15 +31,16 @@
 	display: flex;
 	flex-direction: row; /* Icon and label side by side */
 	align-items: center;
-	padding: 10px 20px;
+	/* gitbbon custom: 버튼 크기 축소 및 pill 형태로 변경 (Issue #61) */
+	padding: 8px 18px;
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
-	border-radius: 6px;
+	/* gitbbon custom: pill 형태로 border-radius 변경 (Issue #61) */
+	border-radius: 20px;
 	cursor: pointer;
 	gap: 10px;
 	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 	transition: background-color 0.2s ease;
-	min-width: 140px; /* Ensure consistent width for short labels */
 	justify-content: center; /* Center content */
 }
 
@@ -50,7 +51,7 @@
 .gitbbon-floating-widget span.label {
 	font-size: 11px;
 	font-weight: 600;
-	text-transform: uppercase;
+	/* gitbbon custom: uppercase 제거, 자연스러운 텍스트 케이스 적용 (Issue #61) */
 }
 
 /* Dimmed state (no pending changes) */
@@ -58,10 +59,8 @@
 	opacity: 0.5;
 	cursor: default;
 	pointer-events: none; /* Disable clicks */
-}
-
-.gitbbon-floating-widget.dimmed:hover {
-	background-color: var(--vscode-button-background);
+	/* gitbbon custom: dimmed 상태에서 완전히 숨김 (Issue #61) */
+	display: none;
 }
 
 /* High Contrast Adjustments */

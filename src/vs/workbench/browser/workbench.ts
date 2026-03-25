@@ -66,7 +66,8 @@ export interface IWorkbenchOptions {
 }
 
 // gitbbon custom: Floating Widget System - add dynamic floating button layer to editor area (centered)
-const FLOATING_WIDGET_BOTTOM = 30;
+// gitbbon custom: 하단 여백 확보를 위해 bottom 값 증가 (Issue #61)
+const FLOATING_WIDGET_BOTTOM = 40;
 
 export class Workbench extends Layout {
 
@@ -432,7 +433,8 @@ export class Workbench extends Layout {
 		// Initialize Single Main Widget (Saved state, dimmed)
 		this.floatingWidgets.set('gitbbon-main', {
 			type: 'button',
-			icon: 'codicon codicon-check',
+			// gitbbon custom: git commit 의미에 맞는 아이콘으로 변경 (Issue #61)
+			icon: 'codicon codicon-git-commit',
 			label: 'Saved',
 			tooltip: 'All changes saved',
 			priority: 10,

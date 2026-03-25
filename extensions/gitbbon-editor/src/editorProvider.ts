@@ -706,8 +706,9 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 							vscode.commands.executeCommand('_gitbbon.upsertFloatingWidget', {
 								id: 'gitbbon-main',
 								type: 'button',
-								icon: 'codicon codicon-check',
-								label: 'Save',
+								// gitbbon custom: git commit 의미에 맞는 아이콘으로 변경 (Issue #61)
+								icon: 'codicon codicon-git-commit',
+								label: 'Commit',
 								tooltip: 'Unsaved changes - click to save',
 								command: 'gitbbon.manager.reallyFinal',
 								priority: 10,
@@ -718,8 +719,9 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 							vscode.commands.executeCommand('_gitbbon.upsertFloatingWidget', {
 								id: 'gitbbon-main',
 								type: 'button',
-								icon: 'codicon codicon-check',
-								label: 'Saved',
+								// gitbbon custom: git commit 의미에 맞는 아이콘으로 변경 (Issue #61)
+								icon: 'codicon codicon-git-commit',
+								label: 'Committed',
 								tooltip: 'All changes saved',
 								priority: 10,
 								dimmed: true
