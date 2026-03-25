@@ -15,10 +15,12 @@
 		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		"typeRoots": []
+		"typeRoots": [],
+		"types": [],
+		"skipLibCheck": true
 	},
 	"include": [
-		"./**/*.ts",
+		"./**/*.ts"
 	],
 	"exclude": [
 		"node_modules/**",
