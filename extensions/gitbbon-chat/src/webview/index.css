@@ -358,25 +358,34 @@ body {
 	cursor: not-allowed;
 }
 
-/* gitbbon custom: Issue #68 - 모델 다운로드 확인 다이얼로그 */
+/* gitbbon custom: Issue #69 - 모델 다운로드 확인 다이얼로그 (화면 가운데 정렬) */
 .model-download-confirm {
-	position: absolute;
-	bottom: 80px;
-	left: 8px;
-	right: 8px;
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
 	z-index: 100;
-	background: var(--vscode-editorWidget-background, #252526);
-	border: 1px solid var(--vscode-editorWidget-border, #454545);
-	border-radius: 6px;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-	padding: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.4);
 }
 
 .model-download-confirm-content {
+	background: var(--vscode-editorWidget-background, #252526);
+	border: 1px solid var(--vscode-editorWidget-border, #454545);
+	border-radius: 8px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+	padding: 16px;
+	max-width: 320px;
+	width: 90%;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
 }
+
+/* model-download-confirm-content 스타일은 위 .model-download-confirm 내부에 정의됨 */
 
 .model-download-confirm-title {
 	font-weight: 600;

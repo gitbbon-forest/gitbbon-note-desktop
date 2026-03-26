@@ -16,6 +16,8 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 	private _webviewView?: vscode.WebviewView;
 	private aiService: AIService;
 	private _pendingText?: string;
+	// gitbbon custom: Issue #69 - 모델 다운로드 진행률 상태표시줄 아이템
+	private _pullStatusBarItem?: vscode.StatusBarItem;
 
 	constructor(private readonly _context: vscode.ExtensionContext) {
 		this.aiService = new AIService(_context.secrets);
@@ -83,21 +85,46 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 				await this._context.globalState.update('SELECTED_OLLAMA_MODEL', message.model);
 			} else if (message.type === 'get-recommended-models') {
 				// gitbbon custom: Issue #68 - 추천 모델 리스트 + 다운로드 상태 반환
-				logService.info('[debug:#68] get-recommended-models 요청 수신');
+				logService.info('[debug:#69] get-recommended-models 요청 수신');
 				const models = await ollamaService.getRecommendedModels();
 				const freeDiskGB = await ollamaService.getFreeDiskGB();
 				webviewView.webview.postMessage({ type: 'recommended-models', models, freeDiskGB });
 			} else if (message.type === 'pull-ollama-model') {
-				// gitbbon custom: Issue #68 - 미설치 모델 다운로드 요청
+				// gitbbon custom: Issue #69 - 미설치 모델 다운로드 요청 (상태표시줄 진행률 표시)
 				const modelName = message.model as string;
-				logService.info(`[debug:#68] pull-ollama-model 요청: ${modelName}`);
+				logService.info(`[debug:#69] pull-ollama-model 요청: ${modelName}`);
 				webviewView.webview.postMessage({ type: 'model-pull-progress', model: modelName, progress: 0, status: 'pulling' });
+
+				// gitbbon custom: Issue #69 - 상태표시줄에 다운로드 진행률 표시
+				if (!this._pullStatusBarItem) {
+					this._pullStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+					this._context.subscriptions.push(this._pullStatusBarItem);
+				}
+				this._pullStatusBarItem.text = `$(sync~spin) 모델 다운로드: ${modelName} 0%`;
+				this._pullStatusBarItem.tooltip = `Ollama 모델 다운로드 중: ${modelName}`;
+				this._pullStatusBarItem.show();
+				logService.info(`[debug:#69] 상태표시줄 진행률 표시 시작: ${modelName}`);
+
 				try {
 					await ollamaService.pullModel(modelName, (pct) => {
 						webviewView.webview.postMessage({ type: 'model-pull-progress', model: modelName, progress: pct, status: 'pulling' });
+						// gitbbon custom: Issue #69 - 상태표시줄 진행률 업데이트
+						if (this._pullStatusBarItem) {
+							this._pullStatusBarItem.text = `$(sync~spin) 모델 다운로드: ${modelName} ${pct}%`;
+						}
 					});
-					logService.info(`[debug:#68] pull-ollama-model 완료: ${modelName}`);
+					logService.info(`[debug:#69] pull-ollama-model 완료: ${modelName}`);
 					webviewView.webview.postMessage({ type: 'model-pull-progress', model: modelName, progress: 100, status: 'done' });
+
+					// gitbbon custom: Issue #69 - 다운로드 완료 시 상태표시줄 완료 표시 후 숨김
+					if (this._pullStatusBarItem) {
+						this._pullStatusBarItem.text = `$(check) 모델 다운로드 완료: ${modelName}`;
+						logService.info(`[debug:#69] 상태표시줄 진행률 완료: ${modelName}`);
+						setTimeout(() => {
+							this._pullStatusBarItem?.hide();
+						}, 3000);
+					}
+
 					// 다운로드 완료 후 추천 모델 목록 갱신하여 전송
 					const updatedModels = await ollamaService.getRecommendedModels();
 					const freeDiskGB = await ollamaService.getFreeDiskGB();
@@ -106,8 +133,17 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 					const installedModels = await ollamaService.getInstalledModels();
 					webviewView.webview.postMessage({ type: 'ollama-models', models: installedModels });
 				} catch (err) {
-					logService.error(`[debug:#68] pull-ollama-model 실패: ${modelName}`, err);
+					logService.error(`[debug:#69] pull-ollama-model 실패: ${modelName}`, err);
 					webviewView.webview.postMessage({ type: 'model-pull-progress', model: modelName, progress: 0, status: 'error' });
+
+					// gitbbon custom: Issue #69 - 다운로드 실패 시 상태표시줄 오류 표시 후 숨김
+					if (this._pullStatusBarItem) {
+						this._pullStatusBarItem.text = `$(error) 모델 다운로드 실패: ${modelName}`;
+						logService.info(`[debug:#69] 상태표시줄 진행률 실패: ${modelName}`);
+						setTimeout(() => {
+							this._pullStatusBarItem?.hide();
+						}, 5000);
+					}
 				}
 			}
 		});
