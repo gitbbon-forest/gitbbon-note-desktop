@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { streamText, stepCountIs, type ModelMessage, type LanguageModel, type ToolSet, type TypedToolCall, type TypedToolResult } from 'ai';
-import { createOpenAI } from '@ai-sdk/openai';
+import { ollama } from 'ollama-ai-provider-v2';
 import { createEditorTools } from '../tools/editorTools';
 import { ContextService } from './ContextService';
 import { SYSTEM_PROMPT } from '../constants/prompts';
@@ -217,10 +217,9 @@ export class AIService {
 			// gitbbon custom: UI에서 선택한 모델을 우선 사용, 없으면 설치된 첫 번째 모델 또는 하드웨어 기반 선택
 			const ollamaModelName = selectedModel || await ollamaService.getSelectedModel();
 			logService.info(`[gitbbon-chat][aiService] Ollama backend: model=${ollamaModelName} (selectedModel=${selectedModel || 'none'})`);
-			const ollamaProvider = createOpenAI({ baseURL: 'http://localhost:11434/v1', apiKey: 'ollama' });
-			model = ollamaProvider.chat(ollamaModelName);
+			model = ollama(ollamaModelName);
 		} else {
-			model = 'google/gemini-3-pro';
+			model = 'openai/o4-mini';
 		}
 
 		// Context collection
@@ -295,6 +294,12 @@ export class AIService {
 				});
 				logService.info('[gitbbon-chat][Phase] Thinking...');
 
+				// Issue #64: 백엔드별 reasoning providerOptions 설정
+				const providerOptions = (backend === 'ollama'
+					? { ollama: { think: true } }
+					: { openai: { reasoningSummary: 'detailed' } }) as any;
+				logService.info(`[gitbbon-chat][aiService] streamText 시작, backend=${backend}`);
+
 				const result = streamText({
 					model,
 					system: instructions,
@@ -302,6 +307,7 @@ export class AIService {
 					tools,
 					stopWhen: stepCountIs(10),
 					abortSignal: abortController.signal,
+					providerOptions,
 					onStepFinish: (event) => {
 						logService.info('[gitbbon-chat][Agent Step] Step Finished', {
 							text: event.text ? event.text.slice(0, 100) + '...' : undefined,
@@ -337,27 +343,50 @@ export class AIService {
 					},
 				});
 
-				// Stream text token by token
-				for await (const textChunk of result.textStream) {
+				// Issue #64: fullStream으로 reasoning + text 모두 수신
+				let hasReasoning = false;
+				for await (const part of result.fullStream) {
 					if (abortController.signal.aborted) break;
 
-					// End thinking phase on first text chunk
-					if (!hasToolCalls) {
-						hasToolCalls = true;
-						channel.push({
-							type: 'tool-end',
-							id: thinkingId,
-							toolName: 'Thinking...',
-							duration: Date.now() - thinkingStart,
-							success: true,
-						});
+					if (part.type === 'reasoning-start') {
+						// reasoning 시작 — Thinking 단계 종료하고 reasoning 스트리밍 시작
+						hasReasoning = true;
+						if (!hasToolCalls) {
+							hasToolCalls = true;
+							channel.push({
+								type: 'tool-end',
+								id: thinkingId,
+								toolName: 'Thinking...',
+								duration: Date.now() - thinkingStart,
+								success: true,
+							});
+						}
+					} else if (part.type === 'reasoning-delta') {
+						// reasoning 텍스트 청크 전달 (fullStream에서는 text, 내부 타입에서는 delta)
+						const reasoningText = (part as any).text || (part as any).delta || '';
+						if (reasoningText) {
+							channel.push({ type: 'reasoning', content: reasoningText });
+						}
+					} else if (part.type === 'reasoning-end') {
+						// reasoning 종료
+					} else if (part.type === 'text-delta') {
+						// 텍스트 청크 — 기존 동작 유지
+						if (!hasToolCalls) {
+							hasToolCalls = true;
+							channel.push({
+								type: 'tool-end',
+								id: thinkingId,
+								toolName: 'Thinking...',
+								duration: Date.now() - thinkingStart,
+								success: true,
+							});
+						}
+						if (part.text) {
+							channel.push({ type: 'text', content: part.text });
+						}
 					}
-
-					if (textChunk) {
-						channel.push({ type: 'text', content: textChunk });
-					}
+					// tool-call, tool-result 등은 onStepFinish에서 처리됨
 				}
-
 				logService.info('[gitbbon-chat][AI Response] Streaming complete');
 
 				// If no text was ever streamed, end thinking phase
