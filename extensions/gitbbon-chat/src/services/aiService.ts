@@ -220,7 +220,7 @@ export class AIService {
 			const ollamaProvider = createOpenAI({ baseURL: 'http://localhost:11434/v1', apiKey: 'ollama' });
 			model = ollamaProvider.chat(ollamaModelName);
 		} else {
-			model = 'google/gemini-3-pro';
+			model = 'openai/o4-mini';
 		}
 
 		// Context collection
@@ -295,8 +295,10 @@ export class AIService {
 				});
 				logService.info('[gitbbon-chat][Phase] Thinking...');
 
-				// Issue #64: Ollama 백엔드에서 reasoning(think) 활성화
-				const providerOptions = backend === 'ollama' ? { ollama: { think: true } } : undefined;
+				// Issue #64: 백엔드별 reasoning providerOptions 설정
+				const providerOptions = (backend === 'ollama'
+					? { ollama: { think: true } }
+					: { openai: { reasoningSummary: 'detailed' } }) as any;
 				logService.info(`[debug:#64] streamText 시작, backend=${backend}, providerOptions=${JSON.stringify(providerOptions)}`);
 
 				const result = streamText({
@@ -362,9 +364,11 @@ export class AIService {
 							});
 						}
 					} else if (part.type === 'reasoning-delta') {
-						// reasoning 텍스트 청크 전달
-						if (part.text) {
-							channel.push({ type: 'reasoning', content: part.text });
+						// reasoning 텍스트 청크 전달 (fullStream에서는 text, 내부 타입에서는 delta)
+						const reasoningText = (part as any).text || (part as any).delta || '';
+						if (reasoningText) {
+							logService.info(`[debug:#64] reasoning-delta 수신: ${reasoningText.slice(0, 50)}`);
+							channel.push({ type: 'reasoning', content: reasoningText });
 						}
 					} else if (part.type === 'reasoning-end') {
 						logService.info('[debug:#64] reasoning-end 수신');
