@@ -47,11 +47,12 @@
 	background-color: var(--vscode-button-hoverBackground);
 }
 
-/* gitbbon custom: text-transform uppercase 제거 (Issue #59 추가 요구사항 - lowercase 'commit' 표시) */
-/* 기존: text-transform: uppercase; */
+/* gitbbon custom: 부모 컨테이너의 text-transform 상속 방지 (Issue #65 - 대문자 label이 소문자로 변환되는 버그) */
+/* 기존: text-transform: uppercase; (Issue #59에서 제거) */
 .gitbbon-floating-widget span.label {
 	font-size: 11px;
 	font-weight: 600;
+	text-transform: none;
 }
 
 /* Dimmed state (no pending changes) */
