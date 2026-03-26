@@ -303,7 +303,6 @@ export class AIService {
 
 				// Issue #74: tool 미지원 모델 fallback을 위한 헬퍼 함수
 				const callStreamText = (useTools: boolean) => {
-					logService.info(`[debug:#74] streamText 호출, useTools=${useTools}`);
 					return streamText({
 						model,
 						system: instructions,
@@ -401,7 +400,6 @@ export class AIService {
 				} catch (streamError: unknown) {
 					// Issue #74: tool 미지원 에러 시 tools 없이 재시도
 					if (isToolNotSupportedError(streamError)) {
-						logService.warn(`[debug:#74] tool 미지원 모델 감지, tools 없이 재시도: ${(streamError as Error).message}`);
 						channel.push({ type: 'text', content: '⚠️ 이 모델은 tool calling을 지원하지 않아 일부 기능(파일 편집 등)이 제한됩니다. 일반 대화 모드로 전환합니다.\n\n' });
 
 						// 상태 초기화 후 재시도
