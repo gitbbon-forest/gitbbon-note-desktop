@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { streamText, stepCountIs, type ModelMessage, type LanguageModel, type ToolSet, type TypedToolCall, type TypedToolResult } from 'ai';
-import { createOpenAI } from '@ai-sdk/openai';
+import { ollama } from 'ollama-ai-provider-v2';
 import { createEditorTools } from '../tools/editorTools';
 import { ContextService } from './ContextService';
 import { SYSTEM_PROMPT } from '../constants/prompts';
@@ -217,8 +217,9 @@ export class AIService {
 			// gitbbon custom: UI에서 선택한 모델을 우선 사용, 없으면 설치된 첫 번째 모델 또는 하드웨어 기반 선택
 			const ollamaModelName = selectedModel || await ollamaService.getSelectedModel();
 			logService.info(`[gitbbon-chat][aiService] Ollama backend: model=${ollamaModelName} (selectedModel=${selectedModel || 'none'})`);
-			const ollamaProvider = createOpenAI({ baseURL: 'http://localhost:11434/v1', apiKey: 'ollama' });
-			model = ollamaProvider.chat(ollamaModelName);
+			// Issue #64: ollama-ai-provider-v2 전용 프로바이더 사용 (reasoning 스트리밍 지원)
+			logService.info(`[debug:#64] ollama-ai-provider-v2 프로바이더로 모델 생성: ${ollamaModelName}`);
+			model = ollama(ollamaModelName);
 		} else {
 			model = 'openai/o4-mini';
 		}
