@@ -17,6 +17,14 @@ export interface OllamaStatusEvent {
   progress?: number;
 }
 
+// 추천 모델 정보 인터페이스
+export interface RecommendedModel {
+  name: string;
+  sizeGB: number;
+  installed: boolean;
+  description: string;
+}
+
 interface Message {
   role: string;
   content: string;
@@ -33,6 +41,19 @@ export const MODEL_SIZES_GB: Record<string, number> = {
   'mistral:7b':   4.1,
   'qwen2.5:7b':   4.7,
   'qwen2.5:3b':   2.0,
+};
+
+// 추천 모델별 설명
+export const MODEL_DESCRIPTIONS: Record<string, string> = {
+  'llama3.1:8b':  '고성능 범용 모델 (16GB+ RAM 권장)',
+  'llama3.2:3b':  '균형 잡힌 중간 모델 (8GB+ RAM 권장)',
+  'llama3.2:1b':  '경량 모델 (4GB+ RAM)',
+  'gemma2:2b':    'Google 경량 모델 (4GB+ RAM)',
+  'gemma2:9b':    'Google 고성능 모델 (16GB+ RAM 권장)',
+  'phi3:mini':    'Microsoft 소형 모델 (8GB+ RAM)',
+  'mistral:7b':   'Mistral 범용 모델 (16GB+ RAM 권장)',
+  'qwen2.5:7b':   'Alibaba 고성능 모델 (16GB+ RAM 권장)',
+  'qwen2.5:3b':   'Alibaba 경량 모델 (8GB+ RAM)',
 };
 
 export class OllamaService {
@@ -157,6 +178,37 @@ export class OllamaService {
     }
     const hw = await this.detectHardware();
     return this.selectModel(hw);
+  }
+
+  /**
+   * 추천 모델 리스트를 반환 (설치 여부 포함)
+   */
+  async getRecommendedModels(): Promise<RecommendedModel[]> {
+    const installed = await this.getInstalledModels();
+    // 설치된 모델명에서 :latest 태그 제거하여 비교 용이하게
+    const installedSet = new Set(installed.map(m => m.replace(':latest', '')));
+
+    const recommended: RecommendedModel[] = Object.entries(MODEL_SIZES_GB).map(([name, sizeGB]) => ({
+      name,
+      sizeGB,
+      installed: installedSet.has(name) || installedSet.has(name.split(':')[0]),
+      description: MODEL_DESCRIPTIONS[name] || '',
+    }));
+
+    // 설치된 모델 중 추천 목록에 없는 것도 추가
+    for (const m of installed) {
+      const normalizedName = m.replace(':latest', '');
+      if (!MODEL_SIZES_GB[normalizedName]) {
+        recommended.push({
+          name: normalizedName,
+          sizeGB: 0,
+          installed: true,
+          description: '사용자 설치 모델',
+        });
+      }
+    }
+
+    return recommended;
   }
 
   async getInstalledModels(): Promise<string[]> {
