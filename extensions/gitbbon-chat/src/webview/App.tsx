@@ -381,7 +381,8 @@ const App: React.FC = () => {
 					)}
 				</div>
 			)}
-			<MessageList messages={messages} isLoading={isSending || isReceiving} onRetry={handleRetry} />
+			{/* Issue #70: isReceiving를 전달하여 reasoning 스트리밍 중 기본 열림 판별 */}
+			<MessageList messages={messages} isLoading={isSending || isReceiving} isReceiving={isReceiving} onRetry={handleRetry} />
 			<ChatInput
 				inputValue={inputValue}
 				setInputValue={setInputValue}
