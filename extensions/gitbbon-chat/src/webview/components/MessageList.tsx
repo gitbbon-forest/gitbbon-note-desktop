@@ -194,10 +194,13 @@ const ErrorMessage: React.FC<{ message: string; onRetry?: () => void }> = ({ mes
 const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isReceiving, onRetry }) => {
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 
-	// Auto scroll to bottom when messages change
+	// 마지막 메시지의 reasoning 콘텐츠 (스트리밍 중 스크롤 트리거)
+	const lastReasoning = messages[messages.length - 1]?.reasoning;
+
+	// Auto scroll to bottom when messages or reasoning content change
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-	}, [messages]);
+	}, [messages, lastReasoning]);
 
 	return (
 		<div className="message-list">
