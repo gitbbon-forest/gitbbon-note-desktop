@@ -448,9 +448,7 @@ body {
 	transition: transform 0.3s ease;
 }
 
-.chat-submit-btn:hover:not(:disabled):not(.sending):not(.receiving) svg {
-	transform: translateX(2px);
-}
+/* gitbbon custom: Issue #72 - hover 시 아이콘 이동 제거 (translateX(2px) 삭제) */
 
 /* Stop 버튼 스타일 */
 .chat-submit-btn.stop {
