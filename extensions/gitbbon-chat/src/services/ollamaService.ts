@@ -187,7 +187,6 @@ export class OllamaService {
     const installed = await this.getInstalledModels();
     // 설치된 모델명에서 :latest 태그 제거하여 비교 용이하게
     const installedSet = new Set(installed.map(m => m.replace(':latest', '')));
-    logService.info(`[debug:#68][ollamaService] getRecommendedModels: installed=[${installed.join(', ')}]`);
 
     const recommended: RecommendedModel[] = Object.entries(MODEL_SIZES_GB).map(([name, sizeGB]) => ({
       name,
@@ -209,7 +208,6 @@ export class OllamaService {
       }
     }
 
-    logService.info(`[debug:#68][ollamaService] getRecommendedModels: total=${recommended.length}, installed=${recommended.filter(r => r.installed).length}`);
     return recommended;
   }
 
