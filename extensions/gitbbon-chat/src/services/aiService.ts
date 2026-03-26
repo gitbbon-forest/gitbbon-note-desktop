@@ -295,14 +295,21 @@ export class AIService {
 				logService.info('[gitbbon-chat][Phase] Thinking...');
 
 				// Issue #64: 백엔드별 reasoning providerOptions 설정
-				const providerOptions = (backend === 'ollama'
-					? { ollama: { think: true } }
-					: { openai: { reasoningSummary: 'detailed' } }) as any;
 				logService.info(`[gitbbon-chat][aiService] streamText 시작, backend=${backend}`);
 
+				// Issue #74: useThink 파라미터로 think 옵션 조건부 제어
+				const buildProviderOptions = (useThink: boolean) => {
+					if (backend === 'ollama') {
+						return useThink ? { ollama: { think: true } } : {};
+					}
+					return { openai: { reasoningSummary: 'detailed' } };
+				};
 
-				// Issue #74: tool 미지원 모델 fallback을 위한 헬퍼 함수
-				const callStreamText = (useTools: boolean) => {
+
+				// Issue #74: tool 미지원 모델 fallback을 위한 헬퍼 함수 (think 옵션도 제어)
+				const callStreamText = (useTools: boolean, useThink: boolean = true) => {
+					const providerOptions = buildProviderOptions(useThink) as any;
+					logService.info(`[debug:#74] callStreamText: useTools=${useTools}, useThink=${useThink}, providerOptions=${JSON.stringify(providerOptions)}`);
 					return streamText({
 						model,
 						system: instructions,
@@ -352,6 +359,15 @@ export class AIService {
 					return message.includes('does not support tools') || message.includes('tool use is not supported');
 				};
 
+				// Issue #74: Ollama Bad Request 에러 감지 함수 (think 미지원 등)
+				const isOllamaBadRequestError = (error: unknown): boolean => {
+					const message = (error as Error)?.message || '';
+					const name = (error as Error)?.name || '';
+					const isBadRequest = message.includes('Bad Request') || message.includes('400') || name === 'AI_APICallError';
+					logService.info(`[debug:#74] isOllamaBadRequestError: name=${name}, message=${message.slice(0, 200)}, result=${isBadRequest}`);
+					return isBadRequest;
+				};
+
 				// Issue #74: fullStream 소비 함수 (tools 유무와 무관하게 동일 로직)
 				const consumeStream = async (result: { fullStream: AsyncIterable<any> }) => {
 					for await (const part of result.fullStream) {
@@ -393,19 +409,53 @@ export class AIService {
 					}
 				};
 
-				// Issue #74: 1차 시도 (tools 포함)
-				let result = callStreamText(true);
+				// Issue #74: 3단계 fallback 전략
+				// 1차: tools + think → 2차: tools 없이 + think → 3차: tools 없이 + think 없이
+				logService.info('[debug:#74] 1차 시도: tools=true, think=true');
+				let result = callStreamText(true, true);
 				try {
 					await consumeStream(result);
 				} catch (streamError: unknown) {
-					// Issue #74: tool 미지원 에러 시 tools 없이 재시도
 					if (isToolNotSupportedError(streamError)) {
+						// 2차 시도: tools 없이 + think 유지
+						logService.info('[debug:#74] 1차 실패 (tool 미지원). 2차 시도: tools=false, think=true');
 						channel.push({ type: 'text', content: '⚠️ 이 모델은 tool calling을 지원하지 않아 일부 기능(파일 편집 등)이 제한됩니다. 일반 대화 모드로 전환합니다.\n\n' });
-
-						// 상태 초기화 후 재시도
 						hasToolCalls = false;
-						result = callStreamText(false);
-						await consumeStream(result);
+						result = callStreamText(false, true);
+						try {
+							await consumeStream(result);
+						} catch (thinkError: unknown) {
+							if (isOllamaBadRequestError(thinkError)) {
+								// 3차 시도: tools 없이 + think 없이
+								logService.info('[debug:#74] 2차 실패 (think 미지원). 3차 시도: tools=false, think=false');
+								channel.push({ type: 'text', content: '⚠️ 이 모델은 추론(think) 기능도 지원하지 않습니다. 기본 모드로 전환합니다.\n\n' });
+								hasToolCalls = false;
+								result = callStreamText(false, false);
+								await consumeStream(result);
+							} else {
+								throw thinkError;
+							}
+						}
+					} else if (isOllamaBadRequestError(streamError)) {
+						// 2차 시도: tools 유지 + think 없이
+						logService.info('[debug:#74] 1차 실패 (Bad Request). 2차 시도: tools=true, think=false');
+						channel.push({ type: 'text', content: '⚠️ 이 모델은 추론(think) 기능을 지원하지 않습니다. 기본 모드로 전환합니다.\n\n' });
+						hasToolCalls = false;
+						result = callStreamText(true, false);
+						try {
+							await consumeStream(result);
+						} catch (toolError: unknown) {
+							if (isToolNotSupportedError(toolError)) {
+								// 3차 시도: tools 없이 + think 없이
+								logService.info('[debug:#74] 2차 실패 (tool 미지원). 3차 시도: tools=false, think=false');
+								channel.push({ type: 'text', content: '⚠️ 이 모델은 tool calling도 지원하지 않습니다. 일반 대화 모드로 전환합니다.\n\n' });
+								hasToolCalls = false;
+								result = callStreamText(false, false);
+								await consumeStream(result);
+							} else {
+								throw toolError;
+							}
+						}
 					} else {
 						throw streamError; // 다른 에러는 외부 catch로 전파
 					}
