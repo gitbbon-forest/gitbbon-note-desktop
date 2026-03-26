@@ -585,3 +585,59 @@ body {
 .error-retry-btn:hover {
 	background: var(--vscode-button-hoverBackground, var(--vscode-button-background));
 }
+
+/* Issue #64: Reasoning Accordion - AI 추론 과정 표시 */
+.reasoning-accordion {
+	margin-bottom: 8px;
+	font-size: 0.85em;
+	color: var(--vscode-descriptionForeground);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.reasoning-accordion-summary {
+	cursor: pointer;
+	padding: 6px 10px;
+	list-style: none;
+	user-select: none;
+	background: var(--vscode-textCodeBlock-background);
+	font-style: italic;
+	opacity: 0.9;
+}
+
+.reasoning-accordion-summary::-webkit-details-marker {
+	display: none;
+}
+
+.reasoning-accordion-summary::before {
+	content: '';
+	display: inline-block;
+	width: 5px;
+	height: 5px;
+	border-right: 1.5px solid currentColor;
+	border-top: 1.5px solid currentColor;
+	transform: rotate(45deg);
+	margin-right: 6px;
+	margin-bottom: 1px;
+	transition: transform 0.15s ease;
+	vertical-align: middle;
+}
+
+.reasoning-accordion[open] .reasoning-accordion-summary::before {
+	transform: rotate(135deg);
+	margin-bottom: 3px;
+}
+
+.reasoning-accordion-detail {
+	padding: 8px 12px;
+	font-size: 0.95em;
+	line-height: 1.5;
+	white-space: pre-wrap;
+	word-break: break-word;
+	max-height: 300px;
+	overflow-y: auto;
+	border-top: 1px solid var(--vscode-widget-border);
+	background: var(--vscode-textCodeBlock-background);
+	opacity: 0.85;
+}

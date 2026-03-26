@@ -295,6 +295,10 @@ export class AIService {
 				});
 				logService.info('[gitbbon-chat][Phase] Thinking...');
 
+				// Issue #64: Ollama 백엔드에서 reasoning(think) 활성화
+				const providerOptions = backend === 'ollama' ? { ollama: { think: true } } : undefined;
+				logService.info(`[debug:#64] streamText 시작, backend=${backend}, providerOptions=${JSON.stringify(providerOptions)}`);
+
 				const result = streamText({
 					model,
 					system: instructions,
@@ -302,6 +306,7 @@ export class AIService {
 					tools,
 					stopWhen: stepCountIs(10),
 					abortSignal: abortController.signal,
+					providerOptions,
 					onStepFinish: (event) => {
 						logService.info('[gitbbon-chat][Agent Step] Step Finished', {
 							text: event.text ? event.text.slice(0, 100) + '...' : undefined,
@@ -337,28 +342,52 @@ export class AIService {
 					},
 				});
 
-				// Stream text token by token
-				for await (const textChunk of result.textStream) {
+				// Issue #64: fullStream으로 reasoning + text 모두 수신
+				let hasReasoning = false;
+				for await (const part of result.fullStream) {
 					if (abortController.signal.aborted) break;
 
-					// End thinking phase on first text chunk
-					if (!hasToolCalls) {
-						hasToolCalls = true;
-						channel.push({
-							type: 'tool-end',
-							id: thinkingId,
-							toolName: 'Thinking...',
-							duration: Date.now() - thinkingStart,
-							success: true,
-						});
+					if (part.type === 'reasoning-start') {
+						// reasoning 시작 — Thinking 단계 종료하고 reasoning 스트리밍 시작
+						logService.info('[debug:#64] reasoning-start 수신');
+						hasReasoning = true;
+						if (!hasToolCalls) {
+							hasToolCalls = true;
+							channel.push({
+								type: 'tool-end',
+								id: thinkingId,
+								toolName: 'Thinking...',
+								duration: Date.now() - thinkingStart,
+								success: true,
+							});
+						}
+					} else if (part.type === 'reasoning-delta') {
+						// reasoning 텍스트 청크 전달
+						if (part.text) {
+							channel.push({ type: 'reasoning', content: part.text });
+						}
+					} else if (part.type === 'reasoning-end') {
+						logService.info('[debug:#64] reasoning-end 수신');
+						// reasoning 종료 — 별도 처리 불필요 (UI에서 접힘 상태로 전환)
+					} else if (part.type === 'text-delta') {
+						// 텍스트 청크 — 기존 동작 유지
+						if (!hasToolCalls) {
+							hasToolCalls = true;
+							channel.push({
+								type: 'tool-end',
+								id: thinkingId,
+								toolName: 'Thinking...',
+								duration: Date.now() - thinkingStart,
+								success: true,
+							});
+						}
+						if (part.text) {
+							channel.push({ type: 'text', content: part.text });
+						}
 					}
-
-					if (textChunk) {
-						channel.push({ type: 'text', content: textChunk });
-					}
+					// tool-call, tool-result 등은 onStepFinish에서 처리됨
 				}
-
-				logService.info('[gitbbon-chat][AI Response] Streaming complete');
+				logService.info('[debug:#64] fullStream 완료, hasReasoning=' + hasReasoning);
 
 				// If no text was ever streamed, end thinking phase
 				if (!hasToolCalls) {

@@ -30,6 +30,7 @@ const App: React.FC = () => {
 	const [ollamaModels, setOllamaModels] = useState<string[]>([]);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const currentAssistantContentRef = useRef(''); // 스트리밍 콘텐츠 추적용
+	const currentReasoningContentRef = useRef(''); // Issue #64: reasoning 콘텐츠 추적용
 	const toolStatusMapRef = useRef<Map<string, { name: string; args?: Record<string, unknown> }>>(new Map());
 	const lastUserMessageRef = useRef<string>(''); // 마지막 사용자 메시지 저장 (재시도용)
 
@@ -65,6 +66,7 @@ const App: React.FC = () => {
 		setIsSending(true);
 		toolStatusMapRef.current.clear();
 		currentAssistantContentRef.current = '';
+		currentReasoningContentRef.current = ''; // Issue #64
 		lastUserMessageRef.current = userContent;
 
 		const allMessages = [...currentMessages, userMessage]
@@ -125,6 +127,7 @@ const App: React.FC = () => {
 		setIsSending(false);
 		setIsReceiving(false);
 		currentAssistantContentRef.current = '';
+		currentReasoningContentRef.current = ''; // Issue #64
 	}, []);
 
 	// gitbbon custom: ollamaModels 변경 시 selectedModel 동기화
@@ -161,6 +164,7 @@ const App: React.FC = () => {
 		setIsSending(false);
 		setIsReceiving(false);
 		currentAssistantContentRef.current = '';
+		currentReasoningContentRef.current = ''; // Issue #64
 		toolStatusMapRef.current.clear();
 		lastUserMessageRef.current = '';
 	}, []);
@@ -250,6 +254,37 @@ const App: React.FC = () => {
 					break;
 				}
 
+				// Issue #64: AI 추론(reasoning) 스트리밍 수신
+				case 'chat-reasoning': {
+					currentReasoningContentRef.current += message.chunk;
+					const newReasoning = currentReasoningContentRef.current;
+
+					flushSync(() => {
+						setIsSending(false);
+						setIsReceiving(true);
+						setMessages((prev) => {
+							const lastMessage = prev[prev.length - 1];
+							if (lastMessage?.role === 'assistant') {
+								return [
+									...prev.slice(0, -1),
+									{ ...lastMessage, reasoning: newReasoning },
+								];
+							} else {
+								return [
+									...prev,
+									{
+										id: generateId(),
+										role: 'assistant',
+										content: '',
+										reasoning: newReasoning,
+									},
+								];
+							}
+						});
+					});
+					break;
+				}
+
 				case 'chat-chunk':
 					// AI 응답 청크 수신
 					currentAssistantContentRef.current += message.chunk;
@@ -272,6 +307,7 @@ const App: React.FC = () => {
 										id: generateId(),
 										role: 'assistant',
 										content: newContent,
+										reasoning: currentReasoningContentRef.current || undefined, // Issue #64
 									},
 								];
 							}

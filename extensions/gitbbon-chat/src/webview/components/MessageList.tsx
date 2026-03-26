@@ -117,6 +117,8 @@ export interface ChatMessage {
 	id: string;
 	role: 'user' | 'assistant' | 'system';
 	content: string;
+	// Issue #64: AI 추론(reasoning) 과정 텍스트
+	reasoning?: string;
 }
 
 interface MessageListProps {
@@ -219,6 +221,17 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, onRetry 
 					<div key={m.id} className={`message-wrapper ${m.role === 'user' ? 'user' : 'assistant'}`}>
 						<div className={`message-bubble ${m.role === 'user' ? 'user' : 'assistant'}`}>
 							<strong>{m.role === 'user' ? 'You' : 'AI'}:</strong>
+							{/* Issue #64: AI 추론(reasoning) 아코디언 */}
+							{m.role === 'assistant' && m.reasoning && (
+								<details className="reasoning-accordion">
+									<summary className="reasoning-accordion-summary">
+										추론 과정 보기
+									</summary>
+									<div className="reasoning-accordion-detail">
+										{m.reasoning}
+									</div>
+								</details>
+							)}
 							<div className="message-content">
 								{m.role === 'assistant' ? (
 									<ReactMarkdown
