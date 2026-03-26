@@ -217,8 +217,6 @@ export class AIService {
 			// gitbbon custom: UI에서 선택한 모델을 우선 사용, 없으면 설치된 첫 번째 모델 또는 하드웨어 기반 선택
 			const ollamaModelName = selectedModel || await ollamaService.getSelectedModel();
 			logService.info(`[gitbbon-chat][aiService] Ollama backend: model=${ollamaModelName} (selectedModel=${selectedModel || 'none'})`);
-			// Issue #64: ollama-ai-provider-v2 전용 프로바이더 사용 (reasoning 스트리밍 지원)
-			logService.info(`[debug:#64] ollama-ai-provider-v2 프로바이더로 모델 생성: ${ollamaModelName}`);
 			model = ollama(ollamaModelName);
 		} else {
 			model = 'openai/o4-mini';
@@ -300,7 +298,7 @@ export class AIService {
 				const providerOptions = (backend === 'ollama'
 					? { ollama: { think: true } }
 					: { openai: { reasoningSummary: 'detailed' } }) as any;
-				logService.info(`[debug:#64] streamText 시작, backend=${backend}, providerOptions=${JSON.stringify(providerOptions)}`);
+				logService.info(`[gitbbon-chat][aiService] streamText 시작, backend=${backend}`);
 
 				const result = streamText({
 					model,
@@ -352,7 +350,6 @@ export class AIService {
 
 					if (part.type === 'reasoning-start') {
 						// reasoning 시작 — Thinking 단계 종료하고 reasoning 스트리밍 시작
-						logService.info('[debug:#64] reasoning-start 수신');
 						hasReasoning = true;
 						if (!hasToolCalls) {
 							hasToolCalls = true;
@@ -368,12 +365,10 @@ export class AIService {
 						// reasoning 텍스트 청크 전달 (fullStream에서는 text, 내부 타입에서는 delta)
 						const reasoningText = (part as any).text || (part as any).delta || '';
 						if (reasoningText) {
-							logService.info(`[debug:#64] reasoning-delta 수신: ${reasoningText.slice(0, 50)}`);
 							channel.push({ type: 'reasoning', content: reasoningText });
 						}
 					} else if (part.type === 'reasoning-end') {
-						logService.info('[debug:#64] reasoning-end 수신');
-						// reasoning 종료 — 별도 처리 불필요 (UI에서 접힘 상태로 전환)
+						// reasoning 종료
 					} else if (part.type === 'text-delta') {
 						// 텍스트 청크 — 기존 동작 유지
 						if (!hasToolCalls) {
@@ -392,7 +387,7 @@ export class AIService {
 					}
 					// tool-call, tool-result 등은 onStepFinish에서 처리됨
 				}
-				logService.info('[debug:#64] fullStream 완료, hasReasoning=' + hasReasoning);
+				logService.info('[gitbbon-chat][AI Response] Streaming complete');
 
 				// If no text was ever streamed, end thinking phase
 				if (!hasToolCalls) {
