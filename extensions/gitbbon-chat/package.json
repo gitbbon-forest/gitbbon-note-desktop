@@ -99,6 +99,7 @@
     "@types/source-map-support": "^0.5.10",
     "ai": "^6.0.3",
     "dotenv": "^17.2.3",
+    "ollama-ai-provider-v2": "^3.5.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",

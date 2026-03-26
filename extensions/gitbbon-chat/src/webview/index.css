@@ -554,9 +554,7 @@ body {
 	transition: transform 0.3s ease;
 }
 
-.chat-submit-btn:hover:not(:disabled):not(.sending):not(.receiving) svg {
-	transform: translateX(2px);
-}
+/* gitbbon custom: Issue #72 - hover 시 아이콘 이동 제거 (translateX(2px) 삭제) */
 
 /* Stop 버튼 스타일 */
 .chat-submit-btn.stop {
@@ -690,4 +688,111 @@ body {
 
 .error-retry-btn:hover {
 	background: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+}
+
+/* Issue #70: Reasoning Accordion - 모던 AI 추론 과정 표시 */
+.reasoning-accordion {
+	margin-bottom: 10px;
+	margin-top: 6px;
+	font-size: 0.87em;
+	color: var(--vscode-descriptionForeground);
+	border-left: 2px solid rgba(136, 136, 136, 0.35);
+	border-radius: 0 6px 6px 0;
+	background: rgba(128, 128, 128, 0.06);
+	overflow: hidden;
+	transition: border-color 0.3s ease-out, background 0.3s ease-out;
+}
+
+/* Issue #70: 스트리밍 중 강조 스타일 */
+.reasoning-accordion.reasoning-streaming {
+	border-left-color: var(--vscode-focusBorder, rgba(0, 122, 204, 0.6));
+	background: rgba(0, 122, 204, 0.04);
+}
+
+.reasoning-accordion-summary {
+	cursor: pointer;
+	padding: 6px 12px;
+	list-style: none;
+	user-select: none;
+	font-size: 0.92em;
+	opacity: 0.75;
+	transition: opacity 0.2s ease;
+}
+
+.reasoning-accordion-summary:hover {
+	opacity: 1;
+}
+
+.reasoning-accordion-summary::-webkit-details-marker {
+	display: none;
+}
+
+/* Issue #70: 접기/펼치기 화살표 아이콘 */
+.reasoning-accordion-summary::before {
+	content: '';
+	display: inline-block;
+	width: 5px;
+	height: 5px;
+	border-right: 1.5px solid currentColor;
+	border-top: 1.5px solid currentColor;
+	transform: rotate(45deg);
+	margin-right: 8px;
+	margin-bottom: 1px;
+	transition: transform 0.25s ease-out;
+	vertical-align: middle;
+}
+
+.reasoning-accordion[open] .reasoning-accordion-summary::before {
+	transform: rotate(135deg);
+	margin-bottom: 3px;
+}
+
+/* Issue #70: 추론 완료 후 레이블 */
+.reasoning-label {
+	font-style: italic;
+}
+
+/* Issue #70: 스트리밍 중 레이블 + pulsing dot */
+.reasoning-label-streaming {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-style: italic;
+}
+
+.thinking-indicator {
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--vscode-focusBorder, #007acc);
+	animation: reasoning-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes reasoning-pulse {
+	0%, 100% { opacity: 0.3; transform: scale(0.85); }
+	50% { opacity: 1; transform: scale(1.1); }
+}
+
+/* Issue #70: 추론 내용 영역 */
+.reasoning-accordion-detail {
+	padding: 8px 14px;
+	font-size: 0.93em;
+	line-height: 1.55;
+	white-space: pre-wrap;
+	word-break: break-word;
+	max-height: 300px;
+	overflow-y: auto;
+	opacity: 0.7;
+	border-top: 1px solid rgba(128, 128, 128, 0.15);
+	transition: opacity 0.3s ease-out;
+}
+
+/* Issue #70: 스트리밍 중에는 더 높은 가시성 */
+.reasoning-streaming .reasoning-accordion-detail {
+	opacity: 0.85;
+}
+
+.reasoning-streaming .reasoning-accordion-summary {
+	opacity: 0.9;
 }

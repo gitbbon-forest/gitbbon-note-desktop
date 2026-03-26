@@ -117,11 +117,14 @@ export interface ChatMessage {
 	id: string;
 	role: 'user' | 'assistant' | 'system';
 	content: string;
+	// Issue #64: AI 추론(reasoning) 과정 텍스트
+	reasoning?: string;
 }
 
 interface MessageListProps {
 	messages: ChatMessage[];
 	isLoading: boolean;
+	isReceiving?: boolean; // Issue #70: 스트리밍 수신 중 여부 (reasoning 기본 열림 판별용)
 	onRetry?: () => void;
 }
 
@@ -188,17 +191,20 @@ const ErrorMessage: React.FC<{ message: string; onRetry?: () => void }> = ({ mes
 	);
 };
 
-const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, onRetry }) => {
+const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isReceiving, onRetry }) => {
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 
-	// Auto scroll to bottom when messages change
+	// 마지막 메시지의 reasoning 콘텐츠 (스트리밍 중 스크롤 트리거)
+	const lastReasoning = messages[messages.length - 1]?.reasoning;
+
+	// Auto scroll to bottom when messages or reasoning content change
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-	}, [messages]);
+	}, [messages, lastReasoning]);
 
 	return (
 		<div className="message-list">
-			{messages.map((m) => {
+			{messages.map((m, index) => {
 				// system 메시지 처리
 				if (m.role === 'system') {
 					const parsed = parseSystemContent(m.content);
@@ -215,10 +221,35 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, onRetry 
 					);
 				}
 
+				// Issue #70: 마지막 assistant 메시지이고 아직 스트리밍 중이면 reasoning이 진행 중
+				const isLastMessage = index === messages.length - 1;
+				const isReasoningStreaming = m.role === 'assistant' && isLastMessage && isReceiving && !!m.reasoning && !m.content;
+
 				return (
 					<div key={m.id} className={`message-wrapper ${m.role === 'user' ? 'user' : 'assistant'}`}>
 						<div className={`message-bubble ${m.role === 'user' ? 'user' : 'assistant'}`}>
 							<strong>{m.role === 'user' ? 'You' : 'AI'}:</strong>
+							{/* Issue #70: AI 추론(reasoning) 모던 아코디언 */}
+							{m.role === 'assistant' && m.reasoning && (
+								<details
+									className={`reasoning-accordion ${isReasoningStreaming ? 'reasoning-streaming' : ''}`}
+									open={isReasoningStreaming || undefined}
+								>
+									<summary className="reasoning-accordion-summary">
+										{isReasoningStreaming ? (
+											<span className="reasoning-label-streaming">
+												<span className="thinking-indicator" />
+												추론 중...
+											</span>
+										) : (
+											<span className="reasoning-label">추론 과정</span>
+										)}
+									</summary>
+									<div className="reasoning-accordion-detail">
+										{m.reasoning}
+									</div>
+								</details>
+							)}
 							<div className="message-content">
 								{m.role === 'assistant' ? (
 									<ReactMarkdown

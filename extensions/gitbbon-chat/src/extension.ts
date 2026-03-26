@@ -241,6 +241,13 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 							chunk: event.content
 						});
 						break;
+					// Issue #64: AI 추론(reasoning) 스트리밍 전달
+					case 'reasoning':
+						this._webviewView.webview.postMessage({
+							type: 'chat-reasoning',
+							chunk: event.content
+						});
+						break;
 				}
 			}
 

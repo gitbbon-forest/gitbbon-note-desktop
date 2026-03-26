@@ -28,7 +28,13 @@ export interface TextEvent {
 	content: string;
 }
 
-export type StreamEvent = ToolStartEvent | ToolEndEvent | TextEvent;
+// Issue #64: AI 추론(reasoning) 과정 실시간 스트리밍 이벤트
+export interface ReasoningEvent {
+	type: 'reasoning';
+	content: string;
+}
+
+export type StreamEvent = ToolStartEvent | ToolEndEvent | TextEvent | ReasoningEvent;
 
 /**
  * Tool Event Emitter interface

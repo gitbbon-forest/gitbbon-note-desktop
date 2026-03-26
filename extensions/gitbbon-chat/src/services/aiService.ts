@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { streamText, stepCountIs, type ModelMessage, type LanguageModel, type ToolSet, type TypedToolCall, type TypedToolResult } from 'ai';
-import { createOpenAI } from '@ai-sdk/openai';
+import { ollama } from 'ollama-ai-provider-v2';
 import { createEditorTools } from '../tools/editorTools';
 import { ContextService } from './ContextService';
 import { SYSTEM_PROMPT } from '../constants/prompts';
@@ -217,10 +217,9 @@ export class AIService {
 			// gitbbon custom: UI에서 선택한 모델을 우선 사용, 없으면 설치된 첫 번째 모델 또는 하드웨어 기반 선택
 			const ollamaModelName = selectedModel || await ollamaService.getSelectedModel();
 			logService.info(`[gitbbon-chat][aiService] Ollama backend: model=${ollamaModelName} (selectedModel=${selectedModel || 'none'})`);
-			const ollamaProvider = createOpenAI({ baseURL: 'http://localhost:11434/v1', apiKey: 'ollama' });
-			model = ollamaProvider.chat(ollamaModelName);
+			model = ollama(ollamaModelName);
 		} else {
-			model = 'google/gemini-3-pro';
+			model = 'openai/o4-mini';
 		}
 
 		// Context collection
@@ -295,20 +294,70 @@ export class AIService {
 				});
 				logService.info('[gitbbon-chat][Phase] Thinking...');
 
-				const result = streamText({
-					model,
-					system: instructions,
-					messages: messages as ModelMessage[],
-					tools,
-					stopWhen: stepCountIs(10),
-					abortSignal: abortController.signal,
-					onStepFinish: (event) => {
-						logService.info('[gitbbon-chat][Agent Step] Step Finished', {
-							text: event.text ? event.text.slice(0, 100) + '...' : undefined,
-							tools: event.toolCalls?.map((t: TypedToolCall<ToolSet>) => t.toolName).join(', ') || 'None'
-						});
+				// Issue #64: 백엔드별 reasoning providerOptions 설정
+				const providerOptions = (backend === 'ollama'
+					? { ollama: { think: true } }
+					: { openai: { reasoningSummary: 'detailed' } }) as any;
+				logService.info(`[gitbbon-chat][aiService] streamText 시작, backend=${backend}`);
 
-						if (event.toolCalls?.length) {
+
+				// Issue #74: tool 미지원 모델 fallback을 위한 헬퍼 함수
+				const callStreamText = (useTools: boolean) => {
+					return streamText({
+						model,
+						system: instructions,
+						messages: messages as ModelMessage[],
+						...(useTools ? { tools, stopWhen: stepCountIs(10) } : {}),
+						abortSignal: abortController.signal,
+						providerOptions,
+						onStepFinish: (event) => {
+							logService.info('[gitbbon-chat][Agent Step] Step Finished', {
+								text: event.text ? event.text.slice(0, 100) + '...' : undefined,
+								tools: event.toolCalls?.map((t: TypedToolCall<ToolSet>) => t.toolName).join(', ') || 'None'
+							});
+
+							if (event.toolCalls?.length) {
+								if (!hasToolCalls) {
+									hasToolCalls = true;
+									channel.push({
+										type: 'tool-end',
+										id: thinkingId,
+										toolName: 'Thinking...',
+										duration: Date.now() - thinkingStart,
+										success: true,
+									});
+									logService.info('[gitbbon-chat][Phase] Tool Execution Started');
+								}
+
+								event.toolCalls.forEach((call: TypedToolCall<ToolSet>) => {
+									logService.info(`[gitbbon-chat][Tool Call] ${call.toolName}`, call.input);
+								});
+
+								if (event.toolResults) {
+									event.toolResults.forEach((toolResult: TypedToolResult<ToolSet>) => {
+										logService.info(`[gitbbon-chat][Tool Result] ${toolResult.toolName}`, toolResult.output);
+									});
+								}
+							}
+						},
+						onAbort: () => {
+							logService.info('[gitbbon-chat][aiService] Stream aborted');
+						},
+					});
+				};
+
+				// Issue #74: tool 미지원 에러 감지 함수
+				const isToolNotSupportedError = (error: unknown): boolean => {
+					const message = (error as Error)?.message || '';
+					return message.includes('does not support tools') || message.includes('tool use is not supported');
+				};
+
+				// Issue #74: fullStream 소비 함수 (tools 유무와 무관하게 동일 로직)
+				const consumeStream = async (result: { fullStream: AsyncIterable<any> }) => {
+					for await (const part of result.fullStream) {
+						if (abortController.signal.aborted) break;
+
+						if (part.type === 'reasoning-start') {
 							if (!hasToolCalls) {
 								hasToolCalls = true;
 								channel.push({
@@ -318,49 +367,52 @@ export class AIService {
 									duration: Date.now() - thinkingStart,
 									success: true,
 								});
-								logService.info('[gitbbon-chat][Phase] Tool Execution Started');
 							}
-
-							event.toolCalls.forEach((call: TypedToolCall<ToolSet>) => {
-								logService.info(`[gitbbon-chat][Tool Call] ${call.toolName}`, call.input);
-							});
-
-							if (event.toolResults) {
-								event.toolResults.forEach((toolResult: TypedToolResult<ToolSet>) => {
-									logService.info(`[gitbbon-chat][Tool Result] ${toolResult.toolName}`, toolResult.output);
+						} else if (part.type === 'reasoning-delta') {
+							const reasoningText = (part as any).text || (part as any).delta || '';
+							if (reasoningText) {
+								channel.push({ type: 'reasoning', content: reasoningText });
+							}
+						} else if (part.type === 'reasoning-end') {
+							// reasoning 종료
+						} else if (part.type === 'text-delta') {
+							if (!hasToolCalls) {
+								hasToolCalls = true;
+								channel.push({
+									type: 'tool-end',
+									id: thinkingId,
+									toolName: 'Thinking...',
+									duration: Date.now() - thinkingStart,
+									success: true,
 								});
 							}
+							if (part.text) {
+								channel.push({ type: 'text', content: part.text });
+							}
 						}
-					},
-					onAbort: () => {
-						logService.info('[gitbbon-chat][aiService] Stream aborted');
-					},
-				});
-
-				// Stream text token by token
-				for await (const textChunk of result.textStream) {
-					if (abortController.signal.aborted) break;
-
-					// End thinking phase on first text chunk
-					if (!hasToolCalls) {
-						hasToolCalls = true;
-						channel.push({
-							type: 'tool-end',
-							id: thinkingId,
-							toolName: 'Thinking...',
-							duration: Date.now() - thinkingStart,
-							success: true,
-						});
 					}
+				};
 
-					if (textChunk) {
-						channel.push({ type: 'text', content: textChunk });
+				// Issue #74: 1차 시도 (tools 포함)
+				let result = callStreamText(true);
+				try {
+					await consumeStream(result);
+				} catch (streamError: unknown) {
+					// Issue #74: tool 미지원 에러 시 tools 없이 재시도
+					if (isToolNotSupportedError(streamError)) {
+						channel.push({ type: 'text', content: '⚠️ 이 모델은 tool calling을 지원하지 않아 일부 기능(파일 편집 등)이 제한됩니다. 일반 대화 모드로 전환합니다.\n\n' });
+
+						// 상태 초기화 후 재시도
+						hasToolCalls = false;
+						result = callStreamText(false);
+						await consumeStream(result);
+					} else {
+						throw streamError; // 다른 에러는 외부 catch로 전파
 					}
 				}
-
 				logService.info('[gitbbon-chat][AI Response] Streaming complete');
 
-				// If no text was ever streamed, end thinking phase
+				// 스트리밍 완료 후에도 Thinking 단계가 끝나지 않았다면 종료 처리
 				if (!hasToolCalls) {
 					channel.push({
 						type: 'tool-end',
