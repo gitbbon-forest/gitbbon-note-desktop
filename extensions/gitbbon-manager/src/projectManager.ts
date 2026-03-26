@@ -964,7 +964,6 @@ export class ProjectManager {
 			}
 
 			logService.info(`[gitbbon-manager][projectManager] Really Final commit created: ${newCommitId}`);
-			vscode.window.showInformationMessage(`진짜최종 완료: ${newCommitId.substring(0, 7)}`);
 			// Update lastModified in projects.json
 			await this.updateLastModified(cwd);
 
