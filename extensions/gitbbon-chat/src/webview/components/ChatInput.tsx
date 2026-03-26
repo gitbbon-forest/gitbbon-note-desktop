@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import type { ModelType } from '../App';
+import type { ModelType, RecommendedModel, ModelPullStatus } from '../App';
 
 interface ChatInputProps {
 	inputValue: string;
@@ -16,6 +16,9 @@ interface ChatInputProps {
 	selectedModel: string;
 	setSelectedModel: (model: string) => void;
 	ollamaModels: string[];
+	// gitbbon custom: Issue #68 - 추천 모델 리스트 및 다운로드 상태
+	recommendedModels?: RecommendedModel[];
+	modelPullStatus?: ModelPullStatus | null;
 }
 
 // 화살표 전송 아이콘 SVG
@@ -47,7 +50,7 @@ const StopIcon = () => (
 	</svg>
 );
 
-const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSending, isReceiving, onSubmit, onCancel, inputRef, onCompositionChange, modelType, setModelType, selectedModel, setSelectedModel, ollamaModels }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSending, isReceiving, onSubmit, onCancel, inputRef, onCompositionChange, modelType, setModelType, selectedModel, setSelectedModel, ollamaModels, recommendedModels, modelPullStatus }) => {
 	const internalRef = useRef<HTMLTextAreaElement>(null);
 	const textareaRef = inputRef || internalRef;
 	const isLoading = isSending || isReceiving;
@@ -136,11 +139,36 @@ const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSend
 							className="chat-model-select"
 							value={selectedModel}
 							onChange={(e) => setSelectedModel(e.target.value)}
-							disabled={isLoading || modelType !== 'ondevice'}
+							disabled={isLoading || modelType !== 'ondevice' || !!modelPullStatus}
 							aria-label="모델 이름"
 						>
 							{modelType === 'ondevice' ? (
-								ollamaModels.map((m) => <option key={m} value={m}>{m}</option>)
+								recommendedModels && recommendedModels.length > 0 ? (
+									<>
+										{/* gitbbon custom: Issue #68 - 설치된 모델 그룹 */}
+										{recommendedModels.filter(m => m.installed).length > 0 && (
+											<optgroup label="설치됨">
+												{recommendedModels.filter(m => m.installed).map((m) => (
+													<option key={m.name} value={m.name}>
+														{m.name}
+													</option>
+												))}
+											</optgroup>
+										)}
+										{/* gitbbon custom: Issue #68 - 미설치 추천 모델 그룹 */}
+										{recommendedModels.filter(m => !m.installed).length > 0 && (
+											<optgroup label="다운로드 가능">
+												{recommendedModels.filter(m => !m.installed).map((m) => (
+													<option key={m.name} value={m.name}>
+														⬇ {m.name} ({m.sizeGB > 0 ? `${m.sizeGB.toFixed(1)}GB` : '크기 미확인'})
+													</option>
+												))}
+											</optgroup>
+										)}
+									</>
+								) : (
+									ollamaModels.map((m) => <option key={m} value={m}>{m}</option>)
+								)
 							) : modelType === 'byok' ? (
 								<option value="">준비 중</option>
 							) : (

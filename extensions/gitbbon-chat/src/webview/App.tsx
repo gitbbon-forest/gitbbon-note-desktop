@@ -14,6 +14,21 @@ const vscode = acquireVsCodeApi();
 // gitbbon custom: 모델타입 UI 레이블 타입 (셀렉트박스용)
 export type ModelType = 'gitbbon' | 'ondevice' | 'byok';
 
+// gitbbon custom: Issue #68 - 추천 모델 정보 인터페이스
+export interface RecommendedModel {
+	name: string;
+	sizeGB: number;
+	installed: boolean;
+	description: string;
+}
+
+// gitbbon custom: Issue #68 - 모델 다운로드 진행 상태
+export interface ModelPullStatus {
+	model: string;
+	progress: number;
+	status: 'pulling' | 'done' | 'error';
+}
+
 // ollama 모델명 폴백 목록 (설치된 모델 없을 때 사용)
 const FALLBACK_OLLAMA_MODELS = ['llama3.1:8b', 'llama3.2:3b', 'llama3.2:1b', 'gemma2:2b', 'gemma2:9b', 'phi3:mini', 'mistral:7b', 'qwen2.5:7b', 'qwen2.5:3b'];
 
@@ -28,6 +43,11 @@ const App: React.FC = () => {
 	const [modelType, setModelType] = useState<ModelType>('gitbbon');
 	const [selectedModel, setSelectedModel] = useState<string>('');
 	const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+	// gitbbon custom: Issue #68 - 추천 모델 리스트 및 다운로드 관리 상태
+	const [recommendedModels, setRecommendedModels] = useState<RecommendedModel[]>([]);
+	const [freeDiskGB, setFreeDiskGB] = useState<number>(Infinity);
+	const [modelPullStatus, setModelPullStatus] = useState<ModelPullStatus | null>(null);
+	const [downloadConfirm, setDownloadConfirm] = useState<RecommendedModel | null>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const currentAssistantContentRef = useRef(''); // 스트리밍 콘텐츠 추적용
 	const toolStatusMapRef = useRef<Map<string, { name: string; args?: Record<string, unknown> }>>(new Map());
@@ -142,16 +162,37 @@ const App: React.FC = () => {
 		setSelectedModel('');
 		if (type === 'ondevice') {
 			vscode.postMessage({ type: 'select-backend', backend: 'ollama' });
+			// gitbbon custom: Issue #68 - 추천 모델 리스트 요청
+			vscode.postMessage({ type: 'get-recommended-models' });
 		} else if (type === 'gitbbon') {
 			vscode.postMessage({ type: 'select-backend', backend: 'api' });
 		}
 		// byok는 아직 미구현 — 선택만 저장
 	}, []);
 
-	// gitbbon custom: 모델 선택 변경 시 extension에 저장
+	// gitbbon custom: Issue #68 - 모델 선택 변경 시, 미설치 모델이면 다운로드 확인
 	const handleModelSelect = useCallback((model: string) => {
+		const recommended = recommendedModels.find(m => m.name === model);
+		if (recommended && !recommended.installed) {
+			// 미설치 모델: 다운로드 확인 다이얼로그 표시
+			setDownloadConfirm(recommended);
+			return;
+		}
 		setSelectedModel(model);
 		vscode.postMessage({ type: 'save-selected-model', model });
+	}, [recommendedModels]);
+
+	// gitbbon custom: Issue #68 - 다운로드 확인 후 모델 다운로드 시작
+	const handleConfirmDownload = useCallback(() => {
+		if (!downloadConfirm) return;
+		const modelName = downloadConfirm.name;
+		setDownloadConfirm(null);
+		vscode.postMessage({ type: 'pull-ollama-model', model: modelName });
+	}, [downloadConfirm]);
+
+	// gitbbon custom: Issue #68 - 다운로드 취소
+	const handleCancelDownload = useCallback(() => {
+		setDownloadConfirm(null);
 	}, []);
 
 	// 새 대화 시작
@@ -297,6 +338,34 @@ const App: React.FC = () => {
 					currentAssistantContentRef.current = '';
 					break;
 
+				// gitbbon custom: Issue #68 - 추천 모델 리스트 수신
+				case 'recommended-models':
+					setRecommendedModels(message.models as RecommendedModel[]);
+					if (typeof message.freeDiskGB === 'number') {
+						setFreeDiskGB(message.freeDiskGB);
+					}
+					break;
+
+				// gitbbon custom: Issue #68 - 모델 다운로드 진행 상태 수신
+				case 'model-pull-progress': {
+					const pullStatus: ModelPullStatus = {
+						model: message.model,
+						progress: message.progress,
+						status: message.status,
+					};
+					if (pullStatus.status === 'done') {
+						setModelPullStatus(null);
+						// 다운로드 완료 시 선택 모델로 설정
+						setSelectedModel(pullStatus.model);
+						vscode.postMessage({ type: 'save-selected-model', model: pullStatus.model });
+					} else if (pullStatus.status === 'error') {
+						setModelPullStatus(null);
+					} else {
+						setModelPullStatus(pullStatus);
+					}
+					break;
+				}
+
 				case 'insertText':
 					if (message.text) {
 						setInputValue((prev) => prev + message.text);
@@ -345,6 +414,36 @@ const App: React.FC = () => {
 					)}
 				</div>
 			)}
+			{/* gitbbon custom: Issue #68 - 모델 다운로드 진행률 배너 */}
+			{modelPullStatus && (
+				<div className="ollama-banner ollama-banner--pulling">
+					<span>모델 다운로드 중: {modelPullStatus.model} ({modelPullStatus.progress}%)</span>
+					<div className="model-pull-progress-bar">
+						<div className="model-pull-progress-fill" style={{ width: `${modelPullStatus.progress}%` }} />
+					</div>
+				</div>
+			)}
+			{/* gitbbon custom: Issue #68 - 미설치 모델 다운로드 확인 다이얼로그 */}
+			{downloadConfirm && (
+				<div className="model-download-confirm">
+					<div className="model-download-confirm-content">
+						<p className="model-download-confirm-title">모델 다운로드</p>
+						<p className="model-download-confirm-info">
+							<strong>{downloadConfirm.name}</strong><br />
+							{downloadConfirm.description}<br />
+							다운로드 크기: {downloadConfirm.sizeGB > 0 ? `${downloadConfirm.sizeGB.toFixed(1)}GB` : '크기 미확인'}<br />
+							디스크 여유 공간: {freeDiskGB !== Infinity ? `${freeDiskGB.toFixed(1)}GB` : '확인 불가'}
+							{downloadConfirm.sizeGB > 0 && freeDiskGB < downloadConfirm.sizeGB + 1 && (
+								<span className="model-download-disk-warning"><br />디스크 여유 공간이 부족할 수 있습니다.</span>
+							)}
+						</p>
+						<div className="model-download-confirm-actions">
+							<button className="model-download-btn-cancel" onClick={handleCancelDownload}>취소</button>
+							<button className="model-download-btn-confirm" onClick={handleConfirmDownload}>다운로드</button>
+						</div>
+					</div>
+				</div>
+			)}
 			<MessageList messages={messages} isLoading={isSending || isReceiving} onRetry={handleRetry} />
 			<ChatInput
 				inputValue={inputValue}
@@ -359,6 +458,8 @@ const App: React.FC = () => {
 				selectedModel={selectedModel}
 				setSelectedModel={handleModelSelect}
 				ollamaModels={ollamaModels.length > 0 ? ollamaModels : FALLBACK_OLLAMA_MODELS}
+				recommendedModels={recommendedModels}
+				modelPullStatus={modelPullStatus}
 			/>
 		</div>
 	);

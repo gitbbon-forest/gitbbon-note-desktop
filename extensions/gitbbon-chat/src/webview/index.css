@@ -358,6 +358,103 @@ body {
 	cursor: not-allowed;
 }
 
+/* gitbbon custom: Issue #68 - 모델 다운로드 확인 다이얼로그 */
+.model-download-confirm {
+	position: absolute;
+	bottom: 80px;
+	left: 8px;
+	right: 8px;
+	z-index: 100;
+	background: var(--vscode-editorWidget-background, #252526);
+	border: 1px solid var(--vscode-editorWidget-border, #454545);
+	border-radius: 6px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	padding: 12px;
+}
+
+.model-download-confirm-content {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.model-download-confirm-title {
+	font-weight: 600;
+	font-size: 13px;
+	margin: 0;
+	color: var(--vscode-foreground);
+}
+
+.model-download-confirm-info {
+	font-size: 12px;
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+}
+
+.model-download-disk-warning {
+	color: var(--vscode-editorWarning-foreground, #cca700);
+	font-weight: 500;
+}
+
+.model-download-confirm-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 4px;
+}
+
+.model-download-btn-cancel,
+.model-download-btn-confirm {
+	padding: 4px 12px;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.model-download-btn-cancel {
+	background: transparent;
+	color: var(--vscode-foreground);
+	border: 1px solid var(--vscode-button-secondaryBorder, #454545);
+}
+
+.model-download-btn-cancel:hover {
+	background: var(--vscode-button-secondaryHoverBackground, #3a3a3a);
+}
+
+.model-download-btn-confirm {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.model-download-btn-confirm:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+/* gitbbon custom: Issue #68 - 모델 다운로드 진행률 바 */
+.model-pull-progress-bar {
+	width: 100%;
+	height: 4px;
+	background: var(--vscode-progressBar-background, #333);
+	border-radius: 2px;
+	margin-top: 4px;
+	overflow: hidden;
+}
+
+.model-pull-progress-fill {
+	height: 100%;
+	background: var(--vscode-progressBar-background, #0078d4);
+	border-radius: 2px;
+	transition: width 0.3s ease;
+}
+
+/* gitbbon custom: Issue #68 - 셀렉트박스 optgroup 스타일 */
+.chat-model-select optgroup {
+	font-weight: 600;
+	font-style: normal;
+}
+
 .chat-input-field {
 	width: 100%;
 	padding: 0;

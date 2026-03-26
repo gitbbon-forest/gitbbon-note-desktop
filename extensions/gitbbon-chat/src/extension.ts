@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import { type ModelMessage } from 'ai';
 import { AIService } from './services/aiService';
 import { logService } from './services/logService';
-import { ollamaService, MODEL_SIZES_GB } from './services/ollamaService';
+import { ollamaService, MODEL_SIZES_GB, type RecommendedModel } from './services/ollamaService';
 
 class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = 'gitbbon.chat';
@@ -81,6 +81,34 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 			} else if (message.type === 'save-selected-model') {
 				// gitbbon custom: 온디바이스 모델 선택값 저장
 				await this._context.globalState.update('SELECTED_OLLAMA_MODEL', message.model);
+			} else if (message.type === 'get-recommended-models') {
+				// gitbbon custom: Issue #68 - 추천 모델 리스트 + 다운로드 상태 반환
+				logService.info('[debug:#68] get-recommended-models 요청 수신');
+				const models = await ollamaService.getRecommendedModels();
+				const freeDiskGB = await ollamaService.getFreeDiskGB();
+				webviewView.webview.postMessage({ type: 'recommended-models', models, freeDiskGB });
+			} else if (message.type === 'pull-ollama-model') {
+				// gitbbon custom: Issue #68 - 미설치 모델 다운로드 요청
+				const modelName = message.model as string;
+				logService.info(`[debug:#68] pull-ollama-model 요청: ${modelName}`);
+				webviewView.webview.postMessage({ type: 'model-pull-progress', model: modelName, progress: 0, status: 'pulling' });
+				try {
+					await ollamaService.pullModel(modelName, (pct) => {
+						webviewView.webview.postMessage({ type: 'model-pull-progress', model: modelName, progress: pct, status: 'pulling' });
+					});
+					logService.info(`[debug:#68] pull-ollama-model 완료: ${modelName}`);
+					webviewView.webview.postMessage({ type: 'model-pull-progress', model: modelName, progress: 100, status: 'done' });
+					// 다운로드 완료 후 추천 모델 목록 갱신하여 전송
+					const updatedModels = await ollamaService.getRecommendedModels();
+					const freeDiskGB = await ollamaService.getFreeDiskGB();
+					webviewView.webview.postMessage({ type: 'recommended-models', models: updatedModels, freeDiskGB });
+					// 설치된 모델 목록도 갱신
+					const installedModels = await ollamaService.getInstalledModels();
+					webviewView.webview.postMessage({ type: 'ollama-models', models: installedModels });
+				} catch (err) {
+					logService.error(`[debug:#68] pull-ollama-model 실패: ${modelName}`, err);
+					webviewView.webview.postMessage({ type: 'model-pull-progress', model: modelName, progress: 0, status: 'error' });
+				}
 			}
 		});
 
@@ -95,6 +123,10 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 			if (savedBackend === 'ollama') {
 				const models = await ollamaService.getInstalledModels();
 				webviewView.webview.postMessage({ type: 'ollama-models', models });
+				// gitbbon custom: Issue #68 - 추천 모델 리스트도 함께 전송
+				const recommendedModels = await ollamaService.getRecommendedModels();
+				const freeDiskGB = await ollamaService.getFreeDiskGB();
+				webviewView.webview.postMessage({ type: 'recommended-models', models: recommendedModels, freeDiskGB });
 				const savedModel = this._context.globalState.get<string>('SELECTED_OLLAMA_MODEL', '');
 				if (savedModel) {
 					webviewView.webview.postMessage({ type: 'selected-model', model: savedModel });
@@ -123,6 +155,10 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 			// ollama 모델 목록도 함께 전송
 			const models = await ollamaService.getInstalledModels();
 			webviewView.webview.postMessage({ type: 'ollama-models', models });
+			// gitbbon custom: Issue #68 - 추천 모델 리스트도 함께 전송
+			const recommendedModels = await ollamaService.getRecommendedModels();
+			const freeDiskGB = await ollamaService.getFreeDiskGB();
+			webviewView.webview.postMessage({ type: 'recommended-models', models: recommendedModels, freeDiskGB });
 		}
 	}
 
