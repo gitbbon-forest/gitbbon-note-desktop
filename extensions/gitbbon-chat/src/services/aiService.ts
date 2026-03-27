@@ -309,7 +309,6 @@ export class AIService {
 				// Issue #74: tool 미지원 모델 fallback을 위한 헬퍼 함수 (think 옵션도 제어)
 				const callStreamText = (useTools: boolean, useThink: boolean = true) => {
 					const providerOptions = buildProviderOptions(useThink) as any;
-					logService.info(`[debug:#74] callStreamText: useTools=${useTools}, useThink=${useThink}, providerOptions=${JSON.stringify(providerOptions)}`);
 					return streamText({
 						model,
 						system: instructions,
@@ -363,9 +362,7 @@ export class AIService {
 				const isOllamaBadRequestError = (error: unknown): boolean => {
 					const message = (error as Error)?.message || '';
 					const name = (error as Error)?.name || '';
-					const isBadRequest = message.includes('Bad Request') || message.includes('400') || name === 'AI_APICallError';
-					logService.info(`[debug:#74] isOllamaBadRequestError: name=${name}, message=${message.slice(0, 200)}, result=${isBadRequest}`);
-					return isBadRequest;
+					return message.includes('Bad Request') || message.includes('400') || name === 'AI_APICallError';
 				};
 
 				// Issue #74: fullStream 소비 함수 - 콘텐츠 수신 여부를 반환
@@ -413,8 +410,7 @@ export class AIService {
 							hasContent = true;
 						}
 					}
-					logService.info(`[debug:#74] consumeStream 완료: hasContent=${hasContent}`);
-					return hasContent;
+										return hasContent;
 				};
 
 				// Issue #74: 3단계 fallback 전략 (에러 + 빈 응답 모두 감지)
@@ -429,7 +425,7 @@ export class AIService {
 
 					for (let i = 0; i < strategies.length; i++) {
 						const { useTools, useThink, label } = strategies[i];
-						logService.info(`[debug:#74] ${label}: tools=${useTools}, think=${useThink}`);
+
 						hasToolCalls = false;
 
 						try {
@@ -437,13 +433,11 @@ export class AIService {
 							const hasContent = await consumeStream(result);
 
 							if (hasContent) {
-								logService.info(`[debug:#74] ${label} 성공`);
 								return; // 성공 시 종료
 							}
 
 							// 빈 응답: 다음 전략 시도
 							if (i < strategies.length - 1) {
-								logService.info(`[debug:#74] ${label} 빈 응답. 다음 전략으로 fallback`);
 								if (useThink && !strategies[i + 1].useThink) {
 									channel.push({ type: 'text', content: '⚠️ 이 모델은 추론(think) 기능을 지원하지 않습니다. 기본 모드로 전환합니다.\n\n' });
 								}
@@ -453,11 +447,9 @@ export class AIService {
 								continue;
 							}
 							// 마지막 전략도 빈 응답이면 그냥 종료
-							logService.info(`[debug:#74] 모든 전략 빈 응답`);
 							return;
 						} catch (streamError: unknown) {
 							if (i < strategies.length - 1 && (isToolNotSupportedError(streamError) || isOllamaBadRequestError(streamError))) {
-								logService.info(`[debug:#74] ${label} 에러 발생. 다음 전략으로 fallback`);
 								if (useTools && !strategies[i + 1].useTools) {
 									channel.push({ type: 'text', content: '⚠️ 이 모델은 tool calling을 지원하지 않아 일부 기능(파일 편집 등)이 제한됩니다.\n\n' });
 								}
