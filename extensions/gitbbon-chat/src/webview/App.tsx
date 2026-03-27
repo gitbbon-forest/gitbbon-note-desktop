@@ -14,6 +14,13 @@ const vscode = acquireVsCodeApi();
 // gitbbon custom: 모델타입 UI 레이블 타입 (셀렉트박스용)
 export type ModelType = 'gitbbon' | 'ondevice' | 'byok';
 
+// Issue #77: 모델 capabilities 인터페이스
+export interface ModelCapabilities {
+	thinking: boolean;
+	tools: boolean;
+	completion: boolean;
+}
+
 // gitbbon custom: Issue #68 - 추천 모델 정보 인터페이스
 export interface RecommendedModel {
 	name: string;
@@ -47,6 +54,8 @@ const App: React.FC = () => {
 	const [recommendedModels, setRecommendedModels] = useState<RecommendedModel[]>([]);
 	const [freeDiskGB, setFreeDiskGB] = useState<number>(Infinity);
 	const [modelPullStatus, setModelPullStatus] = useState<ModelPullStatus | null>(null);
+	// Issue #77: 모델별 capabilities 상태
+	const [modelCapabilities, setModelCapabilities] = useState<Record<string, ModelCapabilities>>({});
 	const [downloadConfirm, setDownloadConfirm] = useState<RecommendedModel | null>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const currentAssistantContentRef = useRef(''); // 스트리밍 콘텐츠 추적용
@@ -242,8 +251,12 @@ const App: React.FC = () => {
 					break;
 
 				// gitbbon custom: extension에서 ollama 설치 모델 목록 수신
+				// Issue #77: capabilities 정보도 함께 저장
 				case 'ollama-models':
 					setOllamaModels(message.models as string[]);
+					if (message.capabilities) {
+						setModelCapabilities(prev => ({ ...prev, ...(message.capabilities as Record<string, ModelCapabilities>) }));
+					}
 					// gitbbon custom: selectedModel이 비어있으면 첫 번째 모델 자동 선택 및 저장
 					setSelectedModel((prev: string) => {
 						const models = message.models as string[];
@@ -497,6 +510,7 @@ const App: React.FC = () => {
 				ollamaModels={ollamaModels.length > 0 ? ollamaModels : FALLBACK_OLLAMA_MODELS}
 				recommendedModels={recommendedModels}
 				modelPullStatus={modelPullStatus}
+				modelCapabilities={modelCapabilities}
 			/>
 		</div>
 	);

@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import type { ModelType, RecommendedModel, ModelPullStatus } from '../App';
+import type { ModelType, RecommendedModel, ModelPullStatus, ModelCapabilities } from '../App';
 
 interface ChatInputProps {
 	inputValue: string;
@@ -19,6 +19,8 @@ interface ChatInputProps {
 	// gitbbon custom: Issue #68 - 추천 모델 리스트 및 다운로드 상태
 	recommendedModels?: RecommendedModel[];
 	modelPullStatus?: ModelPullStatus | null;
+	// Issue #77: 모델별 capabilities
+	modelCapabilities?: Record<string, ModelCapabilities>;
 }
 
 // 화살표 전송 아이콘 SVG
@@ -50,7 +52,7 @@ const StopIcon = () => (
 	</svg>
 );
 
-const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSending, isReceiving, onSubmit, onCancel, inputRef, onCompositionChange, modelType, setModelType, selectedModel, setSelectedModel, ollamaModels, recommendedModels, modelPullStatus }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSending, isReceiving, onSubmit, onCancel, inputRef, onCompositionChange, modelType, setModelType, selectedModel, setSelectedModel, ollamaModels, recommendedModels, modelPullStatus, modelCapabilities }) => {
 	const internalRef = useRef<HTMLTextAreaElement>(null);
 	const textareaRef = inputRef || internalRef;
 	const isLoading = isSending || isReceiving;
@@ -146,13 +148,21 @@ const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSend
 								recommendedModels && recommendedModels.length > 0 ? (
 									<>
 										{/* gitbbon custom: Issue #68 - 설치된 모델 그룹 */}
+										{/* Issue #77: capabilities 뱃지 표시 */}
 										{recommendedModels.filter(m => m.installed).length > 0 && (
 											<optgroup label="설치됨">
-												{recommendedModels.filter(m => m.installed).map((m) => (
-													<option key={m.name} value={m.name}>
-														{m.name}
-													</option>
-												))}
+												{recommendedModels.filter(m => m.installed).map((m) => {
+													const caps = modelCapabilities?.[m.name] || modelCapabilities?.[`${m.name}:latest`];
+													const badges: string[] = [];
+													if (caps?.thinking) badges.push('T');
+													if (caps?.tools) badges.push('F');
+													const badgeStr = badges.length > 0 ? ` [${badges.join('+')}]` : '';
+													return (
+														<option key={m.name} value={m.name}>
+															{m.name}{badgeStr}
+														</option>
+													);
+												})}
 											</optgroup>
 										)}
 										{/* gitbbon custom: Issue #68 - 미설치 추천 모델 그룹 */}
