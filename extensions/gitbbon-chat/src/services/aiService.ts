@@ -418,16 +418,7 @@ export class AIService {
 				const initialUseThink = modelCapabilities ? modelCapabilities.thinking : true;
 				const initialUseTools = modelCapabilities ? modelCapabilities.tools : true;
 
-				if (backend === 'ollama' && modelCapabilities) {
-					logService.info(`[debug:#77] capabilities 기반 옵션 결정: think=${initialUseThink}, tools=${initialUseTools} (model capabilities: thinking=${modelCapabilities.thinking}, tools=${modelCapabilities.tools})`);
-					if (!modelCapabilities.thinking) {
-						logService.info('[debug:#77] 모델이 thinking을 지원하지 않아 처음부터 think 비활성화');
-					}
-					if (!modelCapabilities.tools) {
-						logService.info('[debug:#77] 모델이 tools를 지원하지 않아 처음부터 tools 비활성화');
-					}
-				}
-
+	
 				// Issue #74/#77: fallback 전략 (capabilities로 사전 결정 + 에러/빈 응답 시 fallback)
 				const tryStreamWithFallback = async () => {
 					// Issue #77: capabilities 정보가 있으면 지원하지 않는 옵션은 처음부터 비활성화
@@ -456,7 +447,6 @@ export class AIService {
 					for (let i = 0; i < strategies.length; i++) {
 						const { useTools, useThink, label } = strategies[i];
 
-						logService.info(`[debug:#77] 전략 시도: ${label} (useTools=${useTools}, useThink=${useThink})`);
 						hasToolCalls = false;
 
 						try {

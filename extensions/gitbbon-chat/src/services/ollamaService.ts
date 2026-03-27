@@ -258,22 +258,21 @@ export class OllamaService {
               tools: caps.includes('tools'),
               completion: caps.includes('completion'),
             };
-            logService.info(`[debug:#77] getModelCapabilities: ${modelName} → thinking=${result.thinking}, tools=${result.tools}, completion=${result.completion}`);
             resolve(result);
           } catch (err) {
-            logService.warn(`[debug:#77] getModelCapabilities: ${modelName} 파싱 실패, 기본값 사용`, err);
+            logService.warn(`[ollamaService] getModelCapabilities: ${modelName} 파싱 실패, 기본값 사용`, err);
             resolve({ ...DEFAULT_CAPABILITIES });
           }
         });
       });
 
       req.on('error', (err) => {
-        logService.warn(`[debug:#77] getModelCapabilities: ${modelName} 요청 실패, 기본값 사용`, err);
+        logService.warn(`[ollamaService] getModelCapabilities: ${modelName} 요청 실패, 기본값 사용`, err);
         resolve({ ...DEFAULT_CAPABILITIES });
       });
 
       req.setTimeout(5000, () => {
-        logService.warn(`[debug:#77] getModelCapabilities: ${modelName} 타임아웃, 기본값 사용`);
+        logService.warn(`[ollamaService] getModelCapabilities: ${modelName} 타임아웃, 기본값 사용`);
         req.destroy();
         resolve({ ...DEFAULT_CAPABILITIES });
       });
@@ -287,11 +286,8 @@ export class OllamaService {
   async getInstalledModelsWithCapabilities(): Promise<ModelWithCapabilities[]> {
     const models = await this.getInstalledModels();
     if (models.length === 0) {
-      logService.info('[debug:#77] getInstalledModelsWithCapabilities: 설치된 모델 없음');
       return [];
     }
-
-    logService.info(`[debug:#77] getInstalledModelsWithCapabilities: ${models.length}개 모델 capabilities 병렬 조회 시작`);
     const results = await Promise.all(
       models.map(async (name) => {
         const capabilities = await this.getModelCapabilities(name);
@@ -299,7 +295,6 @@ export class OllamaService {
       })
     );
 
-    logService.info(`[debug:#77] getInstalledModelsWithCapabilities: 조회 완료 [${results.map(r => `${r.name}(t:${r.capabilities.thinking},tools:${r.capabilities.tools})`).join(', ')}]`);
     return results;
   }
 
