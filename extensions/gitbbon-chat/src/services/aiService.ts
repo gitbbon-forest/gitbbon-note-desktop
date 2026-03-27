@@ -184,7 +184,7 @@ export class AIService {
 		return success;
 	}
 
-	public async *streamAgentChat(messages: ModelMessage[], selectedModel?: string): AsyncGenerator<StreamEvent, void, unknown> {
+	public async *streamAgentChat(messages: ModelMessage[], selectedModel?: string, modelCapabilities?: { thinking: boolean; tools: boolean; completion: boolean }): AsyncGenerator<StreamEvent, void, unknown> {
 		const backend = await this.getBackend();
 		if (backend !== 'ollama') {
 			await this.ensureInitialized();
@@ -413,19 +413,50 @@ export class AIService {
 										return hasContent;
 				};
 
-				// Issue #74: 3단계 fallback 전략 (에러 + 빈 응답 모두 감지)
-				// 1차: tools + think → 2차: think 없이 → 3차: tools + think 둘 다 없이
+				// Issue #77: capabilities 기반 초기 옵션 결정
+				// capabilities가 있으면 사전 감지된 정보로 불필요한 fallback을 건너뜀
+				const initialUseThink = modelCapabilities ? modelCapabilities.thinking : true;
+				const initialUseTools = modelCapabilities ? modelCapabilities.tools : true;
+
+				if (backend === 'ollama' && modelCapabilities) {
+					logService.info(`[debug:#77] capabilities 기반 옵션 결정: think=${initialUseThink}, tools=${initialUseTools} (model capabilities: thinking=${modelCapabilities.thinking}, tools=${modelCapabilities.tools})`);
+					if (!modelCapabilities.thinking) {
+						logService.info('[debug:#77] 모델이 thinking을 지원하지 않아 처음부터 think 비활성화');
+					}
+					if (!modelCapabilities.tools) {
+						logService.info('[debug:#77] 모델이 tools를 지원하지 않아 처음부터 tools 비활성화');
+					}
+				}
+
+				// Issue #74/#77: fallback 전략 (capabilities로 사전 결정 + 에러/빈 응답 시 fallback)
 				const tryStreamWithFallback = async () => {
-					// Issue #74: fallback 설정 목록 (순서대로 시도)
-					const strategies: Array<{ useTools: boolean; useThink: boolean; label: string }> = [
-						{ useTools: true, useThink: true, label: '1차 (tools+think)' },
-						{ useTools: true, useThink: false, label: '2차 (tools only)' },
-						{ useTools: false, useThink: false, label: '3차 (기본)' },
-					];
+					// Issue #77: capabilities 정보가 있으면 지원하지 않는 옵션은 처음부터 비활성화
+					const strategies: Array<{ useTools: boolean; useThink: boolean; label: string }> = [];
+					if (initialUseTools && initialUseThink) {
+						strategies.push({ useTools: true, useThink: true, label: '1차 (tools+think)' });
+					}
+					if (initialUseTools && !initialUseThink) {
+						strategies.push({ useTools: true, useThink: false, label: '1차 (tools only)' });
+					}
+					if (!initialUseTools && initialUseThink) {
+						strategies.push({ useTools: false, useThink: true, label: '1차 (think only)' });
+					}
+					// safety net: fallback 전략 추가 (capabilities 정보가 부정확할 경우 대비)
+					if (initialUseThink) {
+						strategies.push({ useTools: initialUseTools, useThink: false, label: 'fallback (think 비활성화)' });
+					}
+					if (initialUseTools) {
+						strategies.push({ useTools: false, useThink: false, label: 'fallback (tools+think 비활성화)' });
+					}
+					// 최종 fallback: 모두 비활성화
+					if (!strategies.some(s => !s.useTools && !s.useThink)) {
+						strategies.push({ useTools: false, useThink: false, label: 'fallback (기본)' });
+					}
 
 					for (let i = 0; i < strategies.length; i++) {
 						const { useTools, useThink, label } = strategies[i];
 
+						logService.info(`[debug:#77] 전략 시도: ${label} (useTools=${useTools}, useThink=${useThink})`);
 						hasToolCalls = false;
 
 						try {

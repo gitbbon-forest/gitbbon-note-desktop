@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import { type ModelMessage } from 'ai';
 import { AIService } from './services/aiService';
 import { logService } from './services/logService';
-import { ollamaService, MODEL_SIZES_GB, type RecommendedModel } from './services/ollamaService';
+import { ollamaService, MODEL_SIZES_GB, type RecommendedModel, type ModelWithCapabilities } from './services/ollamaService';
 
 class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = 'gitbbon.chat';
@@ -18,6 +18,8 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 	private _pendingText?: string;
 	// gitbbon custom: Issue #69 - 모델 다운로드 진행률 상태표시줄 아이템
 	private _pullStatusBarItem?: vscode.StatusBarItem;
+	// Issue #77: 모델별 capabilities 캐시
+	private _modelCapabilities: Record<string, { thinking: boolean; tools: boolean; completion: boolean }> = {};
 
 	constructor(private readonly _context: vscode.ExtensionContext) {
 		this.aiService = new AIService(_context.secrets);
@@ -66,8 +68,11 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 		webviewView.webview.onDidReceiveMessage(async (message) => {
 			if (message.type === 'chat-request') {
 				// gitbbon custom: UI 선택 모델 추출
+				// Issue #77: capabilities 기반으로 streamText 옵션 자동 결정
 				const { messages: chatMessages, selectedModel } = message;
-				await this._handleChatMessage(chatMessages, selectedModel);
+				const modelCaps = selectedModel ? this._modelCapabilities[selectedModel] : undefined;
+				logService.info(`[debug:#77] chat-request: model=${selectedModel}, capabilities=${JSON.stringify(modelCaps)}`);
+				await this._handleChatMessage(chatMessages, selectedModel, modelCaps);
 			} else if (message.type === 'chat-cancel') {
 				this.aiService.cancelCurrentStream();
 				webviewView.webview.postMessage({ type: 'chat-done' });
@@ -76,8 +81,16 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 				await this._handleSelectBackend(webviewView, message.backend as 'api' | 'ollama');
 			} else if (message.type === 'get-ollama-models') {
 				// gitbbon custom: 웹뷰에서 ollama 설치 모델 목록 요청
-				const models = await ollamaService.getInstalledModels();
-				webviewView.webview.postMessage({ type: 'ollama-models', models });
+				// Issue #77: capabilities 포함하여 전달
+				const modelsWithCaps = await ollamaService.getInstalledModelsWithCapabilities();
+				const models = modelsWithCaps.map(m => m.name);
+				const capabilities: Record<string, { thinking: boolean; tools: boolean; completion: boolean }> = {};
+				for (const m of modelsWithCaps) {
+					capabilities[m.name] = m.capabilities;
+				}
+				this._modelCapabilities = { ...this._modelCapabilities, ...capabilities };
+				logService.info(`[debug:#77] get-ollama-models: capabilities 전달 ${JSON.stringify(capabilities)}`);
+				webviewView.webview.postMessage({ type: 'ollama-models', models, capabilities });
 			} else if (message.type === 'setup-ollama') {
 				await setupOllama(this.aiService, webviewView);
 			} else if (message.type === 'save-selected-model') {
@@ -129,9 +142,16 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 					const updatedModels = await ollamaService.getRecommendedModels();
 					const freeDiskGB = await ollamaService.getFreeDiskGB();
 					webviewView.webview.postMessage({ type: 'recommended-models', models: updatedModels, freeDiskGB });
-					// 설치된 모델 목록도 갱신
-					const installedModels = await ollamaService.getInstalledModels();
-					webviewView.webview.postMessage({ type: 'ollama-models', models: installedModels });
+					// Issue #77: 설치된 모델 목록도 capabilities 포함하여 갱신
+					const installedModelsWithCaps = await ollamaService.getInstalledModelsWithCapabilities();
+					const installedModels = installedModelsWithCaps.map(m => m.name);
+					const installedCaps: Record<string, { thinking: boolean; tools: boolean; completion: boolean }> = {};
+					for (const m of installedModelsWithCaps) {
+						installedCaps[m.name] = m.capabilities;
+					}
+					this._modelCapabilities = { ...this._modelCapabilities, ...installedCaps };
+					logService.info(`[debug:#77] pull 완료 후 capabilities 갱신 ${JSON.stringify(installedCaps)}`);
+					webviewView.webview.postMessage({ type: 'ollama-models', models: installedModels, capabilities: installedCaps });
 				} catch (err) {
 					logService.error(`[debug:#69] pull-ollama-model 실패: ${modelName}`, err);
 					webviewView.webview.postMessage({ type: 'model-pull-progress', model: modelName, progress: 0, status: 'error' });
@@ -157,8 +177,16 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 			const savedBackend = await this.aiService.getBackend();
 			webviewView.webview.postMessage({ type: 'backend-changed', backend: savedBackend });
 			if (savedBackend === 'ollama') {
-				const models = await ollamaService.getInstalledModels();
-				webviewView.webview.postMessage({ type: 'ollama-models', models });
+				// Issue #77: capabilities 포함하여 전달
+				const modelsWithCaps = await ollamaService.getInstalledModelsWithCapabilities();
+				const models = modelsWithCaps.map(m => m.name);
+				const capabilities: Record<string, { thinking: boolean; tools: boolean; completion: boolean }> = {};
+				for (const m of modelsWithCaps) {
+					capabilities[m.name] = m.capabilities;
+				}
+				this._modelCapabilities = { ...this._modelCapabilities, ...capabilities };
+				logService.info(`[debug:#77] webview-ready: capabilities 전달 ${JSON.stringify(capabilities)}`);
+				webviewView.webview.postMessage({ type: 'ollama-models', models, capabilities });
 				// gitbbon custom: Issue #68 - 추천 모델 리스트도 함께 전송
 				const recommendedModels = await ollamaService.getRecommendedModels();
 				const freeDiskGB = await ollamaService.getFreeDiskGB();
@@ -188,9 +216,16 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 
 		if (backend === 'ollama') {
 			await setupOllama(this.aiService, webviewView);
-			// ollama 모델 목록도 함께 전송
-			const models = await ollamaService.getInstalledModels();
-			webviewView.webview.postMessage({ type: 'ollama-models', models });
+			// Issue #77: capabilities 포함하여 ollama 모델 목록 전송
+			const modelsWithCaps = await ollamaService.getInstalledModelsWithCapabilities();
+			const models = modelsWithCaps.map(m => m.name);
+			const capabilities: Record<string, { thinking: boolean; tools: boolean; completion: boolean }> = {};
+			for (const m of modelsWithCaps) {
+				capabilities[m.name] = m.capabilities;
+			}
+			this._modelCapabilities = { ...this._modelCapabilities, ...capabilities };
+			logService.info(`[debug:#77] _handleSelectBackend: capabilities 전달 ${JSON.stringify(capabilities)}`);
+			webviewView.webview.postMessage({ type: 'ollama-models', models, capabilities });
 			// gitbbon custom: Issue #68 - 추천 모델 리스트도 함께 전송
 			const recommendedModels = await ollamaService.getRecommendedModels();
 			const freeDiskGB = await ollamaService.getFreeDiskGB();
@@ -198,7 +233,7 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
-	private async _handleChatMessage(messages: ModelMessage[], selectedModel?: string): Promise<void> {
+	private async _handleChatMessage(messages: ModelMessage[], selectedModel?: string, modelCapabilities?: { thinking: boolean; tools: boolean; completion: boolean }): Promise<void> {
 		if (!this._webviewView) {
 			return;
 		}
@@ -222,7 +257,8 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 
 		try {
 			// gitbbon custom: UI 선택 모델을 aiService에 전달
-			const stream = this.aiService.streamAgentChat(messages, selectedModel);
+			// Issue #77: capabilities 정보도 함께 전달
+			const stream = this.aiService.streamAgentChat(messages, selectedModel, modelCapabilities);
 
 			for await (const event of stream) {
 				switch (event.type) {

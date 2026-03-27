@@ -25,6 +25,26 @@ export interface RecommendedModel {
   description: string;
 }
 
+// Issue #77: 모델 capabilities 인터페이스
+export interface ModelCapabilities {
+  thinking: boolean;
+  tools: boolean;
+  completion: boolean;
+}
+
+// Issue #77: capabilities 포함 모델 정보 인터페이스
+export interface ModelWithCapabilities {
+  name: string;
+  capabilities: ModelCapabilities;
+}
+
+// Issue #77: capabilities 기본값 (capabilities 필드가 없는 경우)
+const DEFAULT_CAPABILITIES: ModelCapabilities = {
+  thinking: false,
+  tools: false,
+  completion: true,
+};
+
 interface Message {
   role: string;
   content: string;
@@ -209,6 +229,78 @@ export class OllamaService {
     }
 
     return recommended;
+  }
+
+  // Issue #77: /api/show 엔드포인트로 모델 capabilities 조회
+  async getModelCapabilities(modelName: string): Promise<ModelCapabilities> {
+    return new Promise((resolve) => {
+      const body = JSON.stringify({ name: modelName });
+      const options: http.RequestOptions = {
+        hostname: 'localhost',
+        port: 11434,
+        path: '/api/show',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      };
+
+      const req = http.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            const caps: string[] = json.capabilities || [];
+            const result: ModelCapabilities = {
+              thinking: caps.includes('thinking'),
+              tools: caps.includes('tools'),
+              completion: caps.includes('completion'),
+            };
+            logService.info(`[debug:#77] getModelCapabilities: ${modelName} → thinking=${result.thinking}, tools=${result.tools}, completion=${result.completion}`);
+            resolve(result);
+          } catch (err) {
+            logService.warn(`[debug:#77] getModelCapabilities: ${modelName} 파싱 실패, 기본값 사용`, err);
+            resolve({ ...DEFAULT_CAPABILITIES });
+          }
+        });
+      });
+
+      req.on('error', (err) => {
+        logService.warn(`[debug:#77] getModelCapabilities: ${modelName} 요청 실패, 기본값 사용`, err);
+        resolve({ ...DEFAULT_CAPABILITIES });
+      });
+
+      req.setTimeout(5000, () => {
+        logService.warn(`[debug:#77] getModelCapabilities: ${modelName} 타임아웃, 기본값 사용`);
+        req.destroy();
+        resolve({ ...DEFAULT_CAPABILITIES });
+      });
+
+      req.write(body);
+      req.end();
+    });
+  }
+
+  // Issue #77: 설치된 모델 목록에 capabilities를 병렬로 조회하여 반환
+  async getInstalledModelsWithCapabilities(): Promise<ModelWithCapabilities[]> {
+    const models = await this.getInstalledModels();
+    if (models.length === 0) {
+      logService.info('[debug:#77] getInstalledModelsWithCapabilities: 설치된 모델 없음');
+      return [];
+    }
+
+    logService.info(`[debug:#77] getInstalledModelsWithCapabilities: ${models.length}개 모델 capabilities 병렬 조회 시작`);
+    const results = await Promise.all(
+      models.map(async (name) => {
+        const capabilities = await this.getModelCapabilities(name);
+        return { name, capabilities };
+      })
+    );
+
+    logService.info(`[debug:#77] getInstalledModelsWithCapabilities: 조회 완료 [${results.map(r => `${r.name}(t:${r.capabilities.thinking},tools:${r.capabilities.tools})`).join(', ')}]`);
+    return results;
   }
 
   async getInstalledModels(): Promise<string[]> {
