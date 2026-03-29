@@ -235,6 +235,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 			try {
 				const result = await projectManager.addNewProject(projectName);
+
+				// gitbbon custom: 프로젝트 생성 완료 후 해당 프로젝트를 자동으로 열기 (Issue #82)
+				if (result.success && result.projectPath) {
+					const uri = vscode.Uri.file(result.projectPath);
+					await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+				}
+
 				return result;
 			} catch (error) {
 				logService.error('Add project failed:', error);
