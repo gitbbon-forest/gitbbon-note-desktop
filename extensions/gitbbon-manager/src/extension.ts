@@ -240,7 +240,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				if (result.success && result.projectPath) {
 					logService.info(`[debug:#82] 프로젝트 생성 완료. 자동으로 열기: ${result.projectPath}`);
 					const uri = vscode.Uri.file(result.projectPath);
-					await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: false });
+					await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
 				}
 
 				return result;
