@@ -872,21 +872,24 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			if (!e.focused) {
 				return;
 			}
-			if (!webviewPanel.active) {
+			// gitbbon custom: active 대신 visible 사용 - 창 전환 시 webview가 visible이지만 active가 아닐 수 있음
+			if (!webviewPanel.visible) {
 				return;
 			}
 			if (document.uri.scheme !== 'file') {
 				return;
 			}
-			logService.info(`[debug:#84] onDidChangeWindowState focused=true, 디스크 파일 확인`);
+			logService.info(`[debug:#84] onDidChangeWindowState focused=true active=${webviewPanel.active} visible=${webviewPanel.visible}`);
 			try {
 				const contentUint8 = await vscode.workspace.fs.readFile(document.uri);
 				const diskText = new TextDecoder().decode(contentUint8);
+				logService.info(`[debug:#84] diskText.length=${diskText.length} lastWebviewText.length=${lastWebviewText.length} same=${diskText === lastWebviewText}`);
 				if (diskText !== lastWebviewText) {
 					logService.info(`[debug:#84] 외부 변경 감지 - webview 업데이트 전송`);
 					lastWebviewText = diskText;
 					const { frontmatter, content } = FrontmatterParser.parse(diskText);
-					webviewPanel.webview.postMessage({ type: 'update', frontmatter, content });
+					const result = await webviewPanel.webview.postMessage({ type: 'update', frontmatter, content });
+					logService.info(`[debug:#84] postMessage 결과: ${result}`);
 				}
 			} catch (error) {
 				logService.error('[debug:#84] onDidChangeWindowState 파일 읽기 실패:', error);
