@@ -792,6 +792,8 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 				}
 				lastWebviewText = currentText;
 
+				logService.info(`[debug:#84] onDidChangeTextDocument 감지: ${document.uri.fsPath}`);
+
 				const { frontmatter, content } = FrontmatterParser.parse(currentText);
 				webviewPanel.webview.postMessage({
 					type: 'update',
@@ -801,9 +803,72 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			}
 		});
 
+		// gitbbon custom: 외부 파일 변경 감지 - FileSystemWatcher로 디스크 레벨 변경 감지
+		// onDidChangeTextDocument는 VS Code가 이미 열어둔 문서의 메모리 내 변경만 감지하므로,
+		// claude code 등 외부 도구가 파일을 직접 수정하면 감지 못하는 경우가 있음.
+		// FileSystemWatcher를 추가하여 디스크 레벨의 파일 변경을 직접 감지함.
+		let fileWatcher: vscode.FileSystemWatcher | undefined;
+		if (document.uri.scheme === 'file') {
+			// gitbbon custom: 파일 자체의 절대 경로로 watcher 생성
+			const dirUri = vscode.Uri.file(path.dirname(document.uri.fsPath));
+			const fileName = path.basename(document.uri.fsPath);
+			fileWatcher = vscode.workspace.createFileSystemWatcher(
+				new vscode.RelativePattern(dirUri, fileName)
+			);
+
+			fileWatcher.onDidChange(async (uri) => {
+				if (uri.toString() !== document.uri.toString()) {
+					return;
+				}
+				if (isWebviewUpdating) {
+					logService.info(`[debug:#84] FileSystemWatcher: webview 업데이트 중이므로 무시`);
+					return;
+				}
+
+				logService.info(`[debug:#84] FileSystemWatcher 파일 변경 감지: ${uri.fsPath}`);
+
+				try {
+					// 파일을 다시 읽어서 최신 내용 가져오기
+					const contentUint8 = await vscode.workspace.fs.readFile(uri);
+					const diskText = new TextDecoder().decode(contentUint8);
+
+					// 현재 document 내용과 비교 (document가 이미 업데이트되었을 수 있음)
+					const docText = document.getText();
+
+					// 디스크 내용과 lastWebviewText가 다를 때만 업데이트 전송
+					if (diskText === lastWebviewText) {
+						logService.info(`[debug:#84] FileSystemWatcher: 내용 동일 - 업데이트 불필요`);
+						return;
+					}
+
+					// document 내용도 이미 최신이면 lastWebviewText만 업데이트
+					if (docText === diskText) {
+						// onDidChangeTextDocument가 이미 처리했을 수 있으니 lastWebviewText 확인
+						if (lastWebviewText === diskText) {
+							return;
+						}
+					}
+
+					logService.info(`[debug:#84] FileSystemWatcher: 외부 변경 감지 - webview 업데이트 전송`);
+					lastWebviewText = diskText;
+
+					const { frontmatter, content } = FrontmatterParser.parse(diskText);
+					webviewPanel.webview.postMessage({
+						type: 'update',
+						frontmatter,
+						content
+					});
+				} catch (error) {
+					logService.error('[debug:#84] FileSystemWatcher 파일 읽기 실패:', error);
+				}
+			});
+		}
+
 		// Cleanup
 		webviewPanel.onDidDispose(() => {
 			changeDocumentSubscription.dispose();
+			// gitbbon custom: FileSystemWatcher 정리 (외부 파일 변경 감지용)
+			fileWatcher?.dispose();
 			if (autoSaveTimer) {
 				clearTimeout(autoSaveTimer);
 			}
