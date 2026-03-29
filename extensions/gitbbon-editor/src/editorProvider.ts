@@ -478,35 +478,10 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		GitbbonEditorProvider.activeDocument = document;
 
 		// 패널 활성 상태 변경 감지
-		// gitbbon custom: 패널이 활성화될 때 디스크에서 파일을 직접 읽어 외부 변경 감지
-		// onDidChangeTextDocument와 FileSystemWatcher는 CustomTextEditor에서
-		// 외부 도구(claude code 등)의 변경을 자동으로 감지하지 못하는 경우가 있음.
-		// 패널 포커스 시 디스크에서 직접 읽어 최신 내용을 webview에 반영.
-		webviewPanel.onDidChangeViewState(async (e) => {
+		webviewPanel.onDidChangeViewState((e) => {
 			if (e.webviewPanel.active) {
 				GitbbonEditorProvider.activeWebviewPanel = webviewPanel;
 				GitbbonEditorProvider.activeDocument = document;
-
-				// gitbbon custom: 포커스 시 디스크 파일과 webview 내용 비교 후 갱신
-				if (document.uri.scheme === 'file') {
-					try {
-						const contentUint8 = await vscode.workspace.fs.readFile(document.uri);
-						const diskText = new TextDecoder().decode(contentUint8);
-						logService.info(`[debug:#84] onDidChangeViewState: diskText.length=${diskText.length}, lastWebviewText.length=${lastWebviewText.length}`);
-						if (diskText !== lastWebviewText) {
-							logService.info(`[debug:#84] onDidChangeViewState: 외부 변경 감지 - webview 업데이트 전송`);
-							lastWebviewText = diskText;
-							const { frontmatter, content } = FrontmatterParser.parse(diskText);
-							webviewPanel.webview.postMessage({
-								type: 'update',
-								frontmatter,
-								content
-							});
-						}
-					} catch (error) {
-						logService.error('[debug:#84] onDidChangeViewState 파일 읽기 실패:', error);
-					}
-				}
 			}
 		});
 
@@ -889,11 +864,42 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			});
 		}
 
+		// gitbbon custom: VS Code 창 포커스 복귀 시 디스크에서 직접 읽어 외부 변경 감지
+		// onDidChangeTextDocument와 FileSystemWatcher는 CustomTextEditor에서
+		// 외부 도구(claude code 등)의 변경을 자동으로 감지하지 못함.
+		// onDidChangeWindowState는 OS 창 전환 시에도 발생하여 이 문제를 해결함.
+		const windowFocusSubscription = vscode.window.onDidChangeWindowState(async (e) => {
+			if (!e.focused) {
+				return;
+			}
+			if (!webviewPanel.active) {
+				return;
+			}
+			if (document.uri.scheme !== 'file') {
+				return;
+			}
+			logService.info(`[debug:#84] onDidChangeWindowState focused=true, 디스크 파일 확인`);
+			try {
+				const contentUint8 = await vscode.workspace.fs.readFile(document.uri);
+				const diskText = new TextDecoder().decode(contentUint8);
+				if (diskText !== lastWebviewText) {
+					logService.info(`[debug:#84] 외부 변경 감지 - webview 업데이트 전송`);
+					lastWebviewText = diskText;
+					const { frontmatter, content } = FrontmatterParser.parse(diskText);
+					webviewPanel.webview.postMessage({ type: 'update', frontmatter, content });
+				}
+			} catch (error) {
+				logService.error('[debug:#84] onDidChangeWindowState 파일 읽기 실패:', error);
+			}
+		});
+
 		// Cleanup
 		webviewPanel.onDidDispose(() => {
 			changeDocumentSubscription.dispose();
 			// gitbbon custom: FileSystemWatcher 정리 (외부 파일 변경 감지용)
 			fileWatcher?.dispose();
+			// gitbbon custom: 창 포커스 구독 정리 (외부 파일 변경 감지용)
+			windowFocusSubscription.dispose();
 			if (autoSaveTimer) {
 				clearTimeout(autoSaveTimer);
 			}
