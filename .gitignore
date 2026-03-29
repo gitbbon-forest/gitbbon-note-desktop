@@ -28,3 +28,4 @@ vscode-telemetry-docs/
 .aider*
 .env
 .vercel
+.vscode/

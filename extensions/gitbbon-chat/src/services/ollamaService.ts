@@ -61,6 +61,10 @@ export const MODEL_SIZES_GB: Record<string, number> = {
   'mistral:7b':   4.1,
   'qwen2.5:7b':   4.7,
   'qwen2.5:3b':   2.0,
+  'qwen3:4b':     2.6,
+  'qwen3:8b':     5.2,
+  'qwen3:14b':    9.3,
+  'qwen3:32b':    20.0,
 };
 
 // 추천 모델별 설명
@@ -74,6 +78,10 @@ export const MODEL_DESCRIPTIONS: Record<string, string> = {
   'mistral:7b':   'Mistral 범용 모델 (16GB+ RAM 권장)',
   'qwen2.5:7b':   'Alibaba 고성능 모델 (16GB+ RAM 권장)',
   'qwen2.5:3b':   'Alibaba 경량 모델 (8GB+ RAM)',
+  'qwen3:4b':     'Qwen3 경량 모델 (8GB+ RAM)',
+  'qwen3:8b':     'Qwen3 범용 모델 (16GB+ RAM 권장)',
+  'qwen3:14b':    'Qwen3 고성능 모델 (32GB+ RAM 권장)',
+  'qwen3:32b':    'Qwen3 대형 모델 (64GB+ RAM 권장)',
 };
 
 export class OllamaService {
@@ -204,24 +212,24 @@ export class OllamaService {
    * 추천 모델 리스트를 반환 (설치 여부 포함)
    */
   async getRecommendedModels(): Promise<RecommendedModel[]> {
-    const installed = await this.getInstalledModels();
+    const installedWithSize = await this.getInstalledModelsWithSize();
     // 설치된 모델명에서 :latest 태그 제거하여 비교 용이하게
-    const installedSet = new Set(installed.map(m => m.replace(':latest', '')));
+    const installedMap = new Map(installedWithSize.map(m => [m.name.replace(':latest', ''), m.sizeGB]));
 
     const recommended: RecommendedModel[] = Object.entries(MODEL_SIZES_GB).map(([name, sizeGB]) => ({
       name,
-      sizeGB,
-      installed: installedSet.has(name) || installedSet.has(name.split(':')[0]),
+      // 실제 설치된 경우 Ollama API의 실제 크기를 우선 사용
+      sizeGB: installedMap.get(name) ?? installedMap.get(name.split(':')[0]) ?? sizeGB,
+      installed: installedMap.has(name) || installedMap.has(name.split(':')[0]),
       description: MODEL_DESCRIPTIONS[name] || '',
     }));
 
-    // 설치된 모델 중 추천 목록에 없는 것도 추가
-    for (const m of installed) {
-      const normalizedName = m.replace(':latest', '');
+    // 설치된 모델 중 추천 목록에 없는 것도 추가 (실제 크기 포함)
+    for (const [normalizedName, sizeGB] of installedMap) {
       if (!MODEL_SIZES_GB[normalizedName]) {
         recommended.push({
           name: normalizedName,
-          sizeGB: 0,
+          sizeGB,
           installed: true,
           description: '사용자 설치 모델',
         });
@@ -299,6 +307,12 @@ export class OllamaService {
   }
 
   async getInstalledModels(): Promise<string[]> {
+    const models = await this.getInstalledModelsWithSize();
+    return models.map(m => m.name);
+  }
+
+  // Ollama /api/tags에서 모델명과 실제 디스크 크기(GB)를 함께 반환
+  private async getInstalledModelsWithSize(): Promise<{ name: string; sizeGB: number }[]> {
     return new Promise((resolve) => {
       http.get(`${this.baseUrl}/api/tags`, (res) => {
         let data = '';
@@ -306,8 +320,11 @@ export class OllamaService {
         res.on('end', () => {
           try {
             const json = JSON.parse(data);
-            const models = (json.models || []).map((m: any) => m.name as string);
-            logService.info(`[ollamaService] getInstalledModels: [${models.join(', ')}]`);
+            const models = (json.models || []).map((m: any) => ({
+              name: m.name as string,
+              sizeGB: m.size ? Math.round((m.size / 1e9) * 10) / 10 : 0,
+            }));
+            logService.info(`[ollamaService] getInstalledModels: [${models.map((m: { name: string }) => m.name).join(', ')}]`);
             resolve(models);
           } catch {
             logService.warn('[ollamaService] getInstalledModels: parse error, returning []');
@@ -334,6 +351,44 @@ export class OllamaService {
       logService.warn('[ollamaService] getFreeDiskGB: failed to detect', err);
       return Infinity;
     }
+  }
+
+  // Issue #79: DELETE /api/delete 엔드포인트로 모델 삭제
+  async deleteModel(modelName: string): Promise<void> {
+    logService.info(`[debug:#79] 모델 삭제 요청: ${modelName}`);
+    return new Promise((resolve, reject) => {
+      const body = JSON.stringify({ name: modelName });
+      const options: http.RequestOptions = {
+        hostname: 'localhost',
+        port: 11434,
+        path: '/api/delete',
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      };
+
+      const req = http.request(options, (res) => {
+        res.resume();
+        if (res.statusCode === 200) {
+          logService.info(`[debug:#79] 모델 삭제 완료: ${modelName}`);
+          resolve();
+        } else {
+          const err = new Error(`DELETE /api/delete 실패: status=${res.statusCode}`);
+          logService.error(`[debug:#79] 모델 삭제 실패: ${modelName}`, err);
+          reject(err);
+        }
+      });
+
+      req.on('error', (err) => {
+        logService.error(`[debug:#79] 모델 삭제 요청 오류: ${modelName}`, err);
+        reject(err);
+      });
+
+      req.write(body);
+      req.end();
+    });
   }
 
   async pullModel(model: string, onProgress: (pct: number) => void): Promise<void> {

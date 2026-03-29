@@ -21,6 +21,8 @@ interface ChatInputProps {
 	modelPullStatus?: ModelPullStatus | null;
 	// Issue #77: 모델별 capabilities
 	modelCapabilities?: Record<string, ModelCapabilities>;
+	// Issue #79: 모델 관리 모달 열기 콜백
+	onOpenModelManage?: () => void;
 }
 
 // 화살표 전송 아이콘 SVG
@@ -52,7 +54,7 @@ const StopIcon = () => (
 	</svg>
 );
 
-const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSending, isReceiving, onSubmit, onCancel, inputRef, onCompositionChange, modelType, setModelType, selectedModel, setSelectedModel, ollamaModels, recommendedModels, modelPullStatus, modelCapabilities }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSending, isReceiving, onSubmit, onCancel, inputRef, onCompositionChange, modelType, setModelType, selectedModel, setSelectedModel, ollamaModels, recommendedModels, modelPullStatus, modelCapabilities, onOpenModelManage }) => {
 	const internalRef = useRef<HTMLTextAreaElement>(null);
 	const textareaRef = inputRef || internalRef;
 	const isLoading = isSending || isReceiving;
@@ -185,6 +187,19 @@ const ChatInput: React.FC<ChatInputProps> = ({ inputValue, setInputValue, isSend
 								<option value="">기본 모델</option>
 							)}
 						</select>
+						{/* Issue #79: 온디바이스 모드에서 모델 관리 버튼 */}
+						{modelType === 'ondevice' && onOpenModelManage && (
+							<button
+								type="button"
+								className="model-manage-btn"
+								onClick={onOpenModelManage}
+								disabled={isLoading}
+								title="모델 관리"
+								aria-label="모델 관리"
+							>
+								⚙
+							</button>
+						)}
 					</div>
 					{isLoading ? (
 						<button

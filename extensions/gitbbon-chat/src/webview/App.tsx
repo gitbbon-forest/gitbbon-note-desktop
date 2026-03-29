@@ -36,6 +36,13 @@ export interface ModelPullStatus {
 	status: 'pulling' | 'done' | 'error';
 }
 
+// Issue #79: 모델 삭제 진행 상태
+export interface ModelDeleteStatus {
+	model: string;
+	status: 'deleting' | 'done' | 'error';
+	message?: string;
+}
+
 // ollama 모델명 폴백 목록 (설치된 모델 없을 때 사용)
 const FALLBACK_OLLAMA_MODELS = ['llama3.1:8b', 'llama3.2:3b', 'llama3.2:1b', 'gemma2:2b', 'gemma2:9b', 'phi3:mini', 'mistral:7b', 'qwen2.5:7b', 'qwen2.5:3b'];
 
@@ -57,6 +64,10 @@ const App: React.FC = () => {
 	// Issue #77: 모델별 capabilities 상태
 	const [modelCapabilities, setModelCapabilities] = useState<Record<string, ModelCapabilities>>({});
 	const [downloadConfirm, setDownloadConfirm] = useState<RecommendedModel | null>(null);
+	// Issue #79: 모델 관리 모달 상태
+	const [modelManageOpen, setModelManageOpen] = useState(false);
+	const [modelDeleteStatus, setModelDeleteStatus] = useState<ModelDeleteStatus | null>(null);
+	const [deleteConfirmModel, setDeleteConfirmModel] = useState<RecommendedModel | null>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const currentAssistantContentRef = useRef(''); // 스트리밍 콘텐츠 추적용
 	const currentReasoningContentRef = useRef(''); // Issue #64: reasoning 콘텐츠 추적용
@@ -206,6 +217,24 @@ const App: React.FC = () => {
 	const handleCancelDownload = useCallback(() => {
 		setDownloadConfirm(null);
 	}, []);
+
+	// Issue #79: 모델 삭제 요청
+	const handleDeleteModel = useCallback((model: RecommendedModel) => {
+		setDeleteConfirmModel(model);
+	}, []);
+
+	// Issue #79: 삭제 확인 다이얼로그 취소
+	const handleCancelDelete = useCallback(() => {
+		setDeleteConfirmModel(null);
+	}, []);
+
+	// Issue #79: 삭제 확인 후 실제 삭제 요청 전송
+	const handleConfirmDelete = useCallback(() => {
+		if (!deleteConfirmModel) return;
+		const modelName = deleteConfirmModel.name;
+		setDeleteConfirmModel(null);
+		vscode.postMessage({ type: 'delete-ollama-model', model: modelName });
+	}, [deleteConfirmModel]);
 
 	// 새 대화 시작
 	const handleNewChat = useCallback(() => {
@@ -395,7 +424,31 @@ const App: React.FC = () => {
 					}
 					break;
 
-				// gitbbon custom: Issue #68 - 모델 다운로드 진행 상태 수신
+				// Issue #79: 모델 삭제 진행 상태 수신
+				case 'model-delete-progress': {
+					const deleteStatus: ModelDeleteStatus = {
+						model: message.model,
+						status: message.status,
+						message: message.message,
+					};
+					if (deleteStatus.status === 'done') {
+						setModelDeleteStatus(null);
+						// 삭제 완료 시 현재 선택 모델이 삭제된 모델이면 초기화
+						setSelectedModel((prev: string) => {
+							if (prev === deleteStatus.model || prev === `${deleteStatus.model}:latest`) {
+								return '';
+							}
+							return prev;
+						});
+					} else if (deleteStatus.status === 'error') {
+						setModelDeleteStatus(null);
+					} else {
+						setModelDeleteStatus(deleteStatus);
+					}
+					break;
+				}
+
+			// gitbbon custom: Issue #68 - 모델 다운로드 진행 상태 수신
 				case 'model-pull-progress': {
 					const pullStatus: ModelPullStatus = {
 						model: message.model,
@@ -493,6 +546,57 @@ const App: React.FC = () => {
 					</div>
 				</div>
 			)}
+			{/* Issue #79: 모델 관리 모달 */}
+			{modelManageOpen && (
+				<div className="model-manage-modal" onClick={() => setModelManageOpen(false)}>
+					<div className="model-manage-modal-content" onClick={(e) => e.stopPropagation()}>
+						<div className="model-manage-modal-header">
+							<span className="model-manage-modal-title">모델 관리</span>
+							<button className="model-manage-modal-close" onClick={() => setModelManageOpen(false)} aria-label="닫기">✕</button>
+						</div>
+						{freeDiskGB !== Infinity && (
+							<p className="model-manage-disk-info">사용 가능한 디스크: {freeDiskGB.toFixed(1)}GB</p>
+						)}
+						<p className="model-manage-section-label">설치된 모델</p>
+						{recommendedModels.filter(m => m.installed).length === 0 ? (
+							<p className="model-manage-empty">설치된 모델이 없습니다.</p>
+						) : (
+							<ul className="model-manage-list">
+								{recommendedModels.filter(m => m.installed).map((m) => (
+									<li key={m.name} className="model-manage-item">
+										<span className="model-manage-item-name">{m.name}</span>
+										<span className="model-manage-item-size">{m.sizeGB > 0 ? `${m.sizeGB.toFixed(1)}GB` : '-'}</span>
+										<button
+											className="model-manage-delete-btn"
+											onClick={() => handleDeleteModel(m)}
+											disabled={isReceiving || modelDeleteStatus?.status === 'deleting'}
+											title="모델 삭제"
+										>
+											{modelDeleteStatus?.model === m.name && modelDeleteStatus.status === 'deleting' ? '삭제 중...' : '삭제'}
+										</button>
+									</li>
+								))}
+							</ul>
+						)}
+					</div>
+				</div>
+			)}
+			{/* Issue #79: 모델 삭제 확인 다이얼로그 */}
+			{deleteConfirmModel && (
+				<div className="model-download-confirm">
+					<div className="model-download-confirm-content">
+						<p className="model-download-confirm-title">모델 삭제</p>
+						<p className="model-download-confirm-info">
+							<strong>{deleteConfirmModel.name}</strong>를 삭제합니다.<br />
+							다시 사용하려면 {deleteConfirmModel.sizeGB > 0 ? `${deleteConfirmModel.sizeGB.toFixed(1)}GB` : ''}를 재다운로드해야 합니다.
+						</p>
+						<div className="model-download-confirm-actions">
+							<button className="model-download-btn-cancel" onClick={handleCancelDelete}>취소</button>
+							<button className="model-delete-btn-confirm" onClick={handleConfirmDelete}>삭제</button>
+						</div>
+					</div>
+				</div>
+			)}
 			{/* Issue #70: isReceiving를 전달하여 reasoning 스트리밍 중 기본 열림 판별 */}
 			<MessageList messages={messages} isLoading={isSending || isReceiving} isReceiving={isReceiving} onRetry={handleRetry} />
 			<ChatInput
@@ -511,6 +615,7 @@ const App: React.FC = () => {
 				recommendedModels={recommendedModels}
 				modelPullStatus={modelPullStatus}
 				modelCapabilities={modelCapabilities}
+				onOpenModelManage={() => setModelManageOpen(true)}
 			/>
 		</div>
 	);
