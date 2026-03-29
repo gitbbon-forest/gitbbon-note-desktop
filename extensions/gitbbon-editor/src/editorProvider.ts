@@ -885,11 +885,13 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 				const diskText = new TextDecoder().decode(contentUint8);
 				logService.info(`[debug:#84] diskText.length=${diskText.length} lastWebviewText.length=${lastWebviewText.length} same=${diskText === lastWebviewText}`);
 				if (diskText !== lastWebviewText) {
-					logService.info(`[debug:#84] 외부 변경 감지 - webview 업데이트 전송`);
-					lastWebviewText = diskText;
-					const { frontmatter, content } = FrontmatterParser.parse(diskText);
-					const result = await webviewPanel.webview.postMessage({ type: 'update', frontmatter, content });
-					logService.info(`[debug:#84] postMessage 결과: ${result}`);
+					logService.info(`[debug:#84] 외부 변경 감지 - revertFile로 TextDocument 동기화`);
+					// gitbbon custom: postMessage만으로는 VS Code TextDocument(메모리)가 구버전으로 남아
+					// auto-save 시 "file is newer" 충돌이 발생함.
+					// revertFile로 TextDocument를 디스크와 동기화하면 onDidChangeTextDocument가 발생하고,
+					// 해당 핸들러에서 webview를 업데이트함.
+					await vscode.commands.executeCommand('workbench.action.revertFile');
+					logService.info(`[debug:#84] revertFile 완료`);
 				}
 			} catch (error) {
 				logService.error('[debug:#84] onDidChangeWindowState 파일 읽기 실패:', error);
