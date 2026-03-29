@@ -6,6 +6,8 @@
 
 import 'source-map-support/register';
 import * as vscode from 'vscode';
+import * as path from 'path';
+import * as fs from 'fs';
 import { type ModelMessage } from 'ai';
 import { AIService } from './services/aiService';
 import { logService } from './services/logService';
@@ -552,7 +554,166 @@ export function activate(context: vscode.ExtensionContext): void {
 	logService.info('[debug:#90] 초기 컨텍스트 갱신 실행');
 	updateContext();
 
+	// gitbbon custom: Issue #90 - 워크스페이스 오픈 시 에이전트별 MCP 설정 파일 자동 생성
+	setupMcpConfigFiles(context).catch(e =>
+		logService.warn('[debug:#90] setupMcpConfigFiles 오류:', e)
+	);
+
 	logService.info('Activated');
+}
+
+// ─── MCP 설정 파일 자동 생성 ────────────────────────────────────────────────────
+// gitbbon custom: Issue #90 - 워크스페이스를 열 때 각 에이전트가 gitbbon MCP 서버를 인식할 수 있도록
+//   에이전트별 설정 파일을 자동으로 생성한다.
+async function setupMcpConfigFiles(context: vscode.ExtensionContext): Promise<void> {
+	const workspaceFolders = vscode.workspace.workspaceFolders;
+	if (!workspaceFolders || workspaceFolders.length === 0) {
+		logService.info('[debug:#90] setupMcpConfigFiles: 워크스페이스 없음, 스킵');
+		return;
+	}
+
+	const wsRoot = workspaceFolders[0].uri.fsPath;
+	logService.info(`[debug:#90] setupMcpConfigFiles: 워크스페이스 루트=${wsRoot}`);
+
+	// 1. MCP 서버 스크립트를 .gitbbon/mcp-server/index.js 에 복사
+	const mcpServerSrc = path.join(context.extensionPath, 'mcp-server', 'index.js');
+	const mcpServerDir = path.join(wsRoot, '.gitbbon', 'mcp-server');
+	const mcpServerDest = path.join(mcpServerDir, 'index.js');
+
+	try {
+		fs.mkdirSync(mcpServerDir, { recursive: true });
+		fs.copyFileSync(mcpServerSrc, mcpServerDest);
+		logService.info(`[debug:#90] MCP 서버 스크립트 복사 완료: ${mcpServerDest}`);
+	} catch (e) {
+		logService.warn(`[debug:#90] MCP 서버 스크립트 복사 실패: ${e}`);
+		return;
+	}
+
+	// 2. 에이전트별 설정 파일 생성
+	const mcpJsonContent = JSON.stringify({
+		mcpServers: {
+			'gitbbon-ide': {
+				command: 'node',
+				args: ['.gitbbon/mcp-server/index.js']
+			}
+		}
+	}, null, 2);
+
+	const continueJsonContent = JSON.stringify({
+		mcpServers: [
+			{
+				name: 'gitbbon-ide',
+				command: 'node',
+				args: ['.gitbbon/mcp-server/index.js']
+			}
+		]
+	}, null, 2);
+
+	const codexTomlContent = `[mcp_servers.gitbbon-ide]\ncommand = "node .gitbbon/mcp-server/index.js"\n`;
+
+	const agentFiles: Array<{ relPath: string; content: string }> = [
+		{ relPath: '.mcp.json', content: mcpJsonContent },
+		{ relPath: path.join('.cursor', 'mcp.json'), content: mcpJsonContent },
+		{ relPath: path.join('.vscode', 'mcp.json'), content: mcpJsonContent },
+		{ relPath: path.join('.windsurf', 'mcp.json'), content: mcpJsonContent },
+		{ relPath: path.join('.gemini', 'settings.json'), content: mcpJsonContent },
+		{ relPath: path.join('.codex', 'config.toml'), content: codexTomlContent },
+		{ relPath: path.join('.continue', 'mcpServers', 'mcp.json'), content: continueJsonContent },
+	];
+
+	for (const { relPath, content } of agentFiles) {
+		const fullPath = path.join(wsRoot, relPath);
+		const dir = path.dirname(fullPath);
+		try {
+			fs.mkdirSync(dir, { recursive: true });
+			fs.writeFileSync(fullPath, content, 'utf-8');
+			logService.info(`[debug:#90] 에이전트 설정 파일 생성: ${relPath}`);
+		} catch (e) {
+			logService.warn(`[debug:#90] 에이전트 설정 파일 생성 실패 (${relPath}): ${e}`);
+		}
+	}
+
+	// 3. .gitignore 업데이트
+	await updateGitignore(wsRoot);
+
+	// 4. VS Code files.exclude 설정
+	await updateVscodeExclude(wsRoot);
+
+	logService.info('[debug:#90] setupMcpConfigFiles: 완료');
+}
+
+async function updateGitignore(wsRoot: string): Promise<void> {
+	const gitignorePath = path.join(wsRoot, '.gitignore');
+	const marker = '# gitbbon MCP 설정 (자동 생성)';
+	const gitignoreEntries = [
+		marker,
+		'.mcp.json',
+		'.cursor/mcp.json',
+		'.vscode/mcp.json',
+		'.windsurf/mcp.json',
+		'.gemini/settings.json',
+		'.codex/config.toml',
+		'.continue/mcpServers/mcp.json',
+		'.gitbbon/',
+		''
+	].join('\n');
+
+	try {
+		let existing = '';
+		try {
+			existing = fs.readFileSync(gitignorePath, 'utf-8');
+		} catch {
+			// 파일 없으면 새로 생성
+		}
+
+		if (existing.includes(marker)) {
+			logService.info('[debug:#90] .gitignore 이미 업데이트됨, 스킵');
+			return;
+		}
+
+		const updated = existing.endsWith('\n') || existing === ''
+			? existing + gitignoreEntries
+			: existing + '\n' + gitignoreEntries;
+
+		fs.writeFileSync(gitignorePath, updated, 'utf-8');
+		logService.info('[debug:#90] .gitignore 업데이트 완료');
+	} catch (e) {
+		logService.warn(`[debug:#90] .gitignore 업데이트 실패: ${e}`);
+	}
+}
+
+async function updateVscodeExclude(wsRoot: string): Promise<void> {
+	const settingsPath = path.join(wsRoot, '.vscode', 'settings.json');
+	const excludeKeys: Record<string, boolean> = {
+		'.mcp.json': true,
+		'.cursor': true,
+		'.windsurf': true,
+		'.gemini': true,
+		'.codex': true,
+		'.continue': true,
+		'.gitbbon': true,
+	};
+
+	try {
+		fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+
+		let settings: Record<string, unknown> = {};
+		try {
+			const raw = fs.readFileSync(settingsPath, 'utf-8');
+			settings = JSON.parse(raw);
+		} catch {
+			// 파일 없거나 파싱 실패 시 빈 객체로 시작
+		}
+
+		const existingExclude = (settings['files.exclude'] as Record<string, boolean>) ?? {};
+		const mergedExclude = { ...existingExclude, ...excludeKeys };
+		settings['files.exclude'] = mergedExclude;
+
+		fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+		logService.info('[debug:#90] .vscode/settings.json files.exclude 업데이트 완료');
+	} catch (e) {
+		logService.warn(`[debug:#90] .vscode/settings.json 업데이트 실패: ${e}`);
+	}
 }
 
 export function deactivate(): void { }

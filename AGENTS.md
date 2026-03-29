@@ -101,6 +101,30 @@ describe('테스트할클래스', () => {
 이 파일은 gitbbon-chat extension이 `onDidChangeActiveTextEditor` / `onDidChangeTextEditorSelection` 이벤트마다 자동으로 갱신한다.
 파일이 없으면 컨텍스트 없이 진행한다.
 
+---
+
+## 에디터 컨텍스트 MCP 서버
+
+gitbbon은 현재 에디터 상태를 MCP 서버로 제공합니다.
+워크스페이스를 열면 아래 에이전트별 설정 파일이 자동으로 생성됩니다.
+
+| 에이전트 | 파일 |
+|---------|------|
+| Claude Code | `.mcp.json` |
+| Cursor | `.cursor/mcp.json` |
+| GitHub Copilot / Cline | `.vscode/mcp.json` |
+| Windsurf | `.windsurf/mcp.json` |
+| Gemini CLI | `.gemini/settings.json` |
+| Codex CLI | `.codex/config.toml` |
+| Continue.dev | `.continue/mcpServers/mcp.json` |
+
+사용 가능한 tools:
+- `getActiveFile`: 현재 활성 파일 경로 + 내용
+- `getSelection`: 선택된 텍스트 + 라인 범위
+- `getOpenFiles`: 열린 탭 목록
+
+자동 생성된 파일들은 `.gitignore`에 등록되어 있으며, VS Code 파일 탐색기에서도 숨겨집니다.
+
 ### 7. 로그
 - 코드를 수정하는 작업인 경우 작동 여부를 확인할 수 있는 로그를 추가한 후에 해당 로그만 사용자가 볼 수 있는 console.log filter 문자열을 정규 표현식으로 알려준다. (앞 뒤로 /도 포함)
 - `로그삭제` 명령을 후속으로 실행하면 해당 로그가 삭제된다는 점을 알려서 후속 작업자가 사용자의 의도를 이해할 수 있도록 컨텍스트에 기록을 남긴다.
