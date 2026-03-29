@@ -139,6 +139,7 @@ body {
 
 .milkdown code {
 	background-color: var(--vscode-textCodeBlock-background);
+	color: var(--vscode-editor-foreground);
 	padding: 2px 4px;
 	border-radius: 3px;
 	font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
