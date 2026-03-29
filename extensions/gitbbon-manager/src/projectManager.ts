@@ -292,6 +292,41 @@ export class ProjectManager {
 		logService.info(`[gitbbon-manager][projectManager] Removed ${repoName} from .gitbbon-local.json`);
 	}
 
+	// gitbbon custom: 에이전트 인스트럭션 파일 내용 상수 정의 (Claude, Gemini 등 AI 도구용)
+	private static readonly AGENTS_MD_CONTENT = `# gitbbon Project Instructions
+
+This project is managed by **gitbbon**. AI agents must follow the rules below.
+
+## Markdown File Rules
+
+All markdown (\`.md\`) files must start with a YAML front matter block:
+
+\`\`\`yaml
+---
+title: Document Title
+---
+\`\`\`
+
+- The \`title\` field is required (displayed as the gitbbon tab title)
+- Front matter must start at the very first line of the file (no leading whitespace)
+- Optional fields: \`date\`, \`tags\`
+
+## Other Rules
+
+- When creating or modifying files, keep the format recognizable by the gitbbon editor
+- Do not modify \`.gitbbon.json\`, \`.vscode/\`, or \`.gitbbon/\` directories
+`;
+
+	private static readonly CLAUDE_MD_CONTENT = `# Claude Code Instructions
+
+Refer to **AGENTS.md** for the agent instructions for this project.
+`;
+
+	private static readonly GEMINI_MD_CONTENT = `# Gemini Instructions
+
+Refer to **AGENTS.md** for the agent instructions for this project.
+`;
+
 	private async initializeProject(projectPath: string, projectName: string): Promise<void> {
 		logService.info(`[gitbbon-manager][projectManager] Initializing project: ${projectName} at ${projectPath}`);
 
@@ -389,6 +424,20 @@ export class ProjectManager {
 			const content = `# ${projectName}\n\nManaged by Gitbbon.\nCreated: ${new Date().toLocaleString()}\n`;
 			await fs.promises.writeFile(readmePath, content, 'utf-8');
 			logService.info(`[gitbbon-manager][projectManager] README.md created`);
+
+			// gitbbon custom: 에이전트 인스트럭션 파일 생성 (Claude, Gemini 등 AI 도구용)
+			const agentFiles = [
+				{ name: 'AGENTS.md', content: ProjectManager.AGENTS_MD_CONTENT },
+				{ name: 'CLAUDE.md', content: ProjectManager.CLAUDE_MD_CONTENT },
+				{ name: 'GEMINI.md', content: ProjectManager.GEMINI_MD_CONTENT },
+			];
+			for (const file of agentFiles) {
+				const filePath = path.join(projectPath, file.name);
+				if (!fs.existsSync(filePath)) {
+					await fs.promises.writeFile(filePath, file.content, 'utf-8');
+					logService.info(`[gitbbon-manager][projectManager] ${file.name} created`);
+				}
+			}
 
 			// 5. Create initial commit (including .gitbbon.json)
 			try {
