@@ -336,6 +336,44 @@ export class OllamaService {
     }
   }
 
+  // Issue #79: DELETE /api/delete 엔드포인트로 모델 삭제
+  async deleteModel(modelName: string): Promise<void> {
+    logService.info(`[debug:#79] 모델 삭제 요청: ${modelName}`);
+    return new Promise((resolve, reject) => {
+      const body = JSON.stringify({ name: modelName });
+      const options: http.RequestOptions = {
+        hostname: 'localhost',
+        port: 11434,
+        path: '/api/delete',
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      };
+
+      const req = http.request(options, (res) => {
+        res.resume();
+        if (res.statusCode === 200) {
+          logService.info(`[debug:#79] 모델 삭제 완료: ${modelName}`);
+          resolve();
+        } else {
+          const err = new Error(`DELETE /api/delete 실패: status=${res.statusCode}`);
+          logService.error(`[debug:#79] 모델 삭제 실패: ${modelName}`, err);
+          reject(err);
+        }
+      });
+
+      req.on('error', (err) => {
+        logService.error(`[debug:#79] 모델 삭제 요청 오류: ${modelName}`, err);
+        reject(err);
+      });
+
+      req.write(body);
+      req.end();
+    });
+  }
+
   async pullModel(model: string, onProgress: (pct: number) => void): Promise<void> {
     logService.info(`[ollamaService] pullModel: starting ${model}`);
     return new Promise((resolve, reject) => {

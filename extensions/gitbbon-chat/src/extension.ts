@@ -100,6 +100,32 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 				const models = await ollamaService.getRecommendedModels();
 				const freeDiskGB = await ollamaService.getFreeDiskGB();
 				webviewView.webview.postMessage({ type: 'recommended-models', models, freeDiskGB });
+			} else if (message.type === 'delete-ollama-model') {
+				// Issue #79: 온디바이스 모델 삭제 요청 처리
+				const modelName = message.model as string;
+				logService.info(`[debug:#79] 모델 삭제 요청 수신: ${modelName}`);
+				webviewView.webview.postMessage({ type: 'model-delete-progress', model: modelName, status: 'deleting' });
+				try {
+					await ollamaService.deleteModel(modelName);
+					logService.info(`[debug:#79] 삭제 완료, 목록 갱신: ${modelName}`);
+					webviewView.webview.postMessage({ type: 'model-delete-progress', model: modelName, status: 'done' });
+					// 삭제 완료 후 추천 모델 목록 갱신
+					const updatedModels = await ollamaService.getRecommendedModels();
+					const freeDiskGB = await ollamaService.getFreeDiskGB();
+					webviewView.webview.postMessage({ type: 'recommended-models', models: updatedModels, freeDiskGB });
+					// 설치된 모델 목록도 capabilities 포함하여 갱신
+					const installedModelsWithCaps = await ollamaService.getInstalledModelsWithCapabilities();
+					const installedModels = installedModelsWithCaps.map(m => m.name);
+					const installedCaps: Record<string, { thinking: boolean; tools: boolean; completion: boolean }> = {};
+					for (const m of installedModelsWithCaps) {
+						installedCaps[m.name] = m.capabilities;
+					}
+					this._modelCapabilities = { ...this._modelCapabilities, ...installedCaps };
+					webviewView.webview.postMessage({ type: 'ollama-models', models: installedModels, capabilities: installedCaps });
+				} catch (err) {
+					logService.error(`[debug:#79] 모델 삭제 실패: ${modelName}`, err);
+					webviewView.webview.postMessage({ type: 'model-delete-progress', model: modelName, status: 'error', message: String(err) });
+				}
 			} else if (message.type === 'pull-ollama-model') {
 				// gitbbon custom: Issue #69 - 미설치 모델 다운로드 요청 (상태표시줄 진행률 표시)
 				const modelName = message.model as string;
