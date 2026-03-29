@@ -81,6 +81,26 @@ describe('테스트할클래스', () => {
 - 확장 기능(`extensions/gitbbon-*`)의 코드를 수정했을 때는 해당 확장 기능 폴더로 이동하여 컴파일(`npm run compile`)을 수행함으로써 변경 사항을 즉시 적용한다.
 - 이를 통해 사용자가 메모리를 많이 차지하는 `npm run watch`를 상시 실행하지 않고도 개발 결과물을 확인할 수 있도록 돕는다.
 
-### 6. 로그
+### 6. 현재 편집기 컨텍스트
+
+매 응답 전에 워크스페이스 루트의 `.gitbbon-context.json`을 읽어 현재 활성 파일과 선택 영역을 확인하라.
+
+```json
+{
+  "activeFile": "src/extension.ts",
+  "selection": {
+    "start": { "line": 10, "character": 0 },
+    "end": { "line": 25, "character": 0 },
+    "text": "선택된 텍스트 내용"
+  },
+  "openFiles": ["src/a.ts", "src/b.ts"],
+  "cursorContext": "커서 주변 텍스트 (선택 없을 때)"
+}
+```
+
+이 파일은 gitbbon-chat extension이 `onDidChangeActiveTextEditor` / `onDidChangeTextEditorSelection` 이벤트마다 자동으로 갱신한다.
+파일이 없으면 컨텍스트 없이 진행한다.
+
+### 7. 로그
 - 코드를 수정하는 작업인 경우 작동 여부를 확인할 수 있는 로그를 추가한 후에 해당 로그만 사용자가 볼 수 있는 console.log filter 문자열을 정규 표현식으로 알려준다. (앞 뒤로 /도 포함)
 - `로그삭제` 명령을 후속으로 실행하면 해당 로그가 삭제된다는 점을 알려서 후속 작업자가 사용자의 의도를 이해할 수 있도록 컨텍스트에 기록을 남긴다.

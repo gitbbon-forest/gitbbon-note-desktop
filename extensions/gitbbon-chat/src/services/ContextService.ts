@@ -366,6 +366,85 @@ export class ContextService {
 	}
 
 	/**
+	 * Issue #90: 워크스페이스 루트의 .gitbbon-context.json을 최신 에디터 상태로 갱신한다.
+	 * vscode.window.onDidChangeActiveTextEditor / onDidChangeTextEditorSelection 이벤트에서 호출.
+	 */
+	public static async updateContextFile(): Promise<void> {
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (!workspaceFolders || workspaceFolders.length === 0) {
+			console.log('[debug:#90] updateContextFile: 워크스페이스 없음, 스킵');
+			return;
+		}
+
+		const activeFile = ContextService.getActiveFileName();
+		const openFiles = ContextService.getOpenTabs();
+
+		// 선택 영역 수집 (동기 가능한 표준 에디터만)
+		let selection: { start: { line: number; character: number }; end: { line: number; character: number }; text: string } | null = null;
+		const editor = vscode.window.activeTextEditor;
+		if (editor && !editor.selection.isEmpty) {
+			const sel = editor.selection;
+			const text = editor.document.getText(sel).slice(0, 1000);
+			selection = {
+				start: { line: sel.start.line, character: sel.start.character },
+				end: { line: sel.end.line, character: sel.end.character },
+				text,
+			};
+		}
+
+		// 커서 컨텍스트 (선택 없을 때 커서 주변 텍스트)
+		let cursorContext: string | null = null;
+		if (!selection && editor) {
+			const cursorLine = editor.selection.active.line;
+			const startLine = Math.max(0, cursorLine - 5);
+			const endLine = Math.min(editor.document.lineCount - 1, cursorLine + 5);
+			const range = new vscode.Range(startLine, 0, endLine, Number.MAX_SAFE_INTEGER);
+			cursorContext = editor.document.getText(range);
+		}
+
+		const contextData = {
+			activeFile,
+			selection,
+			openFiles,
+			cursorContext,
+		};
+
+		try {
+			const contextUri = vscode.Uri.joinPath(workspaceFolders[0].uri, '.gitbbon-context.json');
+			const encoder = new TextEncoder();
+			await vscode.workspace.fs.writeFile(contextUri, encoder.encode(JSON.stringify(contextData, null, 2)));
+			console.log('[debug:#90] updateContextFile: 갱신 완료', JSON.stringify({ activeFile, hasSelection: !!selection }));
+		} catch (e) {
+			console.warn('[debug:#90] updateContextFile: 쓰기 실패', e);
+		}
+	}
+
+	/**
+	 * Issue #90: .gitbbon-context.json에서 컨텍스트를 읽는다. 파일이 없으면 null 반환.
+	 */
+	public static async readContextFile(): Promise<{
+		activeFile?: string;
+		selection?: { start: { line: number; character: number }; end: { line: number; character: number }; text: string } | null;
+		openFiles?: string[];
+		cursorContext?: string | null;
+	} | null> {
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (!workspaceFolders || workspaceFolders.length === 0) {
+			return null;
+		}
+		try {
+			const contextUri = vscode.Uri.joinPath(workspaceFolders[0].uri, '.gitbbon-context.json');
+			const data = await vscode.workspace.fs.readFile(contextUri);
+			const parsed = JSON.parse(Buffer.from(data).toString('utf-8'));
+			console.log('[debug:#90] readContextFile: 읽기 성공', JSON.stringify({ activeFile: parsed.activeFile }));
+			return parsed;
+		} catch {
+			console.log('[debug:#90] readContextFile: 파일 없음 또는 파싱 실패, fallback 사용');
+			return null;
+		}
+	}
+
+	/**
 	 * Delete a note file.
 	 * Automatically appends .md if the path has no extension and the file is not found.
 	 */

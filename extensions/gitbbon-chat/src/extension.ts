@@ -10,6 +10,7 @@ import { type ModelMessage } from 'ai';
 import { AIService } from './services/aiService';
 import { logService } from './services/logService';
 import { ollamaService, MODEL_SIZES_GB, type RecommendedModel, type ModelWithCapabilities } from './services/ollamaService';
+import { ContextService } from './services/ContextService';
 
 class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = 'gitbbon.chat';
@@ -524,6 +525,32 @@ export function activate(context: vscode.ExtensionContext): void {
 			}
 		})
 	);
+
+	// Issue #90: 에디터 컨텍스트를 .gitbbon-context.json으로 자동 갱신
+	// 활성 파일 변경 또는 선택 영역 변경 시마다 갱신
+	const updateContext = () => {
+		ContextService.updateContextFile().catch(e =>
+			logService.warn('[debug:#90] updateContextFile 오류:', e)
+		);
+	};
+
+	context.subscriptions.push(
+		vscode.window.onDidChangeActiveTextEditor(() => {
+			logService.info('[debug:#90] onDidChangeActiveTextEditor 이벤트 발생 - 컨텍스트 갱신');
+			updateContext();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.window.onDidChangeTextEditorSelection(() => {
+			logService.info('[debug:#90] onDidChangeTextEditorSelection 이벤트 발생 - 컨텍스트 갱신');
+			updateContext();
+		})
+	);
+
+	// 초기 실행 시 컨텍스트 갱신
+	logService.info('[debug:#90] 초기 컨텍스트 갱신 실행');
+	updateContext();
 
 	logService.info('Activated');
 }
