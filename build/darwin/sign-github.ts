@@ -40,12 +40,10 @@ function getEntitlementsForFile(filePath: string): string {
 function setupKeychain(keychainPath: string, p12Path: string, p12Password: string): string {
 	const keychainPassword = Math.random().toString(36).slice(2);
 
-	console.log('[debug:#91] 임시 키체인 생성...');
 	execSync(`security create-keychain -p "${keychainPassword}" "${keychainPath}"`);
 	execSync(`security set-keychain-settings -lut 21600 "${keychainPath}"`);
 	execSync(`security unlock-keychain -p "${keychainPassword}" "${keychainPath}"`);
 
-	console.log('[debug:#91] p12 인증서 가져오기...');
 	execSync(`security import "${p12Path}" -k "${keychainPath}" -P "${p12Password}" -T /usr/bin/codesign -T /usr/bin/security`);
 	execSync(`security set-key-partition-list -S apple-tool:,apple: -s -k "${keychainPassword}" "${keychainPath}"`);
 
@@ -55,7 +53,6 @@ function setupKeychain(keychainPath: string, p12Path: string, p12Password: strin
 		.map(l => l.trim().replace(/^"|"$/g, ''));
 	execSync(`security list-keychains -d user -s "${keychainPath}" ${currentList.join(' ')}`);
 
-	console.log('[debug:#91] 키체인 설정 완료');
 	return keychainPath;
 }
 
@@ -74,7 +71,6 @@ async function retrySignOnKeychainError<T>(fn: () => Promise<T>, maxRetries: num
 				throw error;
 			}
 
-			console.log(`[debug:#91] 서명 시도 ${attempt} 실패 (키체인 오류), 재시도 중...`);
 			const delay = 1000 * Math.pow(2, attempt - 1);
 			await new Promise(resolve => setTimeout(resolve, delay));
 		}
@@ -89,15 +85,12 @@ async function notarize(appPath: string, arch: string): Promise<void> {
 	const teamId = process.env['APPLE_TEAM_ID'];
 
 	if (!appleId || !applePassword || !teamId) {
-		console.warn('[debug:#91] APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID 미설정 — 공증 건너뜀');
 		return;
 	}
 
 	const zipPath = `/tmp/gitbbon-notarize-${arch}.zip`;
-	console.log('[debug:#91] 공증용 zip 생성...');
 	execSync(`ditto -c -k --keepParent "${appPath}" "${zipPath}"`);
 
-	console.log('[debug:#91] Apple 공증 제출...');
 	execSync(
 		`xcrun notarytool submit "${zipPath}" ` +
 		`--apple-id "${appleId}" ` +
@@ -107,11 +100,9 @@ async function notarize(appPath: string, arch: string): Promise<void> {
 		{ stdio: 'inherit' }
 	);
 
-	console.log('[debug:#91] Staple 처리...');
 	execSync(`xcrun stapler staple "${appPath}"`, { stdio: 'inherit' });
 
 	fs.unlinkSync(zipPath);
-	console.log('[debug:#91] 공증 완료');
 }
 
 async function main(buildDir?: string): Promise<void> {
@@ -134,18 +125,15 @@ async function main(buildDir?: string): Promise<void> {
 		if (cscLink && cscPassword) {
 			// GitHub Actions secrets에서 인증서 설치
 			tempP12Path = `/tmp/cert-${arch}.p12`;
-			console.log('[debug:#91] base64 인증서 디코딩...');
 			fs.writeFileSync(tempP12Path, Buffer.from(cscLink, 'base64'));
 			setupKeychain(keychainPath, tempP12Path, cscPassword);
 		} else {
-			console.warn('[debug:#91] CSC_LINK/CSC_KEY_PASSWORD 미설정 — 시스템 키체인 사용');
 		}
 
 		const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
 		const appName = product.nameLong + '.app';
 		const appPath = path.join(appRoot, appName);
 
-		console.log(`[debug:#91] 코드 서명 시작: ${appPath}`);
 
 		const appOpts: SignOptions = {
 			app: appPath,
@@ -161,7 +149,6 @@ async function main(buildDir?: string): Promise<void> {
 		};
 
 		await retrySignOnKeychainError(() => sign(appOpts));
-		console.log('[debug:#91] 코드 서명 완료');
 
 		// 공증 (APPLE_ID 등이 설정된 경우에만)
 		await notarize(appPath, arch);
