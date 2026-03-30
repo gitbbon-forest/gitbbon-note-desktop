@@ -107,6 +107,21 @@ jobs:
           # 표준 러너 메모리에 맞춤 (macOS 14GB, Linux/Windows 7GB)
           NODE_OPTIONS: ${{ runner.os == 'macOS' && '--max-old-space-size=12288' || '--max-old-space-size=6144' }}
 
+      # gitbbon custom: macOS 코드 서명 및 공증 (Developer ID Application 인증서 사용)
+      - name: Code sign and notarize (macOS)
+        if: runner.os == 'macOS' && env.CSC_LINK != ''
+        run: |
+          ARCH="${{ matrix.platform == 'darwin-x64' && 'x64' || 'arm64' }}"
+          BUILD_DIR="$(dirname $GITHUB_WORKSPACE)"
+          echo "[debug:#91] 서명 시작: ARCH=$ARCH, BUILD_DIR=$BUILD_DIR"
+          VSCODE_ARCH="$ARCH" node --loader ts-node/esm build/darwin/sign-github.ts "$BUILD_DIR"
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
       - name: Create archive (macOS/Linux)
         if: runner.os != 'Windows'
         run: |
