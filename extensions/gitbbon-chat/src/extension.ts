@@ -528,44 +528,16 @@ export function activate(context: vscode.ExtensionContext): void {
 		})
 	);
 
-	// Issue #90: 에디터 컨텍스트를 .gitbbon-context.json으로 자동 갱신
-	// 활성 파일 변경 또는 선택 영역 변경 시마다 갱신
-	const updateContext = () => {
-		ContextService.updateContextFile().catch(e =>
-			logService.warn('[debug:#90] updateContextFile 오류:', e)
-		);
-	};
-
-	context.subscriptions.push(
-		vscode.window.onDidChangeActiveTextEditor(() => {
-			logService.info('[debug:#90] onDidChangeActiveTextEditor 이벤트 발생 - 컨텍스트 갱신');
-			updateContext();
-		})
-	);
-
-	context.subscriptions.push(
-		vscode.window.onDidChangeTextEditorSelection(() => {
-			logService.info('[debug:#90] onDidChangeTextEditorSelection 이벤트 발생 - 컨텍스트 갱신');
-			updateContext();
-		})
-	);
-
-	// 초기 실행 시 컨텍스트 갱신
-	logService.info('[debug:#90] 초기 컨텍스트 갱신 실행');
-	updateContext();
-
-	// gitbbon custom: Issue #90 - 워크스페이스 오픈 시 에이전트별 MCP 설정 파일 자동 생성
-	setupMcpConfigFiles(context).catch(e =>
-		logService.warn('[debug:#90] setupMcpConfigFiles 오류:', e)
-	);
+	// Issue #90: 컨텍스트 갱신은 gitbbon-manager ContextService가 담당 (manager로 이전됨)
+	// Issue #90: MCP 설정 파일 생성은 gitbbon-manager McpSetupService가 담당 (manager로 이전됨)
 
 	logService.info('Activated');
 }
 
-// ─── MCP 설정 파일 자동 생성 ────────────────────────────────────────────────────
-// gitbbon custom: Issue #90 - 워크스페이스를 열 때 각 에이전트가 gitbbon MCP 서버를 인식할 수 있도록
-//   에이전트별 설정 파일을 자동으로 생성한다.
-async function setupMcpConfigFiles(context: vscode.ExtensionContext): Promise<void> {
+// ─── MCP 설정 파일 자동 생성 (Issue #90: gitbbon-manager McpSetupService로 이전됨) ──────
+// 아래 함수는 하위 호환성을 위해 남겨두되, 실제 호출은 제거되었다.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function setupMcpConfigFiles_DEPRECATED(context: vscode.ExtensionContext): Promise<void> {
 	const workspaceFolders = vscode.workspace.workspaceFolders;
 	if (!workspaceFolders || workspaceFolders.length === 0) {
 		logService.info('[debug:#90] setupMcpConfigFiles: 워크스페이스 없음, 스킵');

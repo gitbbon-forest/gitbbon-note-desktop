@@ -10,13 +10,23 @@ import { GitGraphViewProvider } from './gitGraphViewProvider';
 import { GitHubSyncManager } from './githubSyncManager';
 import * as cp from 'child_process';
 import { logService } from './services/logService';
+import { ContextService, type ContextSnapshot } from './services/ContextService';
+import { McpSetupService } from './services/McpSetupService';
 
 /**
  * Extension activation
  */
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+export async function activate(context: vscode.ExtensionContext): Promise<{ getContext: () => ContextSnapshot | null }> {
 	logService.init();
 	logService.info('Gitbbon Manager extension activating...');
+
+	// Issue #90: ContextService 등록 (in-memory 상태 유지 + debounce 파일 쓰기)
+	ContextService.register(context);
+
+	// Issue #90: McpSetupService 실행 (에이전트 설정 파일 자동 생성)
+	McpSetupService.setup(context).catch(e =>
+		logService.warn('[debug:#90][manager] McpSetupService 오류:', e)
+	);
 	const projectManager = new ProjectManager(context);
 	const githubSyncManager = new GitHubSyncManager(projectManager);
 
@@ -716,6 +726,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(restoreToVersionCommand);
 
 	logService.info('Gitbbon Manager extension activated!');
+
+	// Issue #90: ExtensionAPI 노출 — gitbbon-chat이 getContext()로 직접 호출
+	return {
+		getContext: () => ContextService.getContext(),
+	};
 }
 
 /**

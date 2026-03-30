@@ -222,8 +222,11 @@ export class AIService {
 			model = 'openai/o4-mini';
 		}
 
-		// Issue #90: .gitbbon-context.json에서 컨텍스트를 읽어 우선 적용, 없으면 기존 방식 fallback
-		const contextFileData = await ContextService.readContextFile();
+		// Issue #90: gitbbon-manager ExtensionAPI로 컨텍스트 조회, 없으면 기존 VS Code API fallback
+		const managerExt = vscode.extensions.getExtension('gitbbon.gitbbon-manager');
+		const managerContext = managerExt?.exports?.getContext?.() ?? null;
+		const contextFileData = managerContext;
+		logService.info('[debug:#90] managerExt 활성화 여부:', managerExt ? 'active' : 'not found');
 		logService.info('[debug:#90] contextFileData 로드 결과:', contextFileData ? 'found' : 'fallback 사용');
 
 		// Context collection
@@ -282,7 +285,7 @@ export class AIService {
 		if (selectionPreview !== 'None') contextParts.push(`\n- Selection Preview:\n"""\n${selectionPreview}\n"""`);
 		if (cursorContext !== 'None' && selectionPreview === 'None') contextParts.push(`\n- Cursor Context:\n"""\n${cursorContext}\n"""`);
 		if (olderMessageCount > 0) contextParts.push(`\n- Older Chat History: ${olderMessageCount} messages`);
-		if (openTabs.length > 0) contextParts.push(`\n- Open Files:\n${openTabs.map(l => `  - ${l}`).join('\n')}`);
+		if (openTabs.length > 0) contextParts.push(`\n- Open Files:\n${openTabs.map((l: string) => `  - ${l}`).join('\n')}`);
 
 		const previousMessages = messages.slice(0, -1).slice(-4);
 		if (previousMessages.length > 0) {
