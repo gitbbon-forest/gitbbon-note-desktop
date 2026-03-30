@@ -23,6 +23,8 @@ export interface RecommendedModel {
   sizeGB: number;
   installed: boolean;
   description: string;
+  // gitbbon custom: Issue #81 - GitHub JSON 스키마의 tags 필드 지원
+  tags?: string[];
 }
 
 // Issue #77: 모델 capabilities 인터페이스
@@ -48,6 +50,75 @@ const DEFAULT_CAPABILITIES: ModelCapabilities = {
 interface Message {
   role: string;
   content: string;
+}
+
+// gitbbon custom: Issue #81 - GitHub JSON에서 동적으로 모델 목록 fetch (TTL 1시간 캐시, 실패 시 하드코딩 폴백)
+const MODELS_JSON_URL = 'https://raw.githubusercontent.com/gitbbon-forest/gitbbon-note-desktop/main/models.json';
+const MODELS_CACHE_TTL_MS = 60 * 60 * 1000; // 1시간
+
+interface GitHubModelEntry {
+  name: string;
+  sizeGB: number;
+  description: string;
+  tags?: string[];
+}
+
+// gitbbon custom: Issue #81 - 모듈 수준 메모리 캐시 변수
+let _cachedModels: GitHubModelEntry[] | null = null;
+let _cacheTime = 0;
+
+// gitbbon custom: Issue #81 - GitHub raw URL에서 모델 목록 JSON fetch (timeout 3초)
+async function fetchModelsFromGitHub(): Promise<GitHubModelEntry[] | null> {
+  return new Promise((resolve) => {
+    const url = new URL(MODELS_JSON_URL);
+    const https = require('https') as typeof import('https');
+    const req = https.get(
+      { hostname: url.hostname, path: url.pathname, timeout: 3000 },
+      (res: import('http').IncomingMessage) => {
+        if (res.statusCode !== 200) {
+          logService.warn(`[ollamaService] fetchModelsFromGitHub: HTTP ${res.statusCode}`);
+          res.resume();
+          resolve(null);
+          return;
+        }
+        let data = '';
+        res.on('data', (chunk: Buffer) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data) as GitHubModelEntry[];
+            if (!Array.isArray(parsed)) { resolve(null); return; }
+            resolve(parsed);
+          } catch (err) {
+            logService.warn('[ollamaService] fetchModelsFromGitHub: JSON 파싱 실패', err);
+            resolve(null);
+          }
+        });
+      }
+    );
+    req.on('error', (err: Error) => {
+      logService.warn(`[ollamaService] fetchModelsFromGitHub: 요청 실패 (${err.message})`);
+      resolve(null);
+    });
+    req.on('timeout', () => {
+      logService.warn('[ollamaService] fetchModelsFromGitHub: timeout');
+      req.destroy();
+      resolve(null);
+    });
+  });
+}
+
+// gitbbon custom: Issue #81 - 캐시 유효 시 캐시 반환, 만료 시 fetch 재시도
+async function getModelsWithCache(): Promise<GitHubModelEntry[] | null> {
+  const now = Date.now();
+  if (_cachedModels && now - _cacheTime < MODELS_CACHE_TTL_MS) {
+    return _cachedModels;
+  }
+  const fetched = await fetchModelsFromGitHub();
+  if (fetched) {
+    _cachedModels = fetched;
+    _cacheTime = now;
+  }
+  return fetched;
 }
 
 // 모델별 대략적인 다운로드 크기 (GB)
@@ -210,23 +281,44 @@ export class OllamaService {
 
   /**
    * 추천 모델 리스트를 반환 (설치 여부 포함)
+   * gitbbon custom: Issue #81 - GitHub JSON fetch 시도 후 성공 시 동적 목록, 실패 시 하드코딩 폴백
    */
   async getRecommendedModels(): Promise<RecommendedModel[]> {
     const installedWithSize = await this.getInstalledModelsWithSize();
     // 설치된 모델명에서 :latest 태그 제거하여 비교 용이하게
     const installedMap = new Map(installedWithSize.map(m => [m.name.replace(':latest', ''), m.sizeGB]));
 
-    const recommended: RecommendedModel[] = Object.entries(MODEL_SIZES_GB).map(([name, sizeGB]) => ({
-      name,
-      // 실제 설치된 경우 Ollama API의 실제 크기를 우선 사용
-      sizeGB: installedMap.get(name) ?? installedMap.get(name.split(':')[0]) ?? sizeGB,
-      installed: installedMap.has(name) || installedMap.has(name.split(':')[0]),
-      description: MODEL_DESCRIPTIONS[name] || '',
-    }));
+    // gitbbon custom: Issue #81 - GitHub JSON에서 모델 목록 가져오기 시도
+    const dynamicModels = await getModelsWithCache();
+
+    let recommended: RecommendedModel[];
+
+    if (dynamicModels) {
+      // gitbbon custom: Issue #81 - 동적 목록 사용
+      logService.info(`[ollamaService] getRecommendedModels: GitHub JSON 사용 (${dynamicModels.length}개 모델)`);
+      recommended = dynamicModels.map((entry) => ({
+        name: entry.name,
+        sizeGB: installedMap.get(entry.name) ?? installedMap.get(entry.name.split(':')[0]) ?? entry.sizeGB,
+        installed: installedMap.has(entry.name) || installedMap.has(entry.name.split(':')[0]),
+        description: entry.description || '',
+        tags: entry.tags,
+      }));
+    } else {
+      // gitbbon custom: Issue #81 - fetch 실패 시 하드코딩 폴백
+      logService.warn('[ollamaService] getRecommendedModels: GitHub JSON fetch 실패, 하드코딩 폴백 사용');
+      recommended = Object.entries(MODEL_SIZES_GB).map(([name, sizeGB]) => ({
+        name,
+        // 실제 설치된 경우 Ollama API의 실제 크기를 우선 사용
+        sizeGB: installedMap.get(name) ?? installedMap.get(name.split(':')[0]) ?? sizeGB,
+        installed: installedMap.has(name) || installedMap.has(name.split(':')[0]),
+        description: MODEL_DESCRIPTIONS[name] || '',
+      }));
+    }
 
     // 설치된 모델 중 추천 목록에 없는 것도 추가 (실제 크기 포함)
+    const recommendedNames = new Set(recommended.map(m => m.name));
     for (const [normalizedName, sizeGB] of installedMap) {
-      if (!MODEL_SIZES_GB[normalizedName]) {
+      if (!recommendedNames.has(normalizedName)) {
         recommended.push({
           name: normalizedName,
           sizeGB,

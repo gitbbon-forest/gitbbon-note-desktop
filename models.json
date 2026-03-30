@@ -1,0 +1,15 @@
+[
+  { "name": "llama3.1:8b",  "sizeGB": 4.7, "description": "고성능 범용 모델 (16GB+ RAM 권장)",     "tags": [] },
+  { "name": "llama3.2:3b",  "sizeGB": 2.0, "description": "균형 잡힌 중간 모델 (8GB+ RAM 권장)",   "tags": [] },
+  { "name": "llama3.2:1b",  "sizeGB": 1.3, "description": "경량 모델 (4GB+ RAM)",                  "tags": [] },
+  { "name": "gemma2:2b",    "sizeGB": 1.6, "description": "Google 경량 모델 (4GB+ RAM)",            "tags": [] },
+  { "name": "gemma2:9b",    "sizeGB": 5.5, "description": "Google 고성능 모델 (16GB+ RAM 권장)",    "tags": [] },
+  { "name": "phi3:mini",    "sizeGB": 2.2, "description": "Microsoft 소형 모델 (8GB+ RAM)",         "tags": [] },
+  { "name": "mistral:7b",   "sizeGB": 4.1, "description": "Mistral 범용 모델 (16GB+ RAM 권장)",     "tags": [] },
+  { "name": "qwen2.5:7b",   "sizeGB": 4.7, "description": "Alibaba 고성능 모델 (16GB+ RAM 권장)",   "tags": [] },
+  { "name": "qwen2.5:3b",   "sizeGB": 2.0, "description": "Alibaba 경량 모델 (8GB+ RAM)",           "tags": [] },
+  { "name": "qwen3:4b",     "sizeGB": 2.6, "description": "Qwen3 경량 모델 (8GB+ RAM)",             "tags": ["tools"] },
+  { "name": "qwen3:8b",     "sizeGB": 5.2, "description": "Qwen3 범용 모델 (16GB+ RAM 권장)",       "tags": ["tools"] },
+  { "name": "qwen3:14b",    "sizeGB": 9.3, "description": "Qwen3 고성능 모델 (32GB+ RAM 권장)",     "tags": ["tools"] },
+  { "name": "qwen3:32b",    "sizeGB": 20.0, "description": "Qwen3 대형 모델 (64GB+ RAM 권장)",      "tags": ["tools"] }
+]
