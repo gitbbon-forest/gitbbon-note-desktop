@@ -147,7 +147,7 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 						};
 
 						builder.addGroup('format', '포맷').addItem('formatPicker', {
-							icon: '<span style="font-size:12px;font-weight:600;line-height:1;min-width:20px;display:inline-block;text-align:center">Aa</span>',
+							icon: '<span style="font-size:12px;font-weight:600;line-height:1;min-width:20px;display:inline-block;text-align:center;color:currentColor">Aa</span>',
 							active: () => false,
 							onRun: (ctx: any) => { showFormatDropdown(ctx); }
 						});
