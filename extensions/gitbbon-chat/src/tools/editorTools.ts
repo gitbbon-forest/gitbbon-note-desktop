@@ -239,7 +239,7 @@ function executeHistoryQuery(messages: ModelMessage[], count: number, query?: st
 	const historyPool = messages.length > 5 ? messages.slice(0, -5) : [];
 
 	if (historyPool.length === 0) {
-		return "Error: No older history available (Recent history is already provided).";
+		return "No older history available. Recent history is already provided in context — do NOT call this tool again.";
 	}
 
 	let filteredMessages = historyPool;
