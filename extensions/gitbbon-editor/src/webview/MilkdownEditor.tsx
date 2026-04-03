@@ -83,24 +83,8 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 						// gitbbon custom: Issue #29 - 포맷 선택 드롭다운 버튼
 						// Crepe toolbar는 버튼만 지원하므로, 버튼 클릭 시 커스텀 드롭다운 팝업을 생성한다.
 
-						// 현재 블록 타입 레이블 반환
-						const getCurrentFormatLabel = (ctx: any): string => {
-							try {
-								const view = ctx.get(editorViewCtx);
-								const { $from } = view.state.selection;
-								const node = $from.node($from.depth);
-								if (node.type === headingSchema.type(ctx)) {
-									return `H${node.attrs.level}`;
-								}
-								if (node.type === paragraphSchema.type(ctx)) {
-									return 'P';
-								}
-								return 'P';
-							} catch { return 'P'; }
-						};
-
 						// 드롭다운 팝업 표시
-						const showFormatDropdown = (ctx: any, buttonEl: HTMLElement) => {
+						const showFormatDropdown = (ctx: any) => {
 							// 기존 드롭다운 제거 (토글)
 							const existing = document.getElementById('gitbbon-format-dropdown');
 							if (existing) { existing.remove(); return; }
@@ -108,13 +92,13 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 							console.log('[debug:#29] 포맷 드롭다운 열기');
 
 							const formats = [
-								{ label: '본문 (P)', key: 'paragraph' },
-								{ label: '제목 1 (H1)', key: 'h1' },
-								{ label: '제목 2 (H2)', key: 'h2' },
-								{ label: '제목 3 (H3)', key: 'h3' },
-								{ label: '제목 4 (H4)', key: 'h4' },
-								{ label: '제목 5 (H5)', key: 'h5' },
-								{ label: '제목 6 (H6)', key: 'h6' },
+								{ label: 'Paragraph', key: 'paragraph' },
+								{ label: 'Heading 1', key: 'h1' },
+								{ label: 'Heading 2', key: 'h2' },
+								{ label: 'Heading 3', key: 'h3' },
+								{ label: 'Heading 4', key: 'h4' },
+								{ label: 'Heading 5', key: 'h5' },
+								{ label: 'Heading 6', key: 'h6' },
 							];
 
 							const dropdown = document.createElement('div');
@@ -141,11 +125,14 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 								dropdown.appendChild(item);
 							});
 
-							// 버튼 위치 기준으로 드롭다운 위치 설정
-							const rect = buttonEl.getBoundingClientRect();
-							dropdown.style.position = 'fixed';
-							dropdown.style.top = `${rect.bottom + 4}px`;
-							dropdown.style.left = `${rect.left}px`;
+							// 툴바 왼쪽 끝 기준으로 드롭다운 위치 설정
+							const toolbar = document.querySelector('.milkdown-toolbar') as HTMLElement | null;
+							if (toolbar) {
+								const rect = toolbar.getBoundingClientRect();
+								dropdown.style.position = 'fixed';
+								dropdown.style.top = `${rect.bottom + 6}px`;
+								dropdown.style.left = `${rect.left}px`;
+							}
 
 							document.body.appendChild(dropdown);
 
@@ -162,12 +149,14 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 						builder.addGroup('format', '포맷').addItem('formatPicker', {
 							icon: '<span style="font-size:12px;font-weight:600;line-height:1;min-width:20px;display:inline-block;text-align:center">Aa</span>',
 							active: () => false,
-							onRun: (ctx: any) => {
-								// 버튼 DOM 요소 찾기
-								const btn = document.querySelector('.milkdown-toolbar .toolbar-item:first-child') as HTMLElement | null;
-								showFormatDropdown(ctx, btn || document.body);
-							}
+							onRun: (ctx: any) => { showFormatDropdown(ctx); }
 						});
+
+						// gitbbon custom: format 그룹을 첫 번째로 이동 (B 앞)
+						// builder.build()는 내부 groups 배열을 직접 반환하므로 뮤테이션으로 순서 변경 가능
+						const groups = builder.build() as any[];
+						const formatGroup = groups.pop(); // 방금 추가한 format 그룹 (마지막)
+						groups.unshift(formatGroup);      // 첫 번째로 이동
 
 						// AI 물어보기 그룹 추가
 						builder.addGroup('ai', 'AI').addItem('askAI', {

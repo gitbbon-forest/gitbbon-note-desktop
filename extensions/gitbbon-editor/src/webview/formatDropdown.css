@@ -5,8 +5,8 @@
 .gitbbon-format-dropdown {
 	position: fixed;
 	z-index: 9999;
-	background-color: var(--vscode-dropdown-background, #252526);
-	border: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3));
+	background-color: var(--vscode-menu-background, var(--vscode-dropdown-background, #252526));
+	border: 1px solid var(--vscode-menu-border, var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3)));
 	border-radius: 6px;
 	padding: 4px;
 	min-width: 140px;
@@ -19,16 +19,17 @@
 .gitbbon-format-dropdown-item {
 	background: transparent;
 	border: none;
-	color: var(--vscode-dropdown-foreground, #cccccc);
+	color: var(--vscode-menu-foreground, var(--vscode-foreground, #cccccc));
 	padding: 6px 10px;
 	text-align: left;
 	font-size: 13px;
 	border-radius: 4px;
 	cursor: pointer;
 	width: 100%;
+	font-family: inherit;
 }
 
 .gitbbon-format-dropdown-item:hover {
-	background-color: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31));
-	color: var(--vscode-list-hoverForeground, #ffffff);
+	background-color: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31)));
+	color: var(--vscode-menu-selectionForeground, var(--vscode-foreground, #ffffff));
 }
