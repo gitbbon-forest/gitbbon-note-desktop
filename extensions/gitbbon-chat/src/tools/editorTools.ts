@@ -5,6 +5,7 @@ import { ContextService } from '../services/ContextService';
 import { executeSearch } from './implementations/searchTool';
 import { createHistoryTool } from './implementations/historyTool';
 import { type ToolEventEmitter, generateToolId } from '../types';
+import { logService } from '../services/logService';
 
 /**
  * Human-friendly tool labels (not developer names)
@@ -20,6 +21,12 @@ const TOOL_LABELS: Record<string, string> = {
 
 function getToolLabel(toolName: string): string {
 	return TOOL_LABELS[toolName] || toolName;
+}
+
+// gitbbon custom: Issue #99 - experimental_context 타입 정의
+export interface EditorToolContext {
+	messages: ModelMessage[];
+	emitter?: ToolEventEmitter;
 }
 
 /**
@@ -74,13 +81,16 @@ function withProgress<T>(
 
 /**
  * EditorTools Factory
+ * gitbbon custom: Issue #99 - closure 의존성 제거, experimental_context로 messages/emitter 수신
  */
-export function createEditorTools(messages: ModelMessage[], emitter?: ToolEventEmitter) {
+export function createEditorTools() {
 	return {
 		get_selection: tool({
 			description: 'Get selected text from the active editor. Use for "this code", "selected part", etc.',
 			inputSchema: z.object({}),
-			execute: async () => {
+			execute: async (_input, { experimental_context: ctx }) => {
+				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
+				const { emitter } = (ctx ?? {}) as EditorToolContext;
 				return withProgress('get_selection', {}, emitter, async () => {
 					const detail = await ContextService.getSelection();
 					if (detail) {
@@ -103,7 +113,9 @@ ${detail.after}
 		get_current_file: tool({
 			description: 'Get the entire content of the active file. Use for "whole file", "structure", etc.',
 			inputSchema: z.object({}),
-			execute: async () => {
+			execute: async (_input, { experimental_context: ctx }) => {
+				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
+				const { emitter } = (ctx ?? {}) as EditorToolContext;
 				return withProgress('get_current_file', {}, emitter, async () => {
 					const content = await ContextService.getActiveFileContent();
 					if (content) return content;
@@ -112,7 +124,19 @@ ${detail.after}
 			},
 		}),
 
-		get_chat_history: createHistoryTool(messages),
+		// gitbbon custom: Issue #99 - get_chat_history는 messages를 experimental_context에서 수신
+		get_chat_history: tool({
+			description: 'Retrieve previous chat history. Use when user refers to "before", "previously", etc.',
+			inputSchema: z.object({
+				count: z.number().min(1).max(50).describe('Number of recent messages to retrieve (1-50)'),
+				query: z.string().optional().describe('Search keyword (optional)'),
+			}),
+			execute: async ({ count, query }, { experimental_context: ctx }) => {
+				const { messages } = (ctx ?? {}) as EditorToolContext;
+				// createHistoryTool의 execute 로직을 인라인으로 호출
+				return executeHistoryQuery(messages ?? [], count, query);
+			},
+		}),
 
 		search_in_workspace: tool({
 			description: 'Search for code or notes using natural language (Semantic Search) or keywords (Regex/Ripgrep). Use this for "find code about X" or "where is logic for Y".',
@@ -123,7 +147,9 @@ ${detail.after}
 				context: z.number().min(0).max(500).optional().describe('Characters of context around match (default: 100)'),
 				maxResults: z.number().min(1).max(30).optional().describe('Maximum number of results (default: 5)'),
 			}),
-			execute: async (args) => {
+			execute: async (args, { experimental_context: ctx }) => {
+				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
+				const { emitter } = (ctx ?? {}) as EditorToolContext;
 				return withProgress('search_in_workspace', { query: args.query }, emitter, () => executeSearch(args));
 			},
 		}),
@@ -133,7 +159,9 @@ ${detail.after}
 			inputSchema: z.object({
 				filePath: z.string().describe('File path with extension (e.g., "notes/chapter 1.md"). Include .md for note files.'),
 			}),
-			execute: async ({ filePath }) => {
+			execute: async ({ filePath }, { experimental_context: ctx }) => {
+				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
+				const { emitter } = (ctx ?? {}) as EditorToolContext;
 				return withProgress('read_file', { filePath }, emitter, async () => {
 					try {
 						return await ContextService.readFile(filePath);
@@ -162,8 +190,9 @@ ${detail.after}
 					'Default: "direct", but override to "suggestion" for any .md file.'
 				)
 			}),
-			execute: async ({ action, filePath, title, content, changes, mode }) => {
-
+			execute: async ({ action, filePath, title, content, changes, mode }, { experimental_context: ctx }) => {
+				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
+				const { emitter } = (ctx ?? {}) as EditorToolContext;
 				return withProgress('edit_note', { action, filePath }, emitter, async () => {
 					try {
 						switch (action) {
@@ -193,4 +222,64 @@ ${detail.after}
 			},
 		}),
 	};
+}
+
+/**
+ * gitbbon custom: Issue #99 - get_chat_history execute 로직 (historyTool closure 대체)
+ * messages를 experimental_context로부터 수신하여 처리
+ */
+function executeHistoryQuery(messages: ModelMessage[], count: number, query?: string): string {
+	if (messages.length === 0) {
+		return "Error: No history available.";
+	}
+
+	const historyPool = messages.length > 5 ? messages.slice(0, -5) : [];
+
+	if (historyPool.length === 0) {
+		return "Error: No older history available (Recent history is already provided).";
+	}
+
+	let filteredMessages = historyPool;
+
+	if (query) {
+		const lowerQuery = query.toLowerCase();
+		filteredMessages = messages.filter(m => {
+			const content = typeof m.content === 'string'
+				? m.content
+				: JSON.stringify(m.content);
+			return content.toLowerCase().includes(lowerQuery);
+		});
+
+		if (filteredMessages.length === 0) {
+			return `Error: No messages found containing "${query}".`;
+		}
+	}
+
+	const selectedMessages = filteredMessages.slice(-count);
+
+	const formatted = selectedMessages.map((m) => {
+		const content = typeof m.content === 'string'
+			? m.content
+			: JSON.stringify(m.content);
+
+		let truncated = content;
+		if (content.length > 500) {
+			if (query) {
+				const lowerContent = content.toLowerCase();
+				const matchIndex = lowerContent.indexOf(query.toLowerCase());
+				if (matchIndex !== -1) {
+					const start = Math.max(0, matchIndex - 250);
+					const end = Math.min(content.length, matchIndex + query.length + 250);
+					truncated = (start > 0 ? '...' : '') + content.slice(start, end) + (end < content.length ? '...' : '');
+				} else {
+					truncated = content.slice(0, 500) + '...';
+				}
+			} else {
+				truncated = content.slice(0, 500) + '...';
+			}
+		}
+		return `[${m.role}]: ${truncated}`;
+	}).join('\n\n');
+
+	return formatted;
 }

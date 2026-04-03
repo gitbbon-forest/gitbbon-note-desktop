@@ -209,7 +209,8 @@ export class AIService {
 			}
 		};
 
-		const tools = createEditorTools(messages, emitter);
+		// gitbbon custom: Issue #99 - experimental_context로 tool 컨텍스트 전달 (closure 의존성 제거)
+		const tools = createEditorTools();
 
 		// Resolve model: Ollama returns a LanguageModel object; API backend uses a gateway string ID
 		let model: LanguageModel | string;
@@ -306,16 +307,86 @@ export class AIService {
 				};
 
 
+				// gitbbon custom: Issue #98 - 편집 요청 감지 함수
+				const detectEditRequest = (msgs: ModelMessage[]): boolean => {
+					const lastMsg = msgs[msgs.length - 1];
+					const text = typeof lastMsg?.content === 'string'
+						? lastMsg.content
+						: JSON.stringify(lastMsg?.content ?? '');
+					const editKeywords = [
+						'수정', '편집', '고쳐', '변경', '업데이트', '작성해', '만들어', '삭제',
+						'create', 'update', 'edit', 'modify', 'fix', 'delete', 'write', 'add'
+					];
+					return editKeywords.some(kw => text.toLowerCase().includes(kw));
+				};
+
+				// gitbbon custom: Issue #98 - 편집 요청 시 toolChoice required 적용
+				const isEditRequest = detectEditRequest(messages);
+
+				// Issue #100: prepareStep으로 단계별 tool 접근 제어 (읽기 → 편집 순서 강제)
+				// 읽기 tool을 사용하기 전까지 초반 스텝(stepNumber <= 3)에서 edit_note 비활성화
+				const READ_TOOLS = ['search_in_workspace', 'read_file', 'get_current_file', 'get_selection', 'get_chat_history'] as const;
+				type ReadToolName = typeof READ_TOOLS[number];
+				const ALL_TOOLS = [...READ_TOOLS, 'edit_note'] as const;
+
+				const prepareStepFn = async ({ stepNumber, steps }: { stepNumber: number; steps: Array<{ toolCalls?: Array<{ toolName: string }> }> }) => {
+					const hasReadStep = steps.some(s =>
+						s.toolCalls?.some(t => READ_TOOLS.includes(t.toolName as ReadToolName))
+					);
+					if (!hasReadStep && stepNumber <= 3) {
+						return { activeTools: [...READ_TOOLS] };
+					}
+					return {};
+				};
+
 				// Issue #74: tool 미지원 모델 fallback을 위한 헬퍼 함수 (think 옵션도 제어)
+				// Issue #97: tool 단위 실행 추적을 위한 Map (toolCallId -> {toolName, startTime, channelId})
+				// editorTools의 emitter와 중복을 피하기 위해 SDK 훅에서는 별도 channelId로 tracking
+				const activeToolCalls = new Map<string, { toolName: string; channelId: string }>();
+
 				const callStreamText = (useTools: boolean, useThink: boolean = true) => {
 					const providerOptions = buildProviderOptions(useThink) as any;
+					// gitbbon custom: Issue #98 - 편집 요청 시 toolChoice required 설정으로 텍스트 응답 방지
+					const toolChoice = (useTools && isEditRequest) ? 'required' : 'auto';
+					// gitbbon custom: Issue #99 - experimental_context로 tool에 messages/emitter 전달
+					const toolContext = { messages, emitter };
 					return streamText({
 						model,
 						system: instructions,
 						messages: messages as ModelMessage[],
-						...(useTools ? { tools, stopWhen: stepCountIs(10) } : {}),
+						...(useTools ? { tools, toolChoice, stopWhen: stepCountIs(10), prepareStep: prepareStepFn } : {}),
 						abortSignal: abortController.signal,
 						providerOptions,
+						// Issue #97: tool 단위 시작 훅
+						// editorTools emitter가 처리하지 못한 tool을 위한 fallback으로도 동작
+						experimental_onToolCallStart: ({ toolCall }) => {
+							if (!hasToolCalls) {
+								hasToolCalls = true;
+								channel.push({
+									type: 'tool-end',
+									id: thinkingId,
+									toolName: 'Thinking...',
+									duration: Date.now() - thinkingStart,
+									success: true,
+								});
+								logService.info('[gitbbon-chat][Phase] Tool Execution Started');
+							}
+							const channelId = generateToolId();
+							activeToolCalls.set(toolCall.toolCallId, {
+								toolName: toolCall.toolName,
+								channelId,
+							});
+							// editorTools emitter가 tool-start를 보내지 않을 때만 별도 이벤트 전송
+							// (editorTools에 등록된 tool은 withProgress에서 처리)
+						},
+						// Issue #97: tool 단위 완료 훅 - SDK 제공 durationMs 사용
+						experimental_onToolCallFinish: ({ toolCall, durationMs, success, error }) => {
+							const info = activeToolCalls.get(toolCall.toolCallId);
+							if (info) {
+								activeToolCalls.delete(toolCall.toolCallId);
+							}
+						},
+						experimental_context: toolContext,
 						onStepFinish: (event) => {
 							logService.info('[gitbbon-chat][Agent Step] Step Finished', {
 								text: event.text ? event.text.slice(0, 100) + '...' : undefined,

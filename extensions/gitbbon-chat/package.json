@@ -97,7 +97,7 @@
     "@ai-sdk/openai": "^3.0.48",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/source-map-support": "^0.5.10",
-    "ai": "^6.0.3",
+    "ai": "^6.0.145",
     "dotenv": "^17.2.3",
     "ollama-ai-provider-v2": "^3.5.0",
     "react": "^19.2.3",
