@@ -3,8 +3,10 @@ import { MilkdownProvider, useEditor, Milkdown } from '@milkdown/react';
 import { StickyToolbar } from './StickyToolbar';
 import { Crepe } from '@milkdown/crepe';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
-import { editorViewCtx, parserCtx } from '@milkdown/core';
+import { editorViewCtx, parserCtx, commandsCtx } from '@milkdown/core';
 import { $prose } from '@milkdown/utils';
+// gitbbon custom: Issue #29 - 포맷 선택 명령어
+import { wrapInHeadingCommand, turnIntoTextCommand, headingSchema, paragraphSchema } from '@milkdown/preset-commonmark';
 import "@milkdown/crepe/theme/common/style.css";
 // import "@milkdown/crepe/theme/frame.css"; // Optional: Frame theme
 
@@ -20,6 +22,9 @@ import './stickyToolbar.css';
 
 // gitbbon custom: Hide metadata comments
 import { hideGitbbonMetadataPlugin } from './hideMetadataPlugin';
+
+// gitbbon custom: Issue #29 - 포맷 선택 CSS
+import './formatDropdown.css';
 
 // Milkdown 호환 search 플러그인 래핑
 const searchPlugin = $prose(() => search());
@@ -75,10 +80,86 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 			featureConfigs: {
 				[Crepe.Feature.Toolbar]: {
 					buildToolbar: (builder: any) => {
+						// gitbbon custom: Issue #29 - 포맷 선택 드롭다운 버튼
+						// Crepe toolbar는 버튼만 지원하므로, 버튼 클릭 시 커스텀 드롭다운 팝업을 생성한다.
+
+						// 드롭다운 팝업 표시
+						const showFormatDropdown = (ctx: any) => {
+							// 기존 드롭다운 제거 (토글)
+							const existing = document.getElementById('gitbbon-format-dropdown');
+							if (existing) { existing.remove(); return; }
+
+
+							const formats = [
+								{ label: 'Paragraph', key: 'paragraph' },
+								{ label: 'Heading 1', key: 'h1' },
+								{ label: 'Heading 2', key: 'h2' },
+								{ label: 'Heading 3', key: 'h3' },
+								{ label: 'Heading 4', key: 'h4' },
+								{ label: 'Heading 5', key: 'h5' },
+								{ label: 'Heading 6', key: 'h6' },
+							];
+
+							const dropdown = document.createElement('div');
+							dropdown.id = 'gitbbon-format-dropdown';
+							dropdown.className = 'gitbbon-format-dropdown';
+
+							formats.forEach(({ label, key }) => {
+								const item = document.createElement('button');
+								item.type = 'button';
+								item.className = 'gitbbon-format-dropdown-item';
+								item.textContent = label;
+								item.addEventListener('mousedown', (e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									dropdown.remove();
+									if (key === 'paragraph') {
+										ctx.get(commandsCtx).call(turnIntoTextCommand.key);
+									} else {
+										const level = parseInt(key.replace('h', ''));
+										ctx.get(commandsCtx).call(wrapInHeadingCommand.key, level);
+									}
+								});
+								dropdown.appendChild(item);
+							});
+
+							// 툴바 왼쪽 끝 기준으로 드롭다운 위치 설정
+							const toolbar = document.querySelector('.milkdown-toolbar') as HTMLElement | null;
+							if (toolbar) {
+								const rect = toolbar.getBoundingClientRect();
+								dropdown.style.position = 'fixed';
+								dropdown.style.top = `${rect.bottom + 6}px`;
+								dropdown.style.left = `${rect.left}px`;
+							}
+
+							document.body.appendChild(dropdown);
+
+							// 외부 클릭 시 닫기
+							const closeOnOutside = (e: MouseEvent) => {
+								if (!dropdown.contains(e.target as Node)) {
+									dropdown.remove();
+									document.removeEventListener('mousedown', closeOnOutside);
+								}
+							};
+							setTimeout(() => document.addEventListener('mousedown', closeOnOutside), 0);
+						};
+
+						builder.addGroup('format', '포맷').addItem('formatPicker', {
+							icon: '<span style="font-size:12px;font-weight:600;line-height:1;min-width:20px;display:inline-block;text-align:center;color:var(--vscode-editor-foreground)">Aa</span>',
+							active: () => false,
+							onRun: (ctx: any) => { showFormatDropdown(ctx); }
+						});
+
+						// gitbbon custom: format 그룹을 첫 번째로 이동 (B 앞)
+						// builder.build()는 내부 groups 배열을 직접 반환하므로 뮤테이션으로 순서 변경 가능
+						const groups = builder.build() as any[];
+						const formatGroup = groups.pop(); // 방금 추가한 format 그룹 (마지막)
+						groups.unshift(formatGroup);      // 첫 번째로 이동
+
 						// AI 물어보기 그룹 추가
 						builder.addGroup('ai', 'AI').addItem('askAI', {
 							icon: askAIIcon,
-							active: () => false, // 토글 상태 없음
+							active: () => false,
 							onRun: (ctx: any) => {
 								const view = ctx.get(editorViewCtx);
 								const { state } = view;

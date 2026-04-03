@@ -1,0 +1,35 @@
+/*
+ * gitbbon custom: Issue #29 - 포맷 선택 드롭다운 팝업 스타일
+ */
+
+.gitbbon-format-dropdown {
+	position: fixed;
+	z-index: 9999;
+	background-color: var(--vscode-menu-background, var(--vscode-dropdown-background, #252526));
+	border: 1px solid var(--vscode-menu-border, var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3)));
+	border-radius: 6px;
+	padding: 4px;
+	min-width: 140px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.gitbbon-format-dropdown-item {
+	background: transparent;
+	border: none;
+	color: var(--vscode-menu-foreground, var(--vscode-foreground, #cccccc));
+	padding: 6px 10px;
+	text-align: left;
+	font-size: 13px;
+	border-radius: 4px;
+	cursor: pointer;
+	width: 100%;
+	font-family: inherit;
+}
+
+.gitbbon-format-dropdown-item:hover {
+	background-color: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31)));
+	color: var(--vscode-menu-selectionForeground, var(--vscode-foreground, #ffffff));
+}
