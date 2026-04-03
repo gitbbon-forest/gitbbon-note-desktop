@@ -307,6 +307,10 @@ export class AIService {
 
 
 				// Issue #74: tool 미지원 모델 fallback을 위한 헬퍼 함수 (think 옵션도 제어)
+				// Issue #97: tool 단위 실행 추적을 위한 Map (toolCallId -> {toolName, startTime, channelId})
+				// editorTools의 emitter와 중복을 피하기 위해 SDK 훅에서는 별도 channelId로 tracking
+				const activeToolCalls = new Map<string, { toolName: string; channelId: string }>();
+
 				const callStreamText = (useTools: boolean, useThink: boolean = true) => {
 					const providerOptions = buildProviderOptions(useThink) as any;
 					return streamText({
@@ -316,6 +320,37 @@ export class AIService {
 						...(useTools ? { tools, stopWhen: stepCountIs(10) } : {}),
 						abortSignal: abortController.signal,
 						providerOptions,
+						// Issue #97: tool 단위 시작 훅
+						// editorTools emitter가 처리하지 못한 tool을 위한 fallback으로도 동작
+						experimental_onToolCallStart: ({ toolCall }) => {
+							if (!hasToolCalls) {
+								hasToolCalls = true;
+								channel.push({
+									type: 'tool-end',
+									id: thinkingId,
+									toolName: 'Thinking...',
+									duration: Date.now() - thinkingStart,
+									success: true,
+								});
+								logService.info('[gitbbon-chat][Phase] Tool Execution Started');
+							}
+							const channelId = generateToolId();
+							activeToolCalls.set(toolCall.toolCallId, {
+								toolName: toolCall.toolName,
+								channelId,
+							});
+							// editorTools emitter가 tool-start를 보내지 않을 때만 별도 이벤트 전송
+							// (editorTools에 등록된 tool은 withProgress에서 처리)
+							logService.info(`[debug:#97] tool-call-start: ${toolCall.toolName} (id=${toolCall.toolCallId})`);
+						},
+						// Issue #97: tool 단위 완료 훅 - SDK 제공 durationMs 사용
+						experimental_onToolCallFinish: ({ toolCall, durationMs, success, error }) => {
+							const info = activeToolCalls.get(toolCall.toolCallId);
+							if (info) {
+								activeToolCalls.delete(toolCall.toolCallId);
+								logService.info(`[debug:#97] tool-call-finish: ${info.toolName}, duration=${durationMs}ms, success=${success ?? !error}`);
+							}
+						},
 						onStepFinish: (event) => {
 							logService.info('[gitbbon-chat][Agent Step] Step Finished', {
 								text: event.text ? event.text.slice(0, 100) + '...' : undefined,
