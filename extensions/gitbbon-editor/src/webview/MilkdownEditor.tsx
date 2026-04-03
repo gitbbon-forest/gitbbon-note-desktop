@@ -3,8 +3,10 @@ import { MilkdownProvider, useEditor, Milkdown } from '@milkdown/react';
 import { StickyToolbar } from './StickyToolbar';
 import { Crepe } from '@milkdown/crepe';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
-import { editorViewCtx, parserCtx } from '@milkdown/core';
+import { editorViewCtx, parserCtx, commandsCtx } from '@milkdown/core';
 import { $prose } from '@milkdown/utils';
+// gitbbon custom: Issue #29 - 포맷 선택 명령어
+import { wrapInHeadingCommand, turnIntoTextCommand, headingSchema, paragraphSchema } from '@milkdown/preset-commonmark';
 import "@milkdown/crepe/theme/common/style.css";
 // import "@milkdown/crepe/theme/frame.css"; // Optional: Frame theme
 
@@ -21,11 +23,8 @@ import './stickyToolbar.css';
 // gitbbon custom: Hide metadata comments
 import { hideGitbbonMetadataPlugin } from './hideMetadataPlugin';
 
-// gitbbon custom: Issue #29 - 컨텍스트 메뉴 포맷 선택 드롭다운
-import { createFormatDropdownPlugin } from './formatDropdownPlugin';
+// gitbbon custom: Issue #29 - 포맷 선택 CSS
 import './formatDropdown.css';
-
-const formatDropdownPlugin = $prose(() => createFormatDropdownPlugin());
 
 // Milkdown 호환 search 플러그인 래핑
 const searchPlugin = $prose(() => search());
@@ -81,10 +80,90 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 			featureConfigs: {
 				[Crepe.Feature.Toolbar]: {
 					buildToolbar: (builder: any) => {
+						// gitbbon custom: Issue #29 - 포맷 선택 그룹 추가 (H1~H6, Paragraph)
+						const formatGroup = builder.addGroup('format', '포맷');
+
+						// 현재 커서 위치의 블록 타입 확인 헬퍼
+						const isHeadingActive = (ctx: any, level: number): boolean => {
+							try {
+								const view = ctx.get(editorViewCtx);
+								const { $from } = view.state.selection;
+								const node = $from.node($from.depth);
+								const headingType = headingSchema.type(ctx);
+								return node.type === headingType && node.attrs.level === level;
+							} catch { return false; }
+						};
+						const isParagraphActive = (ctx: any): boolean => {
+							try {
+								const view = ctx.get(editorViewCtx);
+								const { $from } = view.state.selection;
+								const node = $from.node($from.depth);
+								return node.type === paragraphSchema.type(ctx);
+							} catch { return false; }
+						};
+
+						formatGroup
+							.addItem('paragraph', {
+								icon: '<span style="font-size:13px;font-weight:500;line-height:1">P</span>',
+								active: (ctx: any) => isParagraphActive(ctx),
+								onRun: (ctx: any) => {
+									console.log('[debug:#29] 포맷 변경: Paragraph');
+									ctx.get(commandsCtx).call(turnIntoTextCommand.key);
+								}
+							})
+							.addItem('h1', {
+								icon: '<span style="font-size:12px;font-weight:700;line-height:1">H1</span>',
+								active: (ctx: any) => isHeadingActive(ctx, 1),
+								onRun: (ctx: any) => {
+									console.log('[debug:#29] 포맷 변경: H1');
+									ctx.get(commandsCtx).call(wrapInHeadingCommand.key, 1);
+								}
+							})
+							.addItem('h2', {
+								icon: '<span style="font-size:12px;font-weight:700;line-height:1">H2</span>',
+								active: (ctx: any) => isHeadingActive(ctx, 2),
+								onRun: (ctx: any) => {
+									console.log('[debug:#29] 포맷 변경: H2');
+									ctx.get(commandsCtx).call(wrapInHeadingCommand.key, 2);
+								}
+							})
+							.addItem('h3', {
+								icon: '<span style="font-size:12px;font-weight:700;line-height:1">H3</span>',
+								active: (ctx: any) => isHeadingActive(ctx, 3),
+								onRun: (ctx: any) => {
+									console.log('[debug:#29] 포맷 변경: H3');
+									ctx.get(commandsCtx).call(wrapInHeadingCommand.key, 3);
+								}
+							})
+							.addItem('h4', {
+								icon: '<span style="font-size:12px;font-weight:700;line-height:1">H4</span>',
+								active: (ctx: any) => isHeadingActive(ctx, 4),
+								onRun: (ctx: any) => {
+									console.log('[debug:#29] 포맷 변경: H4');
+									ctx.get(commandsCtx).call(wrapInHeadingCommand.key, 4);
+								}
+							})
+							.addItem('h5', {
+								icon: '<span style="font-size:12px;font-weight:700;line-height:1">H5</span>',
+								active: (ctx: any) => isHeadingActive(ctx, 5),
+								onRun: (ctx: any) => {
+									console.log('[debug:#29] 포맷 변경: H5');
+									ctx.get(commandsCtx).call(wrapInHeadingCommand.key, 5);
+								}
+							})
+							.addItem('h6', {
+								icon: '<span style="font-size:12px;font-weight:700;line-height:1">H6</span>',
+								active: (ctx: any) => isHeadingActive(ctx, 6),
+								onRun: (ctx: any) => {
+									console.log('[debug:#29] 포맷 변경: H6');
+									ctx.get(commandsCtx).call(wrapInHeadingCommand.key, 6);
+								}
+							});
+
 						// AI 물어보기 그룹 추가
 						builder.addGroup('ai', 'AI').addItem('askAI', {
 							icon: askAIIcon,
-							active: () => false, // 토글 상태 없음
+							active: () => false,
 							onRun: (ctx: any) => {
 								const view = ctx.get(editorViewCtx);
 								const { state } = view;
@@ -124,8 +203,6 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 			.use(searchPlugin)
 			// gitbbon custom: Hide metadata comments
 			.use(hideGitbbonMetadataPlugin)
-			// gitbbon custom: Issue #29 - 컨텍스트 메뉴 포맷 선택 드롭다운 (H1~H6, Paragraph)
-			.use(formatDropdownPlugin)
 			// gitbbon custom: 선택 변경 감지 플러그인
 			.use($prose(() => {
 				const { Plugin, PluginKey } = require('prosemirror-state');
