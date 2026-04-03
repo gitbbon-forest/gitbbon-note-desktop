@@ -306,6 +306,24 @@ export class AIService {
 				};
 
 
+				// Issue #100: prepareStep으로 단계별 tool 접근 제어 (읽기 → 편집 순서 강제)
+				// 읽기 tool을 사용하기 전까지 초반 스텝(stepNumber <= 3)에서 edit_note 비활성화
+				const READ_TOOLS = ['search_in_workspace', 'read_file', 'get_current_file', 'get_selection', 'get_chat_history'] as const;
+				type ReadToolName = typeof READ_TOOLS[number];
+				const ALL_TOOLS = [...READ_TOOLS, 'edit_note'] as const;
+
+				const prepareStepFn = async ({ stepNumber, steps }: { stepNumber: number; steps: Array<{ toolCalls?: Array<{ toolName: string }> }> }) => {
+					const hasReadStep = steps.some(s =>
+						s.toolCalls?.some(t => READ_TOOLS.includes(t.toolName as ReadToolName))
+					);
+					if (!hasReadStep && stepNumber <= 3) {
+						logService.info(`[debug:#100] prepareStep: stepNumber=${stepNumber}, hasReadStep=false → activeTools=${READ_TOOLS.join(', ')}`);
+						return { activeTools: [...READ_TOOLS] };
+					}
+					logService.info(`[debug:#100] prepareStep: stepNumber=${stepNumber}, hasReadStep=${hasReadStep} → activeTools=${ALL_TOOLS.join(', ')}`);
+					return {};
+				};
+
 				// Issue #74: tool 미지원 모델 fallback을 위한 헬퍼 함수 (think 옵션도 제어)
 				const callStreamText = (useTools: boolean, useThink: boolean = true) => {
 					const providerOptions = buildProviderOptions(useThink) as any;
@@ -313,7 +331,7 @@ export class AIService {
 						model,
 						system: instructions,
 						messages: messages as ModelMessage[],
-						...(useTools ? { tools, stopWhen: stepCountIs(10) } : {}),
+						...(useTools ? { tools, stopWhen: stepCountIs(10), prepareStep: prepareStepFn } : {}),
 						abortSignal: abortController.signal,
 						providerOptions,
 						onStepFinish: (event) => {
