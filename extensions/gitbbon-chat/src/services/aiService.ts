@@ -209,7 +209,8 @@ export class AIService {
 			}
 		};
 
-		const tools = createEditorTools(messages, emitter);
+		// gitbbon custom: Issue #99 - experimental_context로 tool 컨텍스트 전달 (closure 의존성 제거)
+		const tools = createEditorTools();
 
 		// Resolve model: Ollama returns a LanguageModel object; API backend uses a gateway string ID
 		let model: LanguageModel | string;
@@ -309,6 +310,9 @@ export class AIService {
 				// Issue #74: tool 미지원 모델 fallback을 위한 헬퍼 함수 (think 옵션도 제어)
 				const callStreamText = (useTools: boolean, useThink: boolean = true) => {
 					const providerOptions = buildProviderOptions(useThink) as any;
+					// gitbbon custom: Issue #99 - experimental_context로 tool에 messages/emitter 전달
+					const toolContext = { messages, emitter };
+					logService.info('[debug:#99] streamText experimental_context 설정:', { messageCount: messages.length, hasEmitter: !!emitter });
 					return streamText({
 						model,
 						system: instructions,
@@ -316,6 +320,7 @@ export class AIService {
 						...(useTools ? { tools, stopWhen: stepCountIs(10) } : {}),
 						abortSignal: abortController.signal,
 						providerOptions,
+						experimental_context: toolContext,
 						onStepFinish: (event) => {
 							logService.info('[gitbbon-chat][Agent Step] Step Finished', {
 								text: event.text ? event.text.slice(0, 100) + '...' : undefined,
