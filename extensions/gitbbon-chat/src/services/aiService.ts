@@ -306,14 +306,33 @@ export class AIService {
 				};
 
 
+				// gitbbon custom: Issue #98 - 편집 요청 감지 함수
+				const detectEditRequest = (msgs: ModelMessage[]): boolean => {
+					const lastMsg = msgs[msgs.length - 1];
+					const text = typeof lastMsg?.content === 'string'
+						? lastMsg.content
+						: JSON.stringify(lastMsg?.content ?? '');
+					const editKeywords = [
+						'수정', '편집', '고쳐', '변경', '업데이트', '작성해', '만들어', '삭제',
+						'create', 'update', 'edit', 'modify', 'fix', 'delete', 'write', 'add'
+					];
+					return editKeywords.some(kw => text.toLowerCase().includes(kw));
+				};
+
+				// gitbbon custom: Issue #98 - 편집 요청 시 toolChoice required 적용
+				const isEditRequest = detectEditRequest(messages);
+				logService.info(`[debug:#98] detectEditRequest=${isEditRequest}, toolChoice=${isEditRequest ? 'required' : 'auto'}`);
+
 				// Issue #74: tool 미지원 모델 fallback을 위한 헬퍼 함수 (think 옵션도 제어)
 				const callStreamText = (useTools: boolean, useThink: boolean = true) => {
 					const providerOptions = buildProviderOptions(useThink) as any;
+					// gitbbon custom: Issue #98 - 편집 요청 시 toolChoice required 설정으로 텍스트 응답 방지
+					const toolChoice = (useTools && isEditRequest) ? 'required' : 'auto';
 					return streamText({
 						model,
 						system: instructions,
 						messages: messages as ModelMessage[],
-						...(useTools ? { tools, stopWhen: stepCountIs(10) } : {}),
+						...(useTools ? { tools, toolChoice, stopWhen: stepCountIs(10) } : {}),
 						abortSignal: abortController.signal,
 						providerOptions,
 						onStepFinish: (event) => {
