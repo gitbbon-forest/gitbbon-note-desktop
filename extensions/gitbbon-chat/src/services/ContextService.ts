@@ -347,6 +347,14 @@ export class ContextService {
 		// Resolve URI
 		const uri = this.pathToUri(normalizedPath);
 
+		// Check if file already exists
+		try {
+			await vscode.workspace.fs.stat(uri);
+			return `Error: File already exists: ${normalizedPath}. Use action "update" to modify it.`;
+		} catch {
+			// File does not exist, proceed with creation
+		}
+
 		// Create parent directories if needed
 		const parentDir = vscode.Uri.joinPath(uri, '..');
 		try {

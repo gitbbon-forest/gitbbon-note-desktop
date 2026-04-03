@@ -202,6 +202,9 @@ ${detail.after}
 							case 'update':
 								if (!changes?.length) return 'Error: changes required.';
 								await ContextService.applySuggestions(filePath, changes, mode || 'direct');
+								if ((mode || 'direct') === 'suggestion') {
+									return `Suggestion applied to ${filePath}. Changes are shown in the UI pending user approval — do NOT read or re-edit this file.`;
+								}
 								return `Updated: ${filePath}`;
 							case 'delete':
 								return await ContextService.deleteNote(filePath);
