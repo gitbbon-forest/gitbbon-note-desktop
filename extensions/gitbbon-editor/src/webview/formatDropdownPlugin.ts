@@ -168,26 +168,44 @@ export function createFormatDropdownPlugin(): Plugin {
 	let observer: MutationObserver | null = null;
 	let currentView: any = null;
 
-	// MutationObserver로 .milkdown-toolbar DOM 감시
-	function startObserver(view: any): void {
+	// gitbbon custom: 드롭다운 삽입 (Crepe 렌더링 후 실행하기 위해 rAF 사용)
+	function scheduleInsert(): void {
+		requestAnimationFrame(() => {
+			if (!currentView) { return; }
+			const { from, to } = currentView.state.selection;
+			if (from === to) { return; }
+			// data-show="true"인 툴바에만 삽입
+			const toolbar = document.querySelector('.milkdown-toolbar[data-show="true"]') as HTMLElement | null;
+			if (toolbar) {
+				console.log('[debug:#29] formatDropdownPlugin: 툴바에 드롭다운 삽입 시도');
+				ensureDropdownInToolbar(toolbar, currentView);
+			}
+		});
+	}
+
+	// MutationObserver로 툴바 표시 상태(data-show) 및 자식 변경 감시
+	function startObserver(): void {
 		if (observer) { return; }
 
 		console.log('[debug:#29] formatDropdownPlugin: MutationObserver 시작');
 
-		observer = new MutationObserver(() => {
-			const toolbar = document.querySelector('.milkdown-toolbar') as HTMLElement | null;
-			if (toolbar && currentView) {
-				const { from, to } = currentView.state.selection;
-				if (from !== to) {
-					ensureDropdownInToolbar(toolbar, currentView);
-				}
+		observer = new MutationObserver((mutations) => {
+			const hasToolbarChange = mutations.some(m =>
+				// data-show 속성 변경
+				(m.type === 'attributes' && (m.target as HTMLElement).classList?.contains('milkdown-toolbar')) ||
+				// 툴바 내부 자식 변경
+				(m.type === 'childList' && (m.target as HTMLElement).closest?.('.milkdown-toolbar'))
+			);
+			if (hasToolbarChange) {
+				scheduleInsert();
 			}
 		});
 
 		observer.observe(document.body, {
 			childList: true,
 			subtree: true,
-			attributes: false,
+			attributes: true,
+			attributeFilter: ['data-show'],
 		});
 	}
 
@@ -195,19 +213,16 @@ export function createFormatDropdownPlugin(): Plugin {
 		key: new PluginKey('formatDropdownPlugin'),
 		view: (editorView: any) => {
 			currentView = editorView;
-			startObserver(editorView);
+			startObserver();
 
 			return {
 				update: (view: any, _prevState: any) => {
 					currentView = view;
 
-					const toolbar = document.querySelector('.milkdown-toolbar') as HTMLElement | null;
-					if (!toolbar) { return; }
-
 					const { from, to } = view.state.selection;
 					if (from === to) {
 						// 선택 없으면 드롭다운 제거
-						const existing = toolbar.querySelector('[data-gitbbon-format-dropdown]');
+						const existing = document.querySelector('[data-gitbbon-format-dropdown]');
 						if (existing) {
 							console.log('[debug:#29] formatDropdownPlugin: 선택 해제 - 드롭다운 제거');
 							existing.remove();
@@ -215,8 +230,8 @@ export function createFormatDropdownPlugin(): Plugin {
 						return;
 					}
 
-					// 선택이 있으면 드롭다운 삽입/업데이트
-					ensureDropdownInToolbar(toolbar, view);
+					// 선택이 있으면 rAF로 드롭다운 삽입 예약 (Crepe 렌더링 후)
+					scheduleInsert();
 				},
 				destroy: () => {
 					console.log('[debug:#29] formatDropdownPlugin: 플러그인 해제');
