@@ -324,6 +324,24 @@ export class AIService {
 				const isEditRequest = detectEditRequest(messages);
 				logService.info(`[debug:#98] detectEditRequest=${isEditRequest}, toolChoice=${isEditRequest ? 'required' : 'auto'}`);
 
+				// Issue #100: prepareStep으로 단계별 tool 접근 제어 (읽기 → 편집 순서 강제)
+				// 읽기 tool을 사용하기 전까지 초반 스텝(stepNumber <= 3)에서 edit_note 비활성화
+				const READ_TOOLS = ['search_in_workspace', 'read_file', 'get_current_file', 'get_selection', 'get_chat_history'] as const;
+				type ReadToolName = typeof READ_TOOLS[number];
+				const ALL_TOOLS = [...READ_TOOLS, 'edit_note'] as const;
+
+				const prepareStepFn = async ({ stepNumber, steps }: { stepNumber: number; steps: Array<{ toolCalls?: Array<{ toolName: string }> }> }) => {
+					const hasReadStep = steps.some(s =>
+						s.toolCalls?.some(t => READ_TOOLS.includes(t.toolName as ReadToolName))
+					);
+					if (!hasReadStep && stepNumber <= 3) {
+						logService.info(`[debug:#100] prepareStep: stepNumber=${stepNumber}, hasReadStep=false → activeTools=${READ_TOOLS.join(', ')}`);
+						return { activeTools: [...READ_TOOLS] };
+					}
+					logService.info(`[debug:#100] prepareStep: stepNumber=${stepNumber}, hasReadStep=${hasReadStep} → activeTools=${ALL_TOOLS.join(', ')}`);
+					return {};
+				};
+
 				// Issue #74: tool 미지원 모델 fallback을 위한 헬퍼 함수 (think 옵션도 제어)
 				// Issue #97: tool 단위 실행 추적을 위한 Map (toolCallId -> {toolName, startTime, channelId})
 				// editorTools의 emitter와 중복을 피하기 위해 SDK 훅에서는 별도 channelId로 tracking
@@ -340,7 +358,7 @@ export class AIService {
 						model,
 						system: instructions,
 						messages: messages as ModelMessage[],
-						...(useTools ? { tools, toolChoice, stopWhen: stepCountIs(10) } : {}),
+						...(useTools ? { tools, toolChoice, stopWhen: stepCountIs(10), prepareStep: prepareStepFn } : {}),
 						abortSignal: abortController.signal,
 						providerOptions,
 						// Issue #97: tool 단위 시작 훅
