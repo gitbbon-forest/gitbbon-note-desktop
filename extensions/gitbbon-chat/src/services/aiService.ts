@@ -322,7 +322,6 @@ export class AIService {
 
 				// gitbbon custom: Issue #98 - 편집 요청 시 toolChoice required 적용
 				const isEditRequest = detectEditRequest(messages);
-				logService.info(`[debug:#98] detectEditRequest=${isEditRequest}, toolChoice=${isEditRequest ? 'required' : 'auto'}`);
 
 				// Issue #100: prepareStep으로 단계별 tool 접근 제어 (읽기 → 편집 순서 강제)
 				// 읽기 tool을 사용하기 전까지 초반 스텝(stepNumber <= 3)에서 edit_note 비활성화
@@ -335,10 +334,8 @@ export class AIService {
 						s.toolCalls?.some(t => READ_TOOLS.includes(t.toolName as ReadToolName))
 					);
 					if (!hasReadStep && stepNumber <= 3) {
-						logService.info(`[debug:#100] prepareStep: stepNumber=${stepNumber}, hasReadStep=false → activeTools=${READ_TOOLS.join(', ')}`);
 						return { activeTools: [...READ_TOOLS] };
 					}
-					logService.info(`[debug:#100] prepareStep: stepNumber=${stepNumber}, hasReadStep=${hasReadStep} → activeTools=${ALL_TOOLS.join(', ')}`);
 					return {};
 				};
 
@@ -353,7 +350,6 @@ export class AIService {
 					const toolChoice = (useTools && isEditRequest) ? 'required' : 'auto';
 					// gitbbon custom: Issue #99 - experimental_context로 tool에 messages/emitter 전달
 					const toolContext = { messages, emitter };
-					logService.info('[debug:#99] streamText experimental_context 설정:', { messageCount: messages.length, hasEmitter: !!emitter });
 					return streamText({
 						model,
 						system: instructions,
@@ -382,14 +378,12 @@ export class AIService {
 							});
 							// editorTools emitter가 tool-start를 보내지 않을 때만 별도 이벤트 전송
 							// (editorTools에 등록된 tool은 withProgress에서 처리)
-							logService.info(`[debug:#97] tool-call-start: ${toolCall.toolName} (id=${toolCall.toolCallId})`);
 						},
 						// Issue #97: tool 단위 완료 훅 - SDK 제공 durationMs 사용
 						experimental_onToolCallFinish: ({ toolCall, durationMs, success, error }) => {
 							const info = activeToolCalls.get(toolCall.toolCallId);
 							if (info) {
 								activeToolCalls.delete(toolCall.toolCallId);
-								logService.info(`[debug:#97] tool-call-finish: ${info.toolName}, duration=${durationMs}ms, success=${success ?? !error}`);
 							}
 						},
 						experimental_context: toolContext,

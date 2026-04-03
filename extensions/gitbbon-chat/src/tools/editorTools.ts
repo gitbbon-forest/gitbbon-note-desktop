@@ -91,7 +91,6 @@ export function createEditorTools() {
 			execute: async (_input, { experimental_context: ctx }) => {
 				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
 				const { emitter } = (ctx ?? {}) as EditorToolContext;
-				logService.info('[debug:#99] get_selection tool 실행, hasEmitter:', !!emitter);
 				return withProgress('get_selection', {}, emitter, async () => {
 					const detail = await ContextService.getSelection();
 					if (detail) {
@@ -117,7 +116,6 @@ ${detail.after}
 			execute: async (_input, { experimental_context: ctx }) => {
 				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
 				const { emitter } = (ctx ?? {}) as EditorToolContext;
-				logService.info('[debug:#99] get_current_file tool 실행, hasEmitter:', !!emitter);
 				return withProgress('get_current_file', {}, emitter, async () => {
 					const content = await ContextService.getActiveFileContent();
 					if (content) return content;
@@ -135,7 +133,6 @@ ${detail.after}
 			}),
 			execute: async ({ count, query }, { experimental_context: ctx }) => {
 				const { messages } = (ctx ?? {}) as EditorToolContext;
-				logService.info('[debug:#99] get_chat_history tool 실행, messageCount:', messages?.length ?? 0);
 				// createHistoryTool의 execute 로직을 인라인으로 호출
 				return executeHistoryQuery(messages ?? [], count, query);
 			},
@@ -153,7 +150,6 @@ ${detail.after}
 			execute: async (args, { experimental_context: ctx }) => {
 				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
 				const { emitter } = (ctx ?? {}) as EditorToolContext;
-				logService.info('[debug:#99] search_in_workspace tool 실행, query:', args.query);
 				return withProgress('search_in_workspace', { query: args.query }, emitter, () => executeSearch(args));
 			},
 		}),
@@ -166,7 +162,6 @@ ${detail.after}
 			execute: async ({ filePath }, { experimental_context: ctx }) => {
 				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
 				const { emitter } = (ctx ?? {}) as EditorToolContext;
-				logService.info('[debug:#99] read_file tool 실행, filePath:', filePath);
 				return withProgress('read_file', { filePath }, emitter, async () => {
 					try {
 						return await ContextService.readFile(filePath);
@@ -198,7 +193,6 @@ ${detail.after}
 			execute: async ({ action, filePath, title, content, changes, mode }, { experimental_context: ctx }) => {
 				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
 				const { emitter } = (ctx ?? {}) as EditorToolContext;
-				logService.info('[debug:#99] edit_note tool 실행, action:', action, 'filePath:', filePath);
 				return withProgress('edit_note', { action, filePath }, emitter, async () => {
 					try {
 						switch (action) {
