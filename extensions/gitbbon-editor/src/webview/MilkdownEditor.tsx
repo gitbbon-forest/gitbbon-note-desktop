@@ -21,6 +21,10 @@ import './stickyToolbar.css';
 // gitbbon custom: Hide metadata comments
 import { hideGitbbonMetadataPlugin } from './hideMetadataPlugin';
 
+// gitbbon custom: Issue #29 - 컨텍스트 메뉴 포맷 선택 드롭다운
+import { formatDropdownPlugin } from './formatDropdownPlugin';
+import './formatDropdown.css';
+
 // Milkdown 호환 search 플러그인 래핑
 const searchPlugin = $prose(() => search());
 
@@ -118,6 +122,8 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 			.use(searchPlugin)
 			// gitbbon custom: Hide metadata comments
 			.use(hideGitbbonMetadataPlugin)
+			// gitbbon custom: Issue #29 - 컨텍스트 메뉴 포맷 선택 드롭다운 (H1~H6, Paragraph)
+			.use(formatDropdownPlugin)
 			// gitbbon custom: 선택 변경 감지 플러그인
 			.use($prose(() => {
 				const { Plugin, PluginKey } = require('prosemirror-state');

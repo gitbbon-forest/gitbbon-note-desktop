@@ -1,0 +1,38 @@
+/*
+ * gitbbon custom: Issue #29 - 컨텍스트 메뉴 포맷 선택 드롭다운 스타일
+ */
+
+.gitbbon-format-dropdown-wrapper {
+	display: inline-flex;
+	align-items: center;
+	margin-right: 4px;
+}
+
+.gitbbon-format-select {
+	background-color: var(--vscode-editor-background, #1e1e1e);
+	color: var(--vscode-foreground, #cccccc);
+	border: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3));
+	border-radius: 4px;
+	padding: 2px 4px;
+	font-size: 12px;
+	cursor: pointer;
+	min-width: 72px;
+	height: 24px;
+	appearance: auto;
+	outline: none;
+}
+
+.gitbbon-format-select:hover {
+	border-color: var(--vscode-focusBorder, #007fd4);
+	background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.gitbbon-format-select:focus {
+	border-color: var(--vscode-focusBorder, #007fd4);
+	outline: none;
+}
+
+.gitbbon-format-select option {
+	background-color: var(--vscode-dropdown-background, #3c3c3c);
+	color: var(--vscode-dropdown-foreground, #cccccc);
+}
