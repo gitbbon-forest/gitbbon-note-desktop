@@ -89,7 +89,6 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 							const existing = document.getElementById('gitbbon-format-dropdown');
 							if (existing) { existing.remove(); return; }
 
-							console.log('[debug:#29] 포맷 드롭다운 열기');
 
 							const formats = [
 								{ label: 'Paragraph', key: 'paragraph' },
@@ -114,7 +113,6 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 									e.preventDefault();
 									e.stopPropagation();
 									dropdown.remove();
-									console.log('[debug:#29] 포맷 변경:', key);
 									if (key === 'paragraph') {
 										ctx.get(commandsCtx).call(turnIntoTextCommand.key);
 									} else {
