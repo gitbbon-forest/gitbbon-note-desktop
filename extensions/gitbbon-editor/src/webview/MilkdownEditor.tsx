@@ -22,8 +22,10 @@ import './stickyToolbar.css';
 import { hideGitbbonMetadataPlugin } from './hideMetadataPlugin';
 
 // gitbbon custom: Issue #29 - 컨텍스트 메뉴 포맷 선택 드롭다운
-import { formatDropdownPlugin } from './formatDropdownPlugin';
+import { createFormatDropdownPlugin } from './formatDropdownPlugin';
 import './formatDropdown.css';
+
+const formatDropdownPlugin = $prose(() => createFormatDropdownPlugin());
 
 // Milkdown 호환 search 플러그인 래핑
 const searchPlugin = $prose(() => search());

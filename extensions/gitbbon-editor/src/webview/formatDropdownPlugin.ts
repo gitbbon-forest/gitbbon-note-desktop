@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 /**
  * gitbbon custom: Issue #29 - 컨텍스트 메뉴 포맷 선택 드롭다운 플러그인
  *
@@ -8,9 +9,11 @@
  * - ProseMirror Plugin view를 활용해 state 변경 시 드롭다운을 갱신
  * - MutationObserver로 .milkdown-toolbar DOM 생성을 감지하고 드롭다운 삽입
  * - setBlockType(prosemirror-commands)으로 블록 타입 변경
+ *
+ * 참고: $prose 래핑은 MilkdownEditor.tsx에서 수행한다.
  */
 
-import { $prose } from '@milkdown/utils';
+import { Plugin, PluginKey } from 'prosemirror-state';
 import { setBlockType } from 'prosemirror-commands';
 
 // 포맷 옵션 목록
@@ -158,11 +161,10 @@ function ensureDropdownInToolbar(toolbar: HTMLElement, view: any): void {
 }
 
 /**
- * 포맷 드롭다운 ProseMirror 플러그인 (Milkdown $prose 래퍼)
+ * 포맷 드롭다운 ProseMirror 플러그인 factory
+ * MilkdownEditor.tsx에서 $prose(() => createFormatDropdownPlugin()) 형태로 사용한다.
  */
-export const formatDropdownPlugin = $prose(() => {
-	const { Plugin, PluginKey } = require('prosemirror-state');
-
+export function createFormatDropdownPlugin(): Plugin {
 	let observer: MutationObserver | null = null;
 	let currentView: any = null;
 
@@ -230,4 +232,4 @@ export const formatDropdownPlugin = $prose(() => {
 			};
 		},
 	});
-});
+}
