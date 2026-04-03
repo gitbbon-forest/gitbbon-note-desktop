@@ -105,7 +105,7 @@ ${detail.text}
 ${detail.after}
 `.trim();
 					}
-					return "Error: No text selected.";
+					return "No text selected. Do NOT retry — ask the user to select text first.";
 				});
 			},
 		}),
@@ -119,7 +119,7 @@ ${detail.after}
 				return withProgress('get_current_file', {}, emitter, async () => {
 					const content = await ContextService.getActiveFileContent();
 					if (content) return content;
-					return "Error: No active editor found.";
+					return "No active editor found. Do NOT retry — use read_file with a specific file path instead.";
 				});
 			},
 		}),
@@ -233,7 +233,7 @@ ${detail.after}
  */
 function executeHistoryQuery(messages: ModelMessage[], count: number, query?: string): string {
 	if (messages.length === 0) {
-		return "Error: No history available.";
+		return "No history available. Do NOT retry this tool.";
 	}
 
 	const historyPool = messages.length > 5 ? messages.slice(0, -5) : [];

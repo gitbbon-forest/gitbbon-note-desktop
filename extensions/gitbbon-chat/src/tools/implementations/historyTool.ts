@@ -10,7 +10,7 @@ export const createHistoryTool = (messages: ModelMessage[]) => tool({
 	}),
 	execute: async ({ count, query }) => {
 		if (messages.length === 0) {
-			return "Error: No history available.";
+			return "No history available. Do NOT retry this tool.";
 		}
 
 		// Filter out the current message and the default "Recent History" (last 4 filtered messages)

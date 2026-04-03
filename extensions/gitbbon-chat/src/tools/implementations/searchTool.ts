@@ -82,7 +82,7 @@ export async function executeSearch({ query, isRegex, filePattern, context, maxR
 
 	const workspaceFolders = vscode.workspace.workspaceFolders;
 	if (!workspaceFolders || workspaceFolders.length === 0) {
-		return "Error: No workspace open.";
+		return "No workspace open. Do NOT retry this tool.";
 	}
 
 	const matches: string[] = [];
@@ -96,7 +96,7 @@ export async function executeSearch({ query, isRegex, filePattern, context, maxR
 
 	try {
 		if (typeof workspaceAny.findTextInFiles !== 'function') {
-			return "Error: VS Code 'findTextInFiles' API is not available.";
+			return "VS Code 'findTextInFiles' API is not available. Do NOT retry this tool.";
 		}
 
 		const findTextInFiles: FindTextInFilesFunc = workspaceAny.findTextInFiles.bind(vscode.workspace);
