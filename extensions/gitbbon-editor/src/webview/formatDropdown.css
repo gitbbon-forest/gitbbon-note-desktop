@@ -1,38 +1,34 @@
 /*
- * gitbbon custom: Issue #29 - 컨텍스트 메뉴 포맷 선택 드롭다운 스타일
+ * gitbbon custom: Issue #29 - 포맷 선택 드롭다운 팝업 스타일
  */
 
-.gitbbon-format-dropdown-wrapper {
-	display: inline-flex;
-	align-items: center;
-	margin-right: 4px;
-}
-
-.gitbbon-format-select {
-	background-color: var(--vscode-editor-background, #1e1e1e);
-	color: var(--vscode-foreground, #cccccc);
+.gitbbon-format-dropdown {
+	position: fixed;
+	z-index: 9999;
+	background-color: var(--vscode-dropdown-background, #252526);
 	border: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3));
-	border-radius: 4px;
-	padding: 2px 4px;
-	font-size: 12px;
-	cursor: pointer;
-	min-width: 72px;
-	height: 24px;
-	appearance: auto;
-	outline: none;
+	border-radius: 6px;
+	padding: 4px;
+	min-width: 140px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
 }
 
-.gitbbon-format-select:hover {
-	border-color: var(--vscode-focusBorder, #007fd4);
-	background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
-}
-
-.gitbbon-format-select:focus {
-	border-color: var(--vscode-focusBorder, #007fd4);
-	outline: none;
-}
-
-.gitbbon-format-select option {
-	background-color: var(--vscode-dropdown-background, #3c3c3c);
+.gitbbon-format-dropdown-item {
+	background: transparent;
+	border: none;
 	color: var(--vscode-dropdown-foreground, #cccccc);
+	padding: 6px 10px;
+	text-align: left;
+	font-size: 13px;
+	border-radius: 4px;
+	cursor: pointer;
+	width: 100%;
+}
+
+.gitbbon-format-dropdown-item:hover {
+	background-color: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31));
+	color: var(--vscode-list-hoverForeground, #ffffff);
 }

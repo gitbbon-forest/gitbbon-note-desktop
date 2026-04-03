@@ -80,85 +80,94 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 			featureConfigs: {
 				[Crepe.Feature.Toolbar]: {
 					buildToolbar: (builder: any) => {
-						// gitbbon custom: Issue #29 - 포맷 선택 그룹 추가 (H1~H6, Paragraph)
-						const formatGroup = builder.addGroup('format', '포맷');
+						// gitbbon custom: Issue #29 - 포맷 선택 드롭다운 버튼
+						// Crepe toolbar는 버튼만 지원하므로, 버튼 클릭 시 커스텀 드롭다운 팝업을 생성한다.
 
-						// 현재 커서 위치의 블록 타입 확인 헬퍼
-						const isHeadingActive = (ctx: any, level: number): boolean => {
+						// 현재 블록 타입 레이블 반환
+						const getCurrentFormatLabel = (ctx: any): string => {
 							try {
 								const view = ctx.get(editorViewCtx);
 								const { $from } = view.state.selection;
 								const node = $from.node($from.depth);
-								const headingType = headingSchema.type(ctx);
-								return node.type === headingType && node.attrs.level === level;
-							} catch { return false; }
-						};
-						const isParagraphActive = (ctx: any): boolean => {
-							try {
-								const view = ctx.get(editorViewCtx);
-								const { $from } = view.state.selection;
-								const node = $from.node($from.depth);
-								return node.type === paragraphSchema.type(ctx);
-							} catch { return false; }
+								if (node.type === headingSchema.type(ctx)) {
+									return `H${node.attrs.level}`;
+								}
+								if (node.type === paragraphSchema.type(ctx)) {
+									return 'P';
+								}
+								return 'P';
+							} catch { return 'P'; }
 						};
 
-						formatGroup
-							.addItem('paragraph', {
-								icon: '<span style="font-size:13px;font-weight:500;line-height:1">P</span>',
-								active: (ctx: any) => isParagraphActive(ctx),
-								onRun: (ctx: any) => {
-									console.log('[debug:#29] 포맷 변경: Paragraph');
-									ctx.get(commandsCtx).call(turnIntoTextCommand.key);
-								}
-							})
-							.addItem('h1', {
-								icon: '<span style="font-size:12px;font-weight:700;line-height:1">H1</span>',
-								active: (ctx: any) => isHeadingActive(ctx, 1),
-								onRun: (ctx: any) => {
-									console.log('[debug:#29] 포맷 변경: H1');
-									ctx.get(commandsCtx).call(wrapInHeadingCommand.key, 1);
-								}
-							})
-							.addItem('h2', {
-								icon: '<span style="font-size:12px;font-weight:700;line-height:1">H2</span>',
-								active: (ctx: any) => isHeadingActive(ctx, 2),
-								onRun: (ctx: any) => {
-									console.log('[debug:#29] 포맷 변경: H2');
-									ctx.get(commandsCtx).call(wrapInHeadingCommand.key, 2);
-								}
-							})
-							.addItem('h3', {
-								icon: '<span style="font-size:12px;font-weight:700;line-height:1">H3</span>',
-								active: (ctx: any) => isHeadingActive(ctx, 3),
-								onRun: (ctx: any) => {
-									console.log('[debug:#29] 포맷 변경: H3');
-									ctx.get(commandsCtx).call(wrapInHeadingCommand.key, 3);
-								}
-							})
-							.addItem('h4', {
-								icon: '<span style="font-size:12px;font-weight:700;line-height:1">H4</span>',
-								active: (ctx: any) => isHeadingActive(ctx, 4),
-								onRun: (ctx: any) => {
-									console.log('[debug:#29] 포맷 변경: H4');
-									ctx.get(commandsCtx).call(wrapInHeadingCommand.key, 4);
-								}
-							})
-							.addItem('h5', {
-								icon: '<span style="font-size:12px;font-weight:700;line-height:1">H5</span>',
-								active: (ctx: any) => isHeadingActive(ctx, 5),
-								onRun: (ctx: any) => {
-									console.log('[debug:#29] 포맷 변경: H5');
-									ctx.get(commandsCtx).call(wrapInHeadingCommand.key, 5);
-								}
-							})
-							.addItem('h6', {
-								icon: '<span style="font-size:12px;font-weight:700;line-height:1">H6</span>',
-								active: (ctx: any) => isHeadingActive(ctx, 6),
-								onRun: (ctx: any) => {
-									console.log('[debug:#29] 포맷 변경: H6');
-									ctx.get(commandsCtx).call(wrapInHeadingCommand.key, 6);
-								}
+						// 드롭다운 팝업 표시
+						const showFormatDropdown = (ctx: any, buttonEl: HTMLElement) => {
+							// 기존 드롭다운 제거 (토글)
+							const existing = document.getElementById('gitbbon-format-dropdown');
+							if (existing) { existing.remove(); return; }
+
+							console.log('[debug:#29] 포맷 드롭다운 열기');
+
+							const formats = [
+								{ label: '본문 (P)', key: 'paragraph' },
+								{ label: '제목 1 (H1)', key: 'h1' },
+								{ label: '제목 2 (H2)', key: 'h2' },
+								{ label: '제목 3 (H3)', key: 'h3' },
+								{ label: '제목 4 (H4)', key: 'h4' },
+								{ label: '제목 5 (H5)', key: 'h5' },
+								{ label: '제목 6 (H6)', key: 'h6' },
+							];
+
+							const dropdown = document.createElement('div');
+							dropdown.id = 'gitbbon-format-dropdown';
+							dropdown.className = 'gitbbon-format-dropdown';
+
+							formats.forEach(({ label, key }) => {
+								const item = document.createElement('button');
+								item.type = 'button';
+								item.className = 'gitbbon-format-dropdown-item';
+								item.textContent = label;
+								item.addEventListener('mousedown', (e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									dropdown.remove();
+									console.log('[debug:#29] 포맷 변경:', key);
+									if (key === 'paragraph') {
+										ctx.get(commandsCtx).call(turnIntoTextCommand.key);
+									} else {
+										const level = parseInt(key.replace('h', ''));
+										ctx.get(commandsCtx).call(wrapInHeadingCommand.key, level);
+									}
+								});
+								dropdown.appendChild(item);
 							});
+
+							// 버튼 위치 기준으로 드롭다운 위치 설정
+							const rect = buttonEl.getBoundingClientRect();
+							dropdown.style.position = 'fixed';
+							dropdown.style.top = `${rect.bottom + 4}px`;
+							dropdown.style.left = `${rect.left}px`;
+
+							document.body.appendChild(dropdown);
+
+							// 외부 클릭 시 닫기
+							const closeOnOutside = (e: MouseEvent) => {
+								if (!dropdown.contains(e.target as Node)) {
+									dropdown.remove();
+									document.removeEventListener('mousedown', closeOnOutside);
+								}
+							};
+							setTimeout(() => document.addEventListener('mousedown', closeOnOutside), 0);
+						};
+
+						builder.addGroup('format', '포맷').addItem('formatPicker', {
+							icon: '<span style="font-size:12px;font-weight:600;line-height:1;min-width:20px;display:inline-block;text-align:center">Aa</span>',
+							active: () => false,
+							onRun: (ctx: any) => {
+								// 버튼 DOM 요소 찾기
+								const btn = document.querySelector('.milkdown-toolbar .toolbar-item:first-child') as HTMLElement | null;
+								showFormatDropdown(ctx, btn || document.body);
+							}
+						});
 
 						// AI 물어보기 그룹 추가
 						builder.addGroup('ai', 'AI').addItem('askAI', {
