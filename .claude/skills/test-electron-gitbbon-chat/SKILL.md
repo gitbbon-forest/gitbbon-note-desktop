@@ -10,11 +10,10 @@ description: gitbbon-chat Extension Host 테스트 실행. 실패 시 원인 분
 
 ## 실행 프로세스
 
-### 1단계: 컴파일 + 테스트 실행
+### 1단계: 테스트 실행
 
 ```bash
 cd extensions/gitbbon-chat
-npm run compile:test
 npm run test:electron
 ```
 
@@ -47,9 +46,9 @@ npm run test:electron
      ```
    - `[debug:test]` prefix로 임시 로그임을 명시한다
 
-5. **재컴파일 + 재실행**
+5. **재실행**
    ```bash
-   npm run compile:test && npm run test:electron
+   npm run test:electron
    ```
 
 6. **반복 또는 종료**
