@@ -54,70 +54,111 @@ function findMarksByGroupId(view: EditorView, groupId: string) {
 	return results;
 }
 
-// 3. 플러그인 본체
+// 각 suggestion group의 위치 정보 타입
+export interface SuggestionGroupInfo {
+	groupId: string;
+	anchorPos: number; // 그룹의 첫 번째 마크 시작 위치 (coordsAtPos 계산용)
+	deleteText: string;
+	insertText: string;
+}
+
+// 외부에서 카드 정보를 구독하기 위한 콜백 타입
+export type SuggestionCardsUpdateCallback = (cards: SuggestionGroupInfo[]) => void;
+
+// 카드 업데이트 콜백 저장소 (에디터 인스턴스별로 하나)
+let cardsUpdateCallback: SuggestionCardsUpdateCallback | null = null;
+
+export function setSuggestionCardsCallback(cb: SuggestionCardsUpdateCallback | null) {
+	cardsUpdateCallback = cb;
+}
+
+// 수락/거절 함수 (외부에서 groupId로 호출)
+export function acceptSuggestion(view: EditorView, groupId: string) {
+	console.log('[debug:#109] acceptSuggestion 호출:', groupId);
+	const ranges = findMarksByGroupId(view, groupId);
+	let currentTr = view.state.tr;
+	ranges.sort((a, b) => b.from - a.from).forEach(r => {
+		if (r.name === 'suggestion_insert') {
+			currentTr = currentTr.removeMark(r.from, r.to, view.state.schema.marks.suggestion_insert);
+		} else if (r.name === 'suggestion_delete') {
+			currentTr = currentTr.delete(r.from, r.to);
+		}
+	});
+	view.dispatch(currentTr);
+}
+
+export function rejectSuggestion(view: EditorView, groupId: string) {
+	console.log('[debug:#109] rejectSuggestion 호출:', groupId);
+	const ranges = findMarksByGroupId(view, groupId);
+	let currentTr = view.state.tr;
+	ranges.sort((a, b) => b.from - a.from).forEach(r => {
+		if (r.name === 'suggestion_insert') {
+			currentTr = currentTr.delete(r.from, r.to); // 삽입 제안 거절 -> 삭제
+		} else if (r.name === 'suggestion_delete') {
+			currentTr = currentTr.removeMark(r.from, r.to, view.state.schema.marks.suggestion_delete); // 삭제 제안 거절 -> 마크만 제거 (복구)
+		}
+	});
+	view.dispatch(currentTr);
+}
+
+// 3. 플러그인 본체 (인라인 버튼 위젯 제거, 마진 카드용 정보만 추출)
 export const suggestionPlugin = $prose(() => new Plugin({
 	key: suggestionPluginKey,
 	state: {
-		init: (_, state) => ({ decorations: DecorationSet.create(state.doc, []) }),
+		init: (_, state) => ({ decorations: DecorationSet.create(state.doc, []), cards: [] as SuggestionGroupInfo[] }),
 		apply(tr, value, oldState, newState) {
-			const decorations: Decoration[] = [];
-			const processedGroups = new Set();
+			const processedGroups = new Set<string>();
+			const cards: SuggestionGroupInfo[] = [];
+			// 각 그룹별 텍스트 수집용 맵
+			const groupDeleteText: Record<string, string> = {};
+			const groupInsertText: Record<string, string> = {};
+			const groupAnchorPos: Record<string, number> = {};
+
 			newState.doc.descendants((node, pos) => {
 				node.marks.forEach(mark => {
-					if (mark.type.name.startsWith('suggestion_')) {
-						const gid = mark.attrs.groupId;
-						if (gid && processedGroups.has(gid)) {
-							return;
-						}
-						if (gid) {
-							processedGroups.add(gid);
-						}
+					if (!mark.type.name.startsWith('suggestion_')) return;
+					const gid = mark.attrs.groupId;
+					if (!gid) return;
 
-						// 버튼 UI 생성 (Decoration.widget)
-						decorations.push(Decoration.widget(pos + node.nodeSize, (view) => {
-							const dom = document.createElement('div');
-							dom.className = 'suggestion-hover-menu';
-							dom.innerHTML = `<button class="suggestion-btn accept">✓</button><button class="suggestion-btn reject">✕</button>`;
+					const text = node.isText ? (node.text ?? '') : '';
 
-							const acceptBtn = dom.querySelector('.accept');
-							const rejectBtn = dom.querySelector('.reject');
-
-							acceptBtn?.addEventListener('click', () => {
-								const ranges = findMarksByGroupId(view, gid);
-								let currentTr = view.state.tr;
-								// 역순 정렬 (인덱스 꼬임 방지)
-								ranges.sort((a, b) => b.from - a.from).forEach(r => {
-									if (r.name === 'suggestion_insert') {
-										currentTr = currentTr.removeMark(r.from, r.to, view.state.schema.marks.suggestion_insert);
-									} else if (r.name === 'suggestion_delete') {
-										currentTr = currentTr.delete(r.from, r.to);
-									}
-								});
-								view.dispatch(currentTr);
-							});
-
-							rejectBtn?.addEventListener('click', () => {
-								const ranges = findMarksByGroupId(view, gid);
-								let currentTr = view.state.tr;
-								ranges.sort((a, b) => b.from - a.from).forEach(r => {
-									if (r.name === 'suggestion_insert') {
-										currentTr = currentTr.delete(r.from, r.to); // 삽입 제안 거절 -> 삭제
-									} else if (r.name === 'suggestion_delete') {
-										currentTr = currentTr.removeMark(r.from, r.to, view.state.schema.marks.suggestion_delete); // 삭제 제안 거절 -> 마크만 제거 (복구)
-									}
-								});
-								view.dispatch(currentTr);
-							});
-
-							return dom;
-						}, { side: 1 }));
+					if (mark.type.name === 'suggestion_delete') {
+						if (!(gid in groupDeleteText)) groupDeleteText[gid] = '';
+						groupDeleteText[gid] += text;
+						if (!(gid in groupAnchorPos)) groupAnchorPos[gid] = pos;
+					} else if (mark.type.name === 'suggestion_insert') {
+						if (!(gid in groupInsertText)) groupInsertText[gid] = '';
+						groupInsertText[gid] += text;
+						if (!(gid in groupAnchorPos)) groupAnchorPos[gid] = pos;
 					}
 				});
+				return true;
 			});
-			return { decorations: DecorationSet.create(newState.doc, decorations) };
+
+			// 그룹별 카드 생성 (anchorPos 순서 정렬)
+			const allGroupIds = new Set([...Object.keys(groupDeleteText), ...Object.keys(groupInsertText)]);
+			allGroupIds.forEach(gid => {
+				cards.push({
+					groupId: gid,
+					anchorPos: groupAnchorPos[gid] ?? 0,
+					deleteText: groupDeleteText[gid] ?? '',
+					insertText: groupInsertText[gid] ?? '',
+				});
+			});
+
+			cards.sort((a, b) => a.anchorPos - b.anchorPos);
+
+			console.log('[debug:#109] suggestionPlugin apply - 카드 수:', cards.length);
+
+			// 콜백으로 카드 정보 전달 (다음 tick에서 React 상태 업데이트)
+			if (cardsUpdateCallback) {
+				setTimeout(() => cardsUpdateCallback && cardsUpdateCallback(cards), 0);
+			}
+
+			return { decorations: DecorationSet.create(newState.doc, []), cards };
 		}
 	},
-	props: { decorations(state) { return this.getState(state).decorations; } }
+	props: { decorations(state) { return this.getState(state)?.decorations ?? DecorationSet.empty; } }
 }));
 
 // 4. AI 제안 적용 함수
