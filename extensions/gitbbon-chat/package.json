@@ -84,7 +84,7 @@
     "watch:webview": "vite build --watch",
     "build:webview": "vite build",
     "compile:test": "tsc -p ./tsconfig.test.json",
-    "test:electron": "node out/runTests.js"
+    "test:electron": "node out/test/runTests.js"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
