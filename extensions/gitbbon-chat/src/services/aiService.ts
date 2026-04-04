@@ -2,7 +2,9 @@ import * as vscode from 'vscode';
 import { streamText, stepCountIs, type ModelMessage, type LanguageModel, type ToolSet, type TypedToolCall, type TypedToolResult } from 'ai';
 import { ollama } from 'ollama-ai-provider-v2';
 import { createEditorTools } from '../tools/editorTools';
-import { ContextService } from './ContextService';
+import { ContextService, ContextServiceAdapter } from './ContextService';
+// gitbbon custom: Issue #111 - IContextService 주입 지원 (TDE mock 주입 가능)
+import type { IContextService } from '../interfaces/IContextService';
 import { SYSTEM_PROMPT } from '../constants/prompts';
 import { type StreamEvent, type ToolStartEvent, type ToolEndEvent, generateToolId } from '../types';
 import { logService } from './logService';
@@ -54,8 +56,12 @@ export class AIService {
 	private apiKey: string | undefined;
 	private initialized = false;
 	private currentAbortController: AbortController | null = null;
+	// gitbbon custom: Issue #111 - IContextService 주입 (기본값은 ContextServiceAdapter로 기존 동작 유지)
+	private contextService: IContextService;
 
-	constructor(private readonly secrets: vscode.SecretStorage) { }
+	constructor(private readonly secrets: vscode.SecretStorage, contextService?: IContextService) {
+		this.contextService = contextService ?? new ContextServiceAdapter();
+	}
 
 	public async getBackend(): Promise<'api' | 'ollama'> {
 		const stored = await this.secrets.get('CHAT_BACKEND');
@@ -210,7 +216,8 @@ export class AIService {
 		};
 
 		// gitbbon custom: Issue #99 - experimental_context로 tool 컨텍스트 전달 (closure 의존성 제거)
-		const tools = createEditorTools();
+		// gitbbon custom: Issue #111 - 주입된 contextService를 editorTools에 전달
+		const tools = createEditorTools(this.contextService);
 
 		// Resolve model: Ollama returns a LanguageModel object; API backend uses a gateway string ID
 		let model: LanguageModel | string;
@@ -223,10 +230,11 @@ export class AIService {
 			model = 'openai/o4-mini';
 		}
 
+		// gitbbon custom: Issue #111 - ContextService 직접 참조 대신 주입된 contextService 사용
 		// Context collection
-		const activeFile = ContextService.getActiveFileName();
+		const activeFile = this.contextService.getActiveFileName();
 		let selectionPreview = 'None';
-		const selectionDetail = await ContextService.getSelection();
+		const selectionDetail = await this.contextService.getSelection();
 		const SELECTION_LIMIT = 1000;
 
 		if (selectionDetail) {
@@ -238,12 +246,12 @@ export class AIService {
 
 		let cursorContext = 'None';
 		if (!selectionDetail) {
-			const context = await ContextService.getCursorContext();
+			const context = await this.contextService.getCursorContext();
 			if (context) cursorContext = context;
 		}
 
 		const olderMessageCount = Math.max(0, messages.length - 5);
-		const openTabs = ContextService.getOpenTabs();
+		const openTabs = this.contextService.getOpenTabs();
 		const contextParts: string[] = ['[Current Environment Context]'];
 
 		const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -349,7 +357,8 @@ export class AIService {
 					// gitbbon custom: Issue #98 - 편집 요청 시 toolChoice required 설정으로 텍스트 응답 방지
 					const toolChoice = (useTools && isEditRequest) ? 'required' : 'auto';
 					// gitbbon custom: Issue #99 - experimental_context로 tool에 messages/emitter 전달
-					const toolContext = { messages, emitter };
+					// gitbbon custom: Issue #111 - contextService도 experimental_context에 포함
+				const toolContext = { messages, emitter, contextService: this.contextService };
 					return streamText({
 						model,
 						system: instructions,

@@ -82,7 +82,9 @@
     "watch": "tsc -watch -p ./ & vite build --watch",
     "watch:tsc": "tsc -watch -p ./",
     "watch:webview": "vite build --watch",
-    "build:webview": "vite build"
+    "build:webview": "vite build",
+    "test:tde": "node out/test/runner.js",
+    "test:tde:loop": "bash test/tde-loop.sh"
   },
   "devDependencies": {
     "@types/node": "22.x",

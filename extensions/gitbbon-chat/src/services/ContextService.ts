@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+// gitbbon custom: Issue #111 - IContextService 인터페이스 re-export (static 클래스 유지, 별도 어댑터 패턴 사용)
+export type { IContextService } from '../interfaces/IContextService';
 
 export class ContextService {
 	private static SELECTION_LIMIT = 1000;
@@ -387,5 +389,46 @@ export class ContextService {
 
 		await vscode.workspace.fs.delete(uri);
 		return `Deleted: ${vscode.workspace.asRelativePath(uri)}`;
+	}
+}
+
+// gitbbon custom: Issue #111 - ContextService static 메서드를 IContextService 인스턴스로 감싸는 어댑터
+// aiService가 IContextService를 주입받을 수 있도록 하면서 기존 동작을 그대로 유지한다
+import type { IContextService } from '../interfaces/IContextService';
+
+export class ContextServiceAdapter implements IContextService {
+	isGitbbonEditor(): boolean {
+		return ContextService.isGitbbonEditor();
+	}
+	getActiveFileName(): string {
+		return ContextService.getActiveFileName();
+	}
+	async getSelection(): Promise<{ text: string; before: string; after: string } | null> {
+		return ContextService.getSelection();
+	}
+	async getActiveFileContent(): Promise<string | null> {
+		return ContextService.getActiveFileContent();
+	}
+	async getCursorContext(): Promise<string | null> {
+		return ContextService.getCursorContext();
+	}
+	getOpenTabs(): string[] {
+		return ContextService.getOpenTabs();
+	}
+	async readFile(filePath: string): Promise<string> {
+		return ContextService.readFile(filePath);
+	}
+	async applySuggestions(
+		filePath: string,
+		changes: { oldText: string; newText: string }[],
+		mode: 'direct' | 'suggestion' = 'direct'
+	): Promise<void> {
+		return ContextService.applySuggestions(filePath, changes, mode);
+	}
+	async createNote(filePath: string, content: string, title?: string): Promise<string> {
+		return ContextService.createNote(filePath, content, title);
+	}
+	async deleteNote(filePath: string): Promise<string> {
+		return ContextService.deleteNote(filePath);
 	}
 }
