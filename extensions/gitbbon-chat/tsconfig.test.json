@@ -11,6 +11,6 @@
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node"
   },
-  "include": ["test/**/*"],
-  "exclude": ["node_modules"]
+  "include": ["test/**/*", "src/**/*"],
+  "exclude": ["node_modules", "src/webview/**/*"]
 }
