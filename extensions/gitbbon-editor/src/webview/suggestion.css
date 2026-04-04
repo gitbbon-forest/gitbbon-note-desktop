@@ -2,31 +2,58 @@
 .suggestion-insert { background-color: rgba(163, 190, 140, 0.3); color: #a3be8c; }
 .suggestion-delete { background-color: rgba(191, 97, 106, 0.3); color: #bf616a; text-decoration: line-through; }
 
-/* 마진 카드 컨테이너 (에디터 오른쪽 여백에 위치) */
-.suggestion-cards-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-  z-index: 100;
+/* gitbbon custom: 카드 없을 때 에디터 가운데 정렬 (#109) */
+.editor-centered {
+  width: 100%;
+  display: block;
 }
 
-/* 개별 마진 카드 */
+/* gitbbon custom: 카드 있을 때 2열 레이아웃 (#109)
+   에디터 콘텐츠 영역(flex:1) + 마진 카드 sticky 컬럼(280px) */
+.editor-with-cards {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+}
+
+/* 에디터 콘텐츠 영역 — 카드 없을 때는 부모가 block이라 전체 너비 사용 */
+.editor-content-area {
+  flex: 1;
+  min-width: 0; /* flex 자식의 overflow 방지 */
+}
+
+/* gitbbon custom: 마진 카드 sticky 컬럼 (#109)
+   스크롤과 함께 움직이지 않도록 sticky, 카드들은 내부에서 absolute 위치 */
+.suggestion-card-column {
+  width: 240px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* 스크롤바 숨기기 (선택) */
+  scrollbar-width: none;
+}
+
+.suggestion-card-column::-webkit-scrollbar {
+  display: none;
+}
+
+/* 개별 마진 카드 — sticky 컬럼 안에서 absolute 위치 */
 .suggestion-card {
-  position: fixed;
-  width: 200px;
+  position: absolute;
+  width: 220px;
   background: var(--vscode-editor-background, #2e3440);
   border: 1px solid var(--vscode-panel-border, #4c566a);
   border-left: 3px solid #a3be8c;
   border-radius: 4px;
   padding: 8px 10px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  pointer-events: all;
   font-size: 12px;
   line-height: 1.4;
   color: var(--vscode-editor-foreground, #d8dee9);
+  left: 8px; /* 컬럼 안 좌측 여백 */
 }
 
 .suggestion-card:hover {

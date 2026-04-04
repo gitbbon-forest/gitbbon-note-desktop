@@ -73,16 +73,18 @@ const askAIIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" f
 </svg>`;
 
 // gitbbon custom: 마진 카드 컴포넌트 (#109)
-// 각 suggestion group을 에디터 오른쪽 여백에 카드로 렌더링 (React portal 사용)
+// 각 suggestion group을 에디터 오른쪽 sticky 컬럼 안에 절대 위치로 렌더링
 interface SuggestionCardsProps {
 	cards: SuggestionGroupInfo[];
 	viewRef: React.MutableRefObject<any>; // EditorView 참조
+	cardColumnRef: React.RefObject<HTMLDivElement>; // 카드 컬럼 DOM 참조
 }
 
-function SuggestionCards({ cards, viewRef }: SuggestionCardsProps) {
-	const [positions, setPositions] = useState<Array<{ top: number; left: number }>>([]);
+function SuggestionCards({ cards, viewRef, cardColumnRef }: SuggestionCardsProps) {
+	const [positions, setPositions] = useState<Array<{ top: number }>>([]);
 
 	// 카드 Y좌표 계산 및 충돌 해소
+	// gitbbon custom: 뷰포트 이탈 방지 로직 포함 (#109)
 	const recalcPositions = useCallback(() => {
 		const view = viewRef.current;
 		if (!view || cards.length === 0) {
@@ -90,21 +92,23 @@ function SuggestionCards({ cards, viewRef }: SuggestionCardsProps) {
 			return;
 		}
 
-		// 에디터 DOM의 오른쪽 경계 계산
-		const editorDom = view.dom as HTMLElement;
-		const editorRect = editorDom.getBoundingClientRect();
-		const cardLeft = editorRect.right + 12; // 에디터 오른쪽 12px 여백
-
 		const CARD_HEIGHT = 90; // 카드 대략적인 높이 (px)
 		const CARD_GAP = 6;
+		const MARGIN = 8;
 
-		// 각 카드의 raw Y좌표 계산
-		const rawPositions: Array<{ top: number; left: number }> = cards.map(card => {
+		// 카드 컬럼의 scrollTop을 고려해 에디터 기준 상대 Y 계산
+		const columnEl = cardColumnRef.current;
+		const columnScrollTop = columnEl ? columnEl.scrollTop : 0;
+
+		// 각 카드의 raw Y좌표 계산 (에디터 DOM 기준 절대 Y → 컬럼 내 상대 Y로 변환)
+		const rawPositions: Array<{ top: number }> = cards.map(card => {
 			try {
 				const coords = view.coordsAtPos(Math.min(card.anchorPos, view.state.doc.content.size));
-				return { top: coords.top, left: cardLeft };
+				// coords.top 은 뷰포트 기준 Y. 컬럼 내 absolute 위치로 변환하기 위해 스크롤 오프셋 더함
+				const relativeTop = coords.top + columnScrollTop;
+				return { top: relativeTop };
 			} catch {
-				return { top: 0, left: cardLeft };
+				return { top: 0 };
 			}
 		});
 
@@ -114,13 +118,24 @@ function SuggestionCards({ cards, viewRef }: SuggestionCardsProps) {
 			const prev = resolved[i - 1];
 			const minTop = prev.top + CARD_HEIGHT + CARD_GAP;
 			if (resolved[i].top < minTop) {
-				resolved[i] = { ...resolved[i], top: minTop };
+				resolved[i] = { top: minTop };
 			}
 		}
 
+		// gitbbon custom: 뷰포트 이탈 방지 — 카드가 뷰포트 하단을 넘어가면 위로 올림 (#109)
+		const viewportHeight = window.innerHeight;
+		const adjustedResolved = resolved.map(pos => {
+			const maxTop = columnScrollTop + viewportHeight - CARD_HEIGHT - MARGIN;
+			if (pos.top > maxTop) {
+				console.log('[debug:#109] 카드 뷰포트 이탈 감지, 위로 조정:', pos.top, '->', maxTop);
+				return { top: Math.max(0, maxTop) };
+			}
+			return pos;
+		});
+
 		console.log('[debug:#109] SuggestionCards 위치 계산 완료, 카드 수:', cards.length);
-		setPositions(resolved);
-	}, [cards, viewRef]);
+		setPositions(adjustedResolved);
+	}, [cards, viewRef, cardColumnRef]);
 
 	useEffect(() => {
 		recalcPositions();
@@ -136,16 +151,22 @@ function SuggestionCards({ cards, viewRef }: SuggestionCardsProps) {
 		const handler = () => recalcPositions();
 		scrollParent.addEventListener('scroll', handler, { passive: true });
 		window.addEventListener('resize', handler, { passive: true });
+
+		// 카드 컬럼 자체 스크롤 감지
+		const columnEl = cardColumnRef.current;
+		if (columnEl) columnEl.addEventListener('scroll', handler, { passive: true });
+
 		return () => {
 			scrollParent.removeEventListener('scroll', handler);
 			window.removeEventListener('resize', handler);
+			if (columnEl) columnEl.removeEventListener('scroll', handler);
 		};
-	}, [viewRef, recalcPositions]);
+	}, [viewRef, cardColumnRef, recalcPositions]);
 
 	if (cards.length === 0 || positions.length === 0) return null;
 
-	return ReactDOM.createPortal(
-		<div className="suggestion-cards-container">
+	return (
+		<>
 			{cards.map((card, i) => {
 				const pos = positions[i];
 				if (!pos) return null;
@@ -153,7 +174,7 @@ function SuggestionCards({ cards, viewRef }: SuggestionCardsProps) {
 					<div
 						key={card.groupId}
 						className="suggestion-card"
-						style={{ top: pos.top, left: pos.left }}
+						style={{ top: pos.top }}
 					>
 						{card.deleteText && (
 							<div className="suggestion-card-delete" title={card.deleteText}>
@@ -184,8 +205,7 @@ function SuggestionCards({ cards, viewRef }: SuggestionCardsProps) {
 					</div>
 				);
 			})}
-		</div>,
-		document.body
+		</>
 	);
 }
 
@@ -193,6 +213,8 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 	// gitbbon custom: 마진 카드 상태 (#109)
 	const [suggestionCards, setSuggestionCards] = useState<SuggestionGroupInfo[]>([]);
 	const editorViewRef = useRef<any>(null); // EditorView 참조 저장
+	// gitbbon custom: 카드 컬럼 DOM 참조 — sticky 컬럼 내 절대 위치 계산용 (#109)
+	const cardColumnRef = useRef<HTMLDivElement>(null);
 
 	const { get: getInstance, loading } = useEditor((root) => {
 		// gitbbon custom: 초기 로드 시 onChange 무시 (초기화 중 발생하는 이벤트 방지)
@@ -654,12 +676,26 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 		}
 	}));
 
+	// gitbbon custom: 카드 있을 때 2열 레이아웃, 없을 때 가운데 정렬 (#109)
+	const hasCards = suggestionCards.length > 0;
+
 	return (
-		<>
-			<Milkdown />
-			{/* gitbbon custom: 마진 카드 렌더링 (#109) */}
-			<SuggestionCards cards={suggestionCards} viewRef={editorViewRef} />
-		</>
+		<div className={hasCards ? 'editor-with-cards' : 'editor-centered'}>
+			{/* 에디터 콘텐츠 영역 */}
+			<div className="editor-content-area">
+				<Milkdown />
+			</div>
+			{/* gitbbon custom: 마진 카드 sticky 컬럼 — 카드 있을 때만 렌더링 (#109) */}
+			{hasCards && (
+				<div className="suggestion-card-column" ref={cardColumnRef}>
+					<SuggestionCards
+						cards={suggestionCards}
+						viewRef={editorViewRef}
+						cardColumnRef={cardColumnRef}
+					/>
+				</div>
+			)}
+		</div>
 	);
 });
 
