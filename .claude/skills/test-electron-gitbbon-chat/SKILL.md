@@ -40,6 +40,12 @@ npm run test:electron
 4. **코드 수정**
    - 가설에 따라 최소 범위로 수정 (Edit)
    - 수정 이유를 주석으로 명시
+   - 동작 확인이 필요한 분기·변환 지점에 디버깅 로그 추가:
+     ```typescript
+     console.log('[debug:test] 입력값:', input);
+     console.log('[debug:test] 처리 결과:', result);
+     ```
+   - `[debug:test]` prefix로 임시 로그임을 명시한다
 
 5. **재컴파일 + 재실행**
    ```bash
@@ -47,9 +53,36 @@ npm run test:electron
    ```
 
 6. **반복 또는 종료**
-   - 통과 시 → 3단계로
+   - 통과 시 → 수정한 코드를 커밋 후 3단계로
+     ```bash
+     git add extensions/gitbbon-chat
+     git commit -m "fix: [실패한 테스트명] 수정 — [원인 한 줄 요약]"
+     ```
    - 실패 시 → 다른 가설로 2번부터 반복
-   - **최대 3회** 반복 후에도 실패 시 → 원인 분석 요약 보고 후 종료
+   - **최대 3회** 반복 후에도 실패 시 → 현재까지 수정 내용을 커밋·푸시 후 PR 생성, 원인 분석 요약 보고 후 종료
+     ```bash
+     git add extensions/gitbbon-chat
+     git commit -m "wip: [실패한 테스트명] 수정 시도 — 3회 미해결"
+     git push origin HEAD
+     gh pr create \
+       --title "wip: test-electron [실패한 테스트명] 수정 시도" \
+       --body "## 미해결 테스트
+     [테스트명]
+
+     ## 시도한 가설 및 수정 내역
+     1. [1차 가설 및 수정]
+     2. [2차 가설 및 수정]
+     3. [3차 가설 및 수정]
+
+     ## 마지막 에러 메시지
+     \`\`\`
+     [에러 출력]
+     \`\`\`
+
+     ## 다음 시도 방향
+     [추가 분석이 필요한 부분]" \
+       --draft
+     ```
 
 ### 3단계: 결과 보고
 
@@ -61,4 +94,4 @@ npm run test:electron
 | gitbbon-chat | ✅ | 3/3 | 1 | - |
 ```
 
-실패로 종료된 경우 원인 가설과 시도한 수정 내역을 함께 출력한다.
+실패로 종료된 경우 원인 가설과 시도한 수정 내역, 생성된 이슈 번호를 함께 출력한다.
