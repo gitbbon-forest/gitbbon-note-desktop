@@ -60,21 +60,9 @@ const keybinding = overrideKeybinding; // gitbbon custom: gitbbon 커스텀 단�
 
 ---
 
-## Extension 테스트 스킬 규칙
+## Extension 테스트 스킬
 
-새로운 Extension의 `@vscode/test-electron` 테스트 스킬을 만들 때는 반드시 아래 마더 스킬을 참조한다:
-
-- **마더 스킬**: `.claude/skills/test-electron-gitbbon-chat/SKILL.md`
-- **스킬 명명 규칙**: `/test-electron-{extension-name}` (예: `/test-electron-gitbbon-search`)
-- **스킬 위치**: `.claude/skills/test-electron-{extension-name}/SKILL.md`
-- **필수 프론트매터**:
-  ```yaml
-  ---
-  name: test-electron-{extension-name}
-  description: {extension-name} Extension Host 테스트 실행. 실패 시 원인 분석 → 코드 수정 → 재실행 루프 수행.
-  ---
-  ```
-- **테스트 설정 참고**: PR #114 (`extensions/gitbbon-chat/test/` 구조 및 `tsconfig.test.json`)
+새 Extension 테스트 스킬을 만들 때는 `.claude/skills/test-electron-gitbbon-chat/SKILL.md`를 마더 스킬로 참조한다.
 
 ---
 
