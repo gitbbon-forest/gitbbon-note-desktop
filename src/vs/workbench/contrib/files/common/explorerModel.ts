@@ -168,6 +168,14 @@ export class ExplorerItem {
 					this._title = newTitle;
 					this._onDidChange?.(this);
 				}
+			} else {
+				// gitbbon custom: frontmatter title이 없는 경우 .md 확장자를 제거한 파일명을 기본 title로 사용
+				const nameWithoutExt = this.name.replace(/\.md$/i, '');
+				ExplorerItem.titleCache.set(this.resource, nameWithoutExt);
+				if (this._title !== nameWithoutExt) {
+					this._title = nameWithoutExt;
+					this._onDidChange?.(this);
+				}
 			}
 		} catch (e) {
 			// Ignore errors (file might not exist or be readable)
