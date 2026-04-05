@@ -1,4 +1,5 @@
-import React, { forwardRef, useImperativeHandle } from 'react';
+import React, { forwardRef, useImperativeHandle, useState, useEffect, useRef, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { MilkdownProvider, useEditor, Milkdown } from '@milkdown/react';
 import { StickyToolbar } from './StickyToolbar';
 import { Crepe } from '@milkdown/crepe';
@@ -10,8 +11,13 @@ import { wrapInHeadingCommand, turnIntoTextCommand, headingSchema, paragraphSche
 import "@milkdown/crepe/theme/common/style.css";
 // import "@milkdown/crepe/theme/frame.css"; // Optional: Frame theme
 
-// gitbbon custom: Inline Suggestion
-import { suggestionPlugin, suggestionInsertMark, suggestionDeleteMark, applyAISuggestions, directApplyAISuggestions } from './suggestionPlugin';
+// gitbbon custom: Inline Suggestion (마진 카드 방식 #109)
+import {
+	suggestionPlugin, suggestionInsertMark, suggestionDeleteMark,
+	applyAISuggestions, directApplyAISuggestions,
+	setSuggestionCardsCallback, acceptSuggestion, rejectSuggestion,
+	type SuggestionGroupInfo
+} from './suggestionPlugin';
 import './suggestion.css';
 
 // gitbbon custom: Search functionality
@@ -66,7 +72,146 @@ const askAIIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" f
 	<path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"/>
 </svg>`;
 
+// gitbbon custom: 마진 카드 컴포넌트 (#109)
+// 각 suggestion group을 에디터 오른쪽 sticky 컬럼 안에 절대 위치로 렌더링
+interface SuggestionCardsProps {
+	cards: SuggestionGroupInfo[];
+	viewRef: React.MutableRefObject<any>; // EditorView 참조
+	cardColumnRef: React.RefObject<HTMLDivElement>; // 카드 컬럼 DOM 참조
+}
+
+function SuggestionCards({ cards, viewRef, cardColumnRef }: SuggestionCardsProps) {
+	const [positions, setPositions] = useState<Array<{ top: number }>>([]);
+
+	// 카드 Y좌표 계산 및 충돌 해소
+	// gitbbon custom: 뷰포트 이탈 방지 로직 포함 (#109)
+	const recalcPositions = useCallback(() => {
+		const view = viewRef.current;
+		if (!view || cards.length === 0) {
+			setPositions([]);
+			return;
+		}
+
+		const CARD_HEIGHT = 90; // 카드 대략적인 높이 (px)
+		const CARD_GAP = 6;
+		const MARGIN = 8;
+
+		// 카드 컬럼의 scrollTop을 고려해 에디터 기준 상대 Y 계산
+		const columnEl = cardColumnRef.current;
+		const columnScrollTop = columnEl ? columnEl.scrollTop : 0;
+
+		// 각 카드의 raw Y좌표 계산 (에디터 DOM 기준 절대 Y → 컬럼 내 상대 Y로 변환)
+		const rawPositions: Array<{ top: number }> = cards.map(card => {
+			try {
+				const coords = view.coordsAtPos(Math.min(card.anchorPos, view.state.doc.content.size));
+				// coords.top 은 뷰포트 기준 Y. 컬럼 내 absolute 위치로 변환하기 위해 스크롤 오프셋 더함
+				const relativeTop = coords.top + columnScrollTop;
+				return { top: relativeTop };
+			} catch {
+				return { top: 0 };
+			}
+		});
+
+		// 충돌 해소: 카드가 겹치면 아래로 밀기
+		const resolved = [...rawPositions];
+		for (let i = 1; i < resolved.length; i++) {
+			const prev = resolved[i - 1];
+			const minTop = prev.top + CARD_HEIGHT + CARD_GAP;
+			if (resolved[i].top < minTop) {
+				resolved[i] = { top: minTop };
+			}
+		}
+
+		// gitbbon custom: 뷰포트 이탈 방지 — 카드가 뷰포트 하단을 넘어가면 위로 올림 (#109)
+		const viewportHeight = window.innerHeight;
+		const adjustedResolved = resolved.map(pos => {
+			const maxTop = columnScrollTop + viewportHeight - CARD_HEIGHT - MARGIN;
+			if (pos.top > maxTop) {
+				return { top: Math.max(0, maxTop) };
+			}
+			return pos;
+		});
+
+		setPositions(adjustedResolved);
+	}, [cards, viewRef, cardColumnRef]);
+
+	useEffect(() => {
+		recalcPositions();
+	}, [recalcPositions]);
+
+	// 스크롤/리사이즈 시 재계산
+	useEffect(() => {
+		const view = viewRef.current;
+		if (!view) return;
+		const editorDom = view.dom as HTMLElement;
+		const scrollParent = editorDom.closest('.milkdown') ?? editorDom.parentElement ?? window;
+
+		const handler = () => recalcPositions();
+		scrollParent.addEventListener('scroll', handler, { passive: true });
+		window.addEventListener('resize', handler, { passive: true });
+
+		// 카드 컬럼 자체 스크롤 감지
+		const columnEl = cardColumnRef.current;
+		if (columnEl) columnEl.addEventListener('scroll', handler, { passive: true });
+
+		return () => {
+			scrollParent.removeEventListener('scroll', handler);
+			window.removeEventListener('resize', handler);
+			if (columnEl) columnEl.removeEventListener('scroll', handler);
+		};
+	}, [viewRef, cardColumnRef, recalcPositions]);
+
+	if (cards.length === 0 || positions.length === 0) return null;
+
+	return (
+		<>
+			{cards.map((card, i) => {
+				const pos = positions[i];
+				if (!pos) return null;
+				return (
+					<div
+						key={card.groupId}
+						className="suggestion-card"
+						style={{ top: pos.top }}
+					>
+						{card.deleteText && (
+							<div className="suggestion-card-delete" title={card.deleteText}>
+								{card.deleteText}
+							</div>
+						)}
+						{card.insertText && (
+							<div className="suggestion-card-insert" title={card.insertText}>
+								{card.insertText}
+							</div>
+						)}
+						<div className="suggestion-card-actions">
+							<button
+								className="suggestion-card-btn accept"
+								onClick={() => {
+									if (viewRef.current) acceptSuggestion(viewRef.current, card.groupId);
+								}}
+							>✓ 수락</button>
+							<button
+								className="suggestion-card-btn reject"
+								onClick={() => {
+									if (viewRef.current) rejectSuggestion(viewRef.current, card.groupId);
+								}}
+							>✕ 거절</button>
+						</div>
+					</div>
+				);
+			})}
+		</>
+	);
+}
+
 const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ initialContent, onChange, onAskAI, onSelectionChange }, ref) => {
+	// gitbbon custom: 마진 카드 상태 (#109)
+	const [suggestionCards, setSuggestionCards] = useState<SuggestionGroupInfo[]>([]);
+	const editorViewRef = useRef<any>(null); // EditorView 참조 저장
+	// gitbbon custom: 카드 컬럼 DOM 참조 — sticky 컬럼 내 절대 위치 계산용 (#109)
+	const cardColumnRef = useRef<HTMLDivElement>(null);
+
 	const { get: getInstance, loading } = useEditor((root) => {
 		// gitbbon custom: 초기 로드 시 onChange 무시 (초기화 중 발생하는 이벤트 방지)
 		isSettingContentExternally = true;
@@ -220,9 +365,24 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 				});
 			}));
 
+		// gitbbon custom: 마진 카드 콜백 등록 (#109)
+		setSuggestionCardsCallback((cards) => {
+			setSuggestionCards([...cards]);
+		});
+
 		// gitbbon custom: 초기 로드 완료 후 플래그 해제 (다음 tick에서)
 		setTimeout(() => {
 			isSettingContentExternally = false;
+			// EditorView 참조 저장 (마진 카드 포지셔닝용)
+			try {
+				const editor = crepe.editor;
+				if (editor && typeof (editor as any).action === 'function') {
+					(editor as any).action((ctx: any) => {
+						editorViewRef.current = ctx.get(editorViewCtx);
+					});
+				}
+			} catch (e) {
+			}
 		}, 500);
 
 		return crepe;
@@ -332,14 +492,19 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 		},
 		// gitbbon custom: AI 제안 적용하기
 		applySuggestions: (changes: any[]) => {
-			if (loading) return;
+			if (loading) {
+				return;
+			}
 			const editor = getInstance();
-			if (!editor) return;
+			if (!editor) {
+				return;
+			}
 
 			if (typeof (editor as any).action === 'function') {
 				(editor as any).action((ctx: any) => {
 					applyAISuggestions(ctx, changes);
 				});
+			} else {
 			}
 		},
 		// gitbbon custom: AI 제안 바로 적용하기 (Direct Edit)
@@ -510,7 +675,27 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 		}
 	}));
 
-	return <Milkdown />;
+	// gitbbon custom: 카드 있을 때 2열 레이아웃, 없을 때 가운데 정렬 (#109)
+	const hasCards = suggestionCards.length > 0;
+
+	return (
+		<div className={hasCards ? 'editor-with-cards' : 'editor-centered'}>
+			{/* 에디터 콘텐츠 영역 */}
+			<div className="editor-content-area">
+				<Milkdown />
+			</div>
+			{/* gitbbon custom: 마진 카드 sticky 컬럼 — 카드 있을 때만 렌더링 (#109) */}
+			{hasCards && (
+				<div className="suggestion-card-column" ref={cardColumnRef}>
+					<SuggestionCards
+						cards={suggestionCards}
+						viewRef={editorViewRef}
+						cardColumnRef={cardColumnRef}
+					/>
+				</div>
+			)}
+		</div>
+	);
 });
 
 export const MilkdownEditor = forwardRef<MilkdownEditorRef, MilkdownEditorProps>((props, ref) => {

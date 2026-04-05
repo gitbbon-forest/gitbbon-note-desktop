@@ -336,6 +336,7 @@ export const App = () => {
 				case 'applySuggestions':
 					if (message.changes && Array.isArray(message.changes)) {
 						editorRef.current?.applySuggestions(message.changes);
+					} else {
 					}
 					break;
 				// [New] AI 제안 바로 적용 (Direct Edit)
