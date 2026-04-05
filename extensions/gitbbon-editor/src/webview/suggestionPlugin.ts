@@ -74,7 +74,6 @@ export function setSuggestionCardsCallback(cb: SuggestionCardsUpdateCallback | n
 
 // 수락/거절 함수 (외부에서 groupId로 호출)
 export function acceptSuggestion(view: EditorView, groupId: string) {
-	console.log('[debug:#109] acceptSuggestion 호출:', groupId);
 	const ranges = findMarksByGroupId(view, groupId);
 	let currentTr = view.state.tr;
 	ranges.sort((a, b) => b.from - a.from).forEach(r => {
@@ -88,7 +87,6 @@ export function acceptSuggestion(view: EditorView, groupId: string) {
 }
 
 export function rejectSuggestion(view: EditorView, groupId: string) {
-	console.log('[debug:#109] rejectSuggestion 호출:', groupId);
 	const ranges = findMarksByGroupId(view, groupId);
 	let currentTr = view.state.tr;
 	ranges.sort((a, b) => b.from - a.from).forEach(r => {
@@ -148,7 +146,6 @@ export const suggestionPlugin = $prose(() => new Plugin({
 
 			cards.sort((a, b) => a.anchorPos - b.anchorPos);
 
-			console.log('[debug:#109] suggestionPlugin apply - 카드 수:', cards.length);
 
 			// 콜백으로 카드 정보 전달 (다음 tick에서 React 상태 업데이트)
 			if (cardsUpdateCallback) {
@@ -167,41 +164,67 @@ export function applyAISuggestions(ctx: Ctx, changes: any[]) {
 	const { state } = view;
 	let tr = state.tr;
 
-	// 텍스트 검색으로 위치 찾기
+	// 텍스트 검색으로 위치 찾기 (단일 노드 내)
+	// gitbbon custom: Issue #109 - 마크다운 리스트 프리픽스(- , * ) 제거 후 검색 지원
 	const findPos = (searchText: string): { from: number; to: number } | null => {
+		// 검색 후보 목록: 원본, 리스트 프리픽스 제거
+		const candidates = [searchText];
+		const stripped = searchText.replace(/^[-*+]\s+/, '');
+		if (stripped !== searchText) { candidates.push(stripped); }
+
 		let res: { from: number; to: number } | null = null;
-		// 전체 문서 스캔
 		state.doc.descendants((node, pos) => {
-			if (node.isText && node.text?.includes(searchText)) {
-				if (res) {
+			if (res || !node.isText) { return !res; }
+			const nodeText = node.text ?? '';
+			for (const candidate of candidates) {
+				if (nodeText.includes(candidate)) {
+					const idx = nodeText.indexOf(candidate);
+					res = { from: pos + idx, to: pos + idx + candidate.length };
 					return false;
 				}
-
-				const idx = node.text.indexOf(searchText);
-				res = { from: pos + idx, to: pos + idx + searchText.length };
-				return false; // Stop iteration
 			}
 			return true;
 		});
 		return res;
 	};
 
-	changes.reverse().forEach(change => {
+	// gitbbon custom: Issue #109 - 다중 줄 oldText를 줄 단위로 분리해 각각 처리
+	// ProseMirror 텍스트 노드는 블록 경계를 넘지 않으므로 \n 포함 텍스트는 찾을 수 없음
+	const expandChanges = (rawChanges: any[]): any[] => {
+		const result: any[] = [];
+		for (const change of rawChanges) {
+			const oldLines = change.oldText?.split('\n') ?? [];
+			const newLines = change.newText?.split('\n') ?? [];
+			if (oldLines.length > 1) {
+				const len = Math.max(oldLines.length, newLines.length);
+				for (let i = 0; i < len; i++) {
+					const oldLine = oldLines[i];
+					const newLine = newLines[i];
+					if (oldLine !== undefined && newLine !== undefined && oldLine !== newLine) {
+						result.push({ oldText: oldLine, newText: newLine });
+					}
+				}
+			} else {
+				result.push(change);
+			}
+		}
+		return result;
+	};
+
+	const expanded = expandChanges(changes);
+
+	expanded.reverse().forEach(change => {
+		if (!change.oldText) return;
 		const pos = findPos(change.oldText);
 		const gid = `g-${Math.random().toString(36).substr(2, 9)}`;
 
 		if (pos) {
-			// 기존 텍스트: 삭제 제안 마크
 			tr = tr.addMark(pos.from, pos.to, state.schema.marks.suggestion_delete.create({ groupId: gid }));
-
-			// 새 텍스트: 그 뒤에 삽입 제안 마크와 함께 삽입
 			if (change.newText) {
 				tr = tr.insert(pos.to, state.schema.text(change.newText, [
 					state.schema.marks.suggestion_insert.create({ groupId: gid })
 				]));
 			}
-		} else if (!change.oldText && change.newText) {
-			// Insert only case handling if needed
 		}
 	});
 

@@ -127,13 +127,11 @@ function SuggestionCards({ cards, viewRef, cardColumnRef }: SuggestionCardsProps
 		const adjustedResolved = resolved.map(pos => {
 			const maxTop = columnScrollTop + viewportHeight - CARD_HEIGHT - MARGIN;
 			if (pos.top > maxTop) {
-				console.log('[debug:#109] 카드 뷰포트 이탈 감지, 위로 조정:', pos.top, '->', maxTop);
 				return { top: Math.max(0, maxTop) };
 			}
 			return pos;
 		});
 
-		console.log('[debug:#109] SuggestionCards 위치 계산 완료, 카드 수:', cards.length);
 		setPositions(adjustedResolved);
 	}, [cards, viewRef, cardColumnRef]);
 
@@ -190,14 +188,12 @@ function SuggestionCards({ cards, viewRef, cardColumnRef }: SuggestionCardsProps
 							<button
 								className="suggestion-card-btn accept"
 								onClick={() => {
-									console.log('[debug:#109] 수락 버튼 클릭:', card.groupId);
 									if (viewRef.current) acceptSuggestion(viewRef.current, card.groupId);
 								}}
 							>✓ 수락</button>
 							<button
 								className="suggestion-card-btn reject"
 								onClick={() => {
-									console.log('[debug:#109] 거절 버튼 클릭:', card.groupId);
 									if (viewRef.current) rejectSuggestion(viewRef.current, card.groupId);
 								}}
 							>✕ 거절</button>
@@ -383,11 +379,9 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 				if (editor && typeof (editor as any).action === 'function') {
 					(editor as any).action((ctx: any) => {
 						editorViewRef.current = ctx.get(editorViewCtx);
-						console.log('[debug:#109] EditorView 참조 저장 완료');
 					});
 				}
 			} catch (e) {
-				console.warn('[debug:#109] EditorView 참조 저장 실패:', e);
 			}
 		}, 500);
 
@@ -498,14 +492,19 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 		},
 		// gitbbon custom: AI 제안 적용하기
 		applySuggestions: (changes: any[]) => {
-			if (loading) return;
+			if (loading) {
+				return;
+			}
 			const editor = getInstance();
-			if (!editor) return;
+			if (!editor) {
+				return;
+			}
 
 			if (typeof (editor as any).action === 'function') {
 				(editor as any).action((ctx: any) => {
 					applyAISuggestions(ctx, changes);
 				});
+			} else {
 			}
 		},
 		// gitbbon custom: AI 제안 바로 적용하기 (Direct Edit)
