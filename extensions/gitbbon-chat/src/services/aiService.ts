@@ -184,6 +184,13 @@ export class AIService {
 		return success;
 	}
 
+	// Issue #119: API backend 모델에 대한 기본 capabilities 정의
+	private getApiModelCapabilities(): { thinking: boolean; tools: boolean; completion: boolean } {
+		// openai/o4-mini는 tool calling을 지원하지만 thinking은 providerOptions(reasoningSummary)로 처리됨
+		logService.info('[debug:#119] API backend capabilities 적용: tools=true, thinking=false');
+		return { thinking: false, tools: true, completion: true };
+	}
+
 	public async *streamAgentChat(messages: ModelMessage[], selectedModel?: string, modelCapabilities?: { thinking: boolean; tools: boolean; completion: boolean }): AsyncGenerator<StreamEvent, void, unknown> {
 		const backend = await this.getBackend();
 		if (backend !== 'ollama') {
@@ -194,6 +201,11 @@ export class AIService {
 					yield { type: 'text', content: 'API 키가 설정되지 않았습니다. 채팅을 시작하려면 API 키를 입력해주세요.\n\n명령 팔레트에서 `Gitbbon Chat: Set API Key`를 실행하거나 다시 메시지를 보내주세요.' };
 					return;
 				}
+			}
+			// Issue #119: API backend인 경우 modelCapabilities가 undefined면 기본값 적용
+			if (!modelCapabilities) {
+				modelCapabilities = this.getApiModelCapabilities();
+				logService.info('[debug:#119] API backend: modelCapabilities 미전달 → 기본값 설정', modelCapabilities);
 			}
 		}
 
@@ -502,6 +514,7 @@ export class AIService {
 				// capabilities가 있으면 사전 감지된 정보로 불필요한 fallback을 건너뜀
 				const initialUseThink = modelCapabilities ? modelCapabilities.thinking : true;
 				const initialUseTools = modelCapabilities ? modelCapabilities.tools : true;
+				logService.info(`[debug:#119] 초기 전략 결정: initialUseThink=${initialUseThink}, initialUseTools=${initialUseTools}, backend=${backend}, capabilities=${JSON.stringify(modelCapabilities)}`);
 
 	
 				// Issue #74/#77: fallback 전략 (capabilities로 사전 결정 + 에러/빈 응답 시 fallback)
@@ -555,7 +568,13 @@ export class AIService {
 							// 마지막 전략도 빈 응답이면 그냥 종료
 							return;
 						} catch (streamError: unknown) {
+							// Issue #119: GatewayAuthenticationError는 fallback 없이 즉시 전파
+							if (this.isGatewayAuthError(streamError)) {
+								logService.warn(`[debug:#119] tryStreamWithFallback [${label}]: GatewayAuthenticationError 감지 → 즉시 전파`);
+								throw streamError;
+							}
 							if (i < strategies.length - 1 && (isToolNotSupportedError(streamError) || isOllamaBadRequestError(streamError))) {
+								logService.info(`[debug:#119] tryStreamWithFallback [${label}]: 지원 불가 에러 → 다음 전략으로 fallback`);
 								if (useTools && !strategies[i + 1].useTools) {
 									channel.push({ type: 'text', content: '⚠️ 이 모델은 tool calling을 지원하지 않아 일부 기능(파일 편집 등)이 제한됩니다.\n\n' });
 								}
