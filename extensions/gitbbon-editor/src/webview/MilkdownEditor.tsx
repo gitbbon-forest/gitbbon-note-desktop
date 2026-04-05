@@ -697,11 +697,9 @@ export const MilkdownEditor = forwardRef<MilkdownEditorRef, MilkdownEditorProps>
 	// gitbbon custom: 뷰포트가 좁을 때 콘텐츠를 좌측 정렬로 전환 (#109)
 	const [isNarrow, setIsNarrow] = useState(false);
 	const hasCards = suggestionCards.length > 0;
-
-	// gitbbon custom: 카드가 없으면 is-narrow 해제 — 센터 정렬 복원 (#109)
-	useEffect(() => {
-		if (!hasCards) setIsNarrow(false);
-	}, [hasCards]);
+	// ref로 최신 hasCards 값을 클로저에서 참조 (stale closure 방지)
+	const hasCardsRef = useRef(false);
+	hasCardsRef.current = hasCards;
 
 	// gitbbon custom: 카드 컬럼 left 계산 (#109)
 	// 텍스트가 끝나는 지점(ProseMirror 우측 패딩 시작) 기준으로 배치
@@ -724,11 +722,11 @@ export const MilkdownEditor = forwardRef<MilkdownEditorRef, MilkdownEditorProps>
 			const rightAvailable = window.innerWidth - textRight - CARD_MARGIN;
 			const leftAvailable = textLeft - CARD_MARGIN;
 
-			// gitbbon custom: 센터 정렬 시 왼쪽 여백이 카드 1장보다 작으면 좌측 정렬 전환 (#109)
+			// gitbbon custom: 카드가 있을 때만 is-narrow 적용 — 없으면 센터 정렬 유지 (#109)
 			// textLeft(현재 위치)가 아닌 textWidth 기준으로 계산 — is-narrow 피드백 루프 방지
 			const textWidth = textRight - textLeft;
 			const centeredLeft = (window.innerWidth - textWidth) / 2;
-			setIsNarrow(centeredLeft - CARD_MARGIN < CARD_WIDTH);
+			setIsNarrow(hasCardsRef.current && centeredLeft - CARD_MARGIN < CARD_WIDTH);
 
 			if (rightAvailable >= CARD_WIDTH) {
 				// 오른쪽에 공간 충분 → 오른쪽 배치
