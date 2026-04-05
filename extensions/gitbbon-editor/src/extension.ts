@@ -95,8 +95,9 @@ export function activate(context: vscode.ExtensionContext) {
 	// Command: Apply suggestions to Gitbbon Editor (for gitbbon-chat)
 	const applySuggestionsCommand = vscode.commands.registerCommand(
 		'gitbbon.editor.applySuggestions',
-		async (changes: any[]) => {
-			await GitbbonEditorProvider.applySuggestions(changes);
+		// gitbbon custom: Issue #109 - URI 인자 추가 (URI→Panel 맵 조회용)
+		async (uriString: string, changes: any[]) => {
+			await GitbbonEditorProvider.applySuggestions(uriString, changes);
 		}
 	);
 	context.subscriptions.push(applySuggestionsCommand);

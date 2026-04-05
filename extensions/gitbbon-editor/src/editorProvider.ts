@@ -28,6 +28,9 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 	private static pendingSelectionResolve: ((value: string | null) => void) | null = null;
 	private static pendingDetailResolve: ((value: any | null) => void) | null = null;
 
+	// gitbbon custom: Issue #109 - URI → Panel 맵 (activeWebviewPanel 타이밍 문제 해결)
+	private static panelByUri = new Map<string, vscode.WebviewPanel>();
+
 	// Webview 준비 상태 추적 (WeakMap으로 패널별 상태 관리)
 	private static webviewReadyMap = new WeakMap<vscode.WebviewPanel, boolean>();
 
@@ -123,26 +126,38 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 
 	/**
 	 * 현재 활성화된 Editor에 AI 수정 사항 제안 적용
+	 * gitbbon custom: Issue #109 - URI로 패널을 직접 조회 (activeWebviewPanel 타이밍 문제 해결)
 	 */
-	public static async applySuggestions(changes: any[]): Promise<void> {
-		if (!this.activeWebviewPanel) {
-			return;
+	public static async applySuggestions(uriString: string, changes: any[]): Promise<void> {
+		const fromMap = this.panelByUri.get(uriString);
+		const panel = fromMap ?? this.activeWebviewPanel;
+
+		logService.info(`[gitbbon-editor][applySuggestions] uri=${uriString}`);
+		logService.info(`[gitbbon-editor][applySuggestions] panelByUri=${fromMap ? 'HIT' : 'MISS'}, activeWebviewPanel=${this.activeWebviewPanel ? 'SET' : 'NULL'}, resolved=${panel ? 'OK' : 'NULL'}`);
+		logService.info(`[gitbbon-editor][applySuggestions] panelByUri keys=[${[...this.panelByUri.keys()].join(', ')}]`);
+
+		if (!panel) {
+			throw new Error('No active Gitbbon editor panel. Please open the file in Gitbbon Editor first.');
 		}
 
 		// Webview가 준비될 때까지 대기 (최대 5초)
 		let retries = 0;
-		while (!this.webviewReadyMap.get(this.activeWebviewPanel) && retries < 25) {
+		while (!this.webviewReadyMap.get(panel) && retries < 25) {
 			await new Promise(resolve => setTimeout(resolve, 200));
 			retries++;
 		}
 
-		if (!this.webviewReadyMap.get(this.activeWebviewPanel)) {
-			logService.warn('Webview not ready for suggestions');
+		const webviewReady = this.webviewReadyMap.get(panel);
+		logService.info(`[gitbbon-editor][applySuggestions] webviewReady=${webviewReady}, retries=${retries}`);
+
+		if (!webviewReady) {
+			logService.warn('[gitbbon-editor][applySuggestions] Webview not ready — giving up');
 			vscode.window.showWarningMessage('Editor is not fully loaded yet. Please try again.');
 			return;
 		}
 
-		this.activeWebviewPanel.webview.postMessage({
+		logService.info(`[gitbbon-editor][applySuggestions] postMessage applySuggestions, changes.length=${changes.length}`);
+		panel.webview.postMessage({
 			type: 'applySuggestions',
 			changes
 		});
@@ -477,6 +492,9 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		GitbbonEditorProvider.activeWebviewPanel = webviewPanel;
 		GitbbonEditorProvider.activeDocument = document;
 
+		// gitbbon custom: Issue #109 - URI → Panel 맵 등록
+		GitbbonEditorProvider.panelByUri.set(document.uri.toString(), webviewPanel);
+
 		// 패널 활성 상태 변경 감지
 		webviewPanel.onDidChangeViewState((e) => {
 			if (e.webviewPanel.active) {
@@ -810,6 +828,8 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			if (autoCommitTimer) {
 				clearTimeout(autoCommitTimer);
 			}
+			// gitbbon custom: Issue #109 - 패널 닫힐 때 맵에서 제거
+			GitbbonEditorProvider.panelByUri.delete(document.uri.toString());
 		});
 	}
 

@@ -306,22 +306,15 @@ export class ContextService {
 		}
 
 		// 4. Apply Suggestions or Direct Edit
-		if (this.isGitbbonEditor()) {
+		// gitbbon custom: Issue #109 - URI를 첫 번째 인자로 전달 (URI→Panel 맵 조회용)
+		try {
 			if (mode === 'direct') {
 				await vscode.commands.executeCommand('gitbbon.editor.directApply', changes);
 			} else {
-				await vscode.commands.executeCommand('gitbbon.editor.applySuggestions', changes);
+				await vscode.commands.executeCommand('gitbbon.editor.applySuggestions', uri.toString(), changes);
 			}
-		} else {
-			try {
-				if (mode === 'direct') {
-					await vscode.commands.executeCommand('gitbbon.editor.directApply', changes);
-				} else {
-					await vscode.commands.executeCommand('gitbbon.editor.applySuggestions', changes);
-				}
-			} catch (e) {
-				throw new Error(`Failed to apply changes. Ensure the file is opened in Gitbbon Editor. Error: ${e}`);
-			}
+		} catch (e) {
+			throw new Error(`Failed to apply changes. Ensure the file is opened in Gitbbon Editor. Error: ${e}`);
 		}
 	}
 

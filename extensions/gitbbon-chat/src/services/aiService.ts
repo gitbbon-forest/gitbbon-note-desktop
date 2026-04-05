@@ -413,6 +413,20 @@ export class AIService {
 								if (event.toolResults) {
 									event.toolResults.forEach((toolResult: TypedToolResult<ToolSet>) => {
 										logService.info(`[gitbbon-chat][Tool Result] ${toolResult.toolName}`, toolResult.output);
+										// gitbbon custom: Issue #109 - edit_note 루프 방지
+										if (toolResult.toolName === 'edit_note' && typeof toolResult.output === 'string') {
+											// suggestion 성공 후 재호출 루프 방지
+											if (toolResult.output.startsWith('Suggestion applied')) {
+												logService.info('[gitbbon-chat][Loop Guard] Suggestion applied — aborting stream');
+												abortController.abort();
+											}
+											// 패널 못 찾음 — 재시도해도 해결 불가능한 에러이므로 즉시 중단 후 사용자에게 안내
+											if (toolResult.output.includes('No active Gitbbon editor panel')) {
+												logService.info('[gitbbon-chat][Loop Guard] Panel not found — aborting stream');
+												channel.push({ type: 'text', content: '⚠️ Gitbbon 에디터 패널을 찾을 수 없습니다. 파일이 Gitbbon 에디터로 열려 있는지 확인해주세요.' });
+												abortController.abort();
+											}
+										}
 									});
 								}
 							}
