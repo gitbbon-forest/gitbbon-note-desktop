@@ -51,6 +51,13 @@ body {
 	outline: none;
 }
 
+/* gitbbon custom: 뷰포트가 좁아 카드까지 표시할 공간이 부족하면 좌측 정렬로 전환 (#109)
+   :has()로 자식(editor-layout.is-narrow)이 있는 부모(.milkdown-editor)까지 타겟팅 */
+.milkdown-editor:has(.editor-layout.is-narrow),
+.editor-layout.is-narrow .title-container {
+	margin: 0;
+}
+
 /* Milkdown Editor */
 .milkdown-editor {
 	/* padding: 20px; */ /* Moved padding inside commonmark/milkdown-theme often handles it, but let's keep it if needed. Actually with MilkdownProvider, we might need padding on wrapper or inside */
