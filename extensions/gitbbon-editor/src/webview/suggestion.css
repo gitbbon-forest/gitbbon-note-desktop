@@ -2,48 +2,43 @@
 .suggestion-insert { background-color: rgba(163, 190, 140, 0.3); color: #a3be8c; }
 .suggestion-delete { background-color: rgba(191, 97, 106, 0.3); color: #bf616a; text-decoration: line-through; }
 
-/* gitbbon custom: 카드 없을 때 에디터 가운데 정렬 (#109) */
-.editor-centered {
+/* gitbbon custom: 에디터 레이아웃 컨테이너 (#109)
+   콘텐츠 블록은 항상 전체 너비 유지 — 카드는 fixed로 흐름 밖에 위치 */
+.editor-layout {
   width: 100%;
   display: block;
 }
 
-/* gitbbon custom: 카드 있을 때 2열 레이아웃 (#109)
-   에디터 콘텐츠 영역(flex:1) + 마진 카드 sticky 컬럼(280px) */
-.editor-with-cards {
-  display: flex;
-  align-items: flex-start;
+/* 콘텐츠 블록 — 카드 유무에 관계없이 항상 전체 너비 */
+.editor-content-block {
   width: 100%;
 }
 
-/* 에디터 콘텐츠 영역 — 카드 없을 때는 부모가 block이라 전체 너비 사용 */
-.editor-content-area {
-  flex: 1;
-  min-width: 0; /* flex 자식의 overflow 방지 */
-}
-
-/* gitbbon custom: 마진 카드 sticky 컬럼 (#109)
-   스크롤과 함께 움직이지 않도록 sticky, 카드들은 내부에서 absolute 위치 */
+/* gitbbon custom: 마진 카드 fixed 컬럼 (#109)
+   콘텐츠 너비에 영향을 주지 않도록 fixed 배치
+   카드 Y좌표는 coordsAtPos (뷰포트 기준) 로 계산하므로 fixed와 정확히 맞음 */
 .suggestion-card-column {
-  width: 240px;
-  flex-shrink: 0;
-  position: sticky;
+  position: fixed;
   top: 0;
+  /* left는 JS(ResizeObserver)로 콘텐츠 블록 우측에 동적 설정 */
+  width: 280px;
   height: 100vh;
   overflow-y: auto;
-  overflow-x: hidden;
-  /* 스크롤바 숨기기 (선택) */
+  overflow-x: visible;
   scrollbar-width: none;
+  z-index: 100;
+  pointer-events: none; /* 카드 외 영역은 클릭 통과 */
 }
 
 .suggestion-card-column::-webkit-scrollbar {
   display: none;
 }
 
-/* 개별 마진 카드 — sticky 컬럼 안에서 absolute 위치 */
+/* 개별 마진 카드 — fixed 컬럼 안에서 absolute 위치, 클릭 가능 */
 .suggestion-card {
+  pointer-events: auto; /* 컬럼의 pointer-events:none 을 개별 카드에서 복원 */
   position: absolute;
-  width: 220px;
+  width: 240px;
   background: var(--vscode-editor-background, #2e3440);
   border: 1px solid var(--vscode-panel-border, #4c566a);
   border-left: 3px solid #a3be8c;
@@ -69,7 +64,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
+  max-width: calc(100% + 2px);
 }
 
 .suggestion-card-insert {
@@ -78,7 +73,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
+  max-width: calc(100% + 2px);
 }
 
 /* 수락/거절 버튼 영역 */

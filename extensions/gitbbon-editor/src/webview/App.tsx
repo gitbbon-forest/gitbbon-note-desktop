@@ -440,15 +440,6 @@ export const App = () => {
 					onReplaceAll={handleReplaceAll}
 				/>
 			)}
-			<div className="title-container">
-				<input
-					id="title-input"
-					className="title-input"
-					value={title}
-					onChange={handleTitleChange}
-					placeholder="Title"
-				/>
-			</div>
 			<div className="milkdown-editor" style={{ flexGrow: 1 }} onClick={handleEditorAreaClick}>
 				<MilkdownEditor
 					ref={editorRef}
@@ -456,6 +447,17 @@ export const App = () => {
 					onChange={handleEditorChangeWithTitle}
 					onAskAI={handleAskAI}
 					onSelectionChange={handleSelectionChange}
+					headerSlot={
+						<div className="title-container">
+							<input
+								id="title-input"
+								className="title-input"
+								value={title}
+								onChange={handleTitleChange}
+								placeholder="Title"
+							/>
+						</div>
+					}
 				/>
 			</div>
 			{/* gitbbon custom: Selection-based Similar Articles (툴바 상단) */}

@@ -44,6 +44,14 @@ interface MilkdownEditorProps {
 	onAskAI?: (selectedText: string) => void;
 	// gitbbon custom: 텍스트 선택 변경 시 콜백
 	onSelectionChange?: (selectedText: string | null) => void;
+	// gitbbon custom: 제목 등 상단 슬롯 (#109)
+	headerSlot?: React.ReactNode;
+}
+
+// gitbbon custom: EditorComponent 내부 전용 props (#109)
+interface EditorComponentInternalProps extends Omit<MilkdownEditorProps, 'headerSlot'> {
+	onCardsUpdate: (cards: SuggestionGroupInfo[]) => void;
+	editorViewRef: React.MutableRefObject<any>;
 }
 
 export interface MilkdownEditorRef {
@@ -100,13 +108,19 @@ function SuggestionCards({ cards, viewRef, cardColumnRef }: SuggestionCardsProps
 		const columnEl = cardColumnRef.current;
 		const columnScrollTop = columnEl ? columnEl.scrollTop : 0;
 
+		// 카드 컬럼의 뷰포트 기준 top (sticky 컬럼의 실제 위치 계산용)
+		const columnRect = columnEl ? columnEl.getBoundingClientRect() : null;
+
 		// 각 카드의 raw Y좌표 계산 (에디터 DOM 기준 절대 Y → 컬럼 내 상대 Y로 변환)
 		const rawPositions: Array<{ top: number }> = cards.map(card => {
 			try {
 				const coords = view.coordsAtPos(Math.min(card.anchorPos, view.state.doc.content.size));
-				// coords.top 은 뷰포트 기준 Y. 컬럼 내 absolute 위치로 변환하기 위해 스크롤 오프셋 더함
-				const relativeTop = coords.top + columnScrollTop;
-				return { top: relativeTop };
+				// coords.top은 뷰포트 기준 Y.
+				// 컬럼 내 absolute 위치 = (뷰포트 기준 Y - 컬럼의 뷰포트 기준 top) + 컬럼 scrollTop
+				const relativeTop = columnRect
+					? coords.top - columnRect.top + columnScrollTop
+					: coords.top + columnScrollTop;
+				return { top: Math.max(0, relativeTop) };
 			} catch {
 				return { top: 0 };
 			}
@@ -141,13 +155,9 @@ function SuggestionCards({ cards, viewRef, cardColumnRef }: SuggestionCardsProps
 
 	// 스크롤/리사이즈 시 재계산
 	useEffect(() => {
-		const view = viewRef.current;
-		if (!view) return;
-		const editorDom = view.dom as HTMLElement;
-		const scrollParent = editorDom.closest('.milkdown') ?? editorDom.parentElement ?? window;
-
 		const handler = () => recalcPositions();
-		scrollParent.addEventListener('scroll', handler, { passive: true });
+		// position:fixed 카드는 window 스크롤을 직접 감지해야 Y 재계산됨
+		window.addEventListener('scroll', handler, { passive: true });
 		window.addEventListener('resize', handler, { passive: true });
 
 		// 카드 컬럼 자체 스크롤 감지
@@ -155,11 +165,11 @@ function SuggestionCards({ cards, viewRef, cardColumnRef }: SuggestionCardsProps
 		if (columnEl) columnEl.addEventListener('scroll', handler, { passive: true });
 
 		return () => {
-			scrollParent.removeEventListener('scroll', handler);
+			window.removeEventListener('scroll', handler);
 			window.removeEventListener('resize', handler);
 			if (columnEl) columnEl.removeEventListener('scroll', handler);
 		};
-	}, [viewRef, cardColumnRef, recalcPositions]);
+	}, [cardColumnRef, recalcPositions]);
 
 	if (cards.length === 0 || positions.length === 0) return null;
 
@@ -205,12 +215,8 @@ function SuggestionCards({ cards, viewRef, cardColumnRef }: SuggestionCardsProps
 	);
 }
 
-const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ initialContent, onChange, onAskAI, onSelectionChange }, ref) => {
-	// gitbbon custom: 마진 카드 상태 (#109)
-	const [suggestionCards, setSuggestionCards] = useState<SuggestionGroupInfo[]>([]);
-	const editorViewRef = useRef<any>(null); // EditorView 참조 저장
-	// gitbbon custom: 카드 컬럼 DOM 참조 — sticky 컬럼 내 절대 위치 계산용 (#109)
-	const cardColumnRef = useRef<HTMLDivElement>(null);
+// gitbbon custom: EditorComponent는 Milkdown 에디터만 담당; 카드 레이아웃은 MilkdownEditor가 처리 (#109)
+const EditorComponent = forwardRef<MilkdownEditorRef, EditorComponentInternalProps>(({ initialContent, onChange, onAskAI, onSelectionChange, onCardsUpdate, editorViewRef }, ref) => {
 
 	const { get: getInstance, loading } = useEditor((root) => {
 		// gitbbon custom: 초기 로드 시 onChange 무시 (초기화 중 발생하는 이벤트 방지)
@@ -365,9 +371,9 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 				});
 			}));
 
-		// gitbbon custom: 마진 카드 콜백 등록 (#109)
+		// gitbbon custom: 마진 카드 콜백 등록 (#109) — 카드 상태는 MilkdownEditor가 관리
 		setSuggestionCardsCallback((cards) => {
-			setSuggestionCards([...cards]);
+			onCardsUpdate([...cards]);
 		});
 
 		// gitbbon custom: 초기 로드 완료 후 플래그 해제 (다음 tick에서)
@@ -675,18 +681,98 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 		}
 	}));
 
-	// gitbbon custom: 카드 있을 때 2열 레이아웃, 없을 때 가운데 정렬 (#109)
+	return <Milkdown />;
+});
+
+// gitbbon custom: MilkdownEditor — 카드 레이아웃 포함 최상위 컴포넌트 (#109)
+// 구조: [editor-layout] → [editor-content-block (headerSlot + 에디터)] + [suggestion-card-column]
+// 제목/툴바/본문이 하나의 덩어리(editor-content-block)를 이루고, 카드 컬럼이 그 오른쪽에 위치
+export const MilkdownEditor = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ headerSlot, ...props }, ref) => {
+	const [suggestionCards, setSuggestionCards] = useState<SuggestionGroupInfo[]>([]);
+	const editorViewRef = useRef<any>(null);
+	const cardColumnRef = useRef<HTMLDivElement>(null);
+	// gitbbon custom: 콘텐츠 블록 우측 끝 기준으로 카드 컬럼 left 계산 (#109)
+	const contentBlockRef = useRef<HTMLDivElement>(null);
+	const [cardColumnLeft, setCardColumnLeft] = useState<number | null>(null);
 	const hasCards = suggestionCards.length > 0;
 
+	// gitbbon custom: 카드 컬럼 left 계산 (#109)
+	// 텍스트가 끝나는 지점(ProseMirror 우측 패딩 시작) 기준으로 배치
+	// 공간이 부족하면 카드가 우측으로 벗어남 — 텍스트 겹침 방지를 최우선
+	useEffect(() => {
+		const CARD_WIDTH = 260;
+		const CARD_MARGIN = 8;
+
+		const updateCardLeft = () => {
+			if (!contentBlockRef.current) return;
+			const blockEl = contentBlockRef.current.querySelector(
+				'.ProseMirror > p, .ProseMirror > h1, .ProseMirror > h2, .ProseMirror > h3, .ProseMirror > ul, .ProseMirror > ol'
+			) as HTMLElement | null;
+
+			const pm = contentBlockRef.current.querySelector('.ProseMirror') as HTMLElement | null;
+			const fallbackRect = (pm ?? contentBlockRef.current).getBoundingClientRect();
+			const textLeft = blockEl ? blockEl.getBoundingClientRect().left : fallbackRect.left;
+			const textRight = blockEl ? blockEl.getBoundingClientRect().right : fallbackRect.right;
+
+			const rightAvailable = window.innerWidth - textRight - CARD_MARGIN;
+			const leftAvailable = textLeft - CARD_MARGIN;
+
+			if (rightAvailable >= CARD_WIDTH) {
+				// 오른쪽에 공간 충분 → 오른쪽 배치
+				setCardColumnLeft(textRight + CARD_MARGIN);
+			} else if (leftAvailable >= CARD_WIDTH) {
+				// 왼쪽 여백에 공간 충분 → 왼쪽 배치
+				setCardColumnLeft(textLeft - CARD_WIDTH - CARD_MARGIN);
+			} else {
+				// 양쪽 다 부족 → 더 넓은 쪽에 배치 (잘리더라도)
+				if (rightAvailable >= leftAvailable) {
+					setCardColumnLeft(window.innerWidth - CARD_WIDTH - CARD_MARGIN);
+				} else {
+					setCardColumnLeft(Math.max(0, textLeft - CARD_WIDTH - CARD_MARGIN));
+				}
+			}
+		};
+
+		updateCardLeft();
+		const resizeObserver = new ResizeObserver(updateCardLeft);
+		if (contentBlockRef.current) resizeObserver.observe(contentBlockRef.current);
+		window.addEventListener('resize', updateCardLeft);
+
+		// Milkdown 비동기 렌더링 완료 감지 — .ProseMirror > p 등 블록 요소가 생기면 재계산
+		const mutationObserver = new MutationObserver(updateCardLeft);
+		if (contentBlockRef.current) {
+			mutationObserver.observe(contentBlockRef.current, { childList: true, subtree: true });
+		}
+
+		return () => {
+			resizeObserver.disconnect();
+			mutationObserver.disconnect();
+			window.removeEventListener('resize', updateCardLeft);
+		};
+	}, []);
+
 	return (
-		<div className={hasCards ? 'editor-with-cards' : 'editor-centered'}>
-			{/* 에디터 콘텐츠 영역 */}
-			<div className="editor-content-area">
-				<Milkdown />
+		<div className="editor-layout">
+			{/* 제목 + 툴바 + 본문 통합 블록 */}
+			<div className="editor-content-block" ref={contentBlockRef}>
+				{headerSlot}
+				<MilkdownProvider>
+					<StickyToolbar />
+					<EditorComponent
+						{...props}
+						ref={ref}
+						onCardsUpdate={setSuggestionCards}
+						editorViewRef={editorViewRef}
+					/>
+				</MilkdownProvider>
 			</div>
-			{/* gitbbon custom: 마진 카드 sticky 컬럼 — 카드 있을 때만 렌더링 (#109) */}
-			{hasCards && (
-				<div className="suggestion-card-column" ref={cardColumnRef}>
+			{/* gitbbon custom: 마진 카드 fixed 컬럼 — 콘텐츠 블록 우측에 동적 배치 (#109) */}
+			{hasCards && cardColumnLeft !== null && (
+				<div
+					className="suggestion-card-column"
+					ref={cardColumnRef}
+					style={{ left: cardColumnLeft }}
+				>
 					<SuggestionCards
 						cards={suggestionCards}
 						viewRef={editorViewRef}
@@ -695,14 +781,5 @@ const EditorComponent = forwardRef<MilkdownEditorRef, MilkdownEditorProps>(({ in
 				</div>
 			)}
 		</div>
-	);
-});
-
-export const MilkdownEditor = forwardRef<MilkdownEditorRef, MilkdownEditorProps>((props, ref) => {
-	return (
-		<MilkdownProvider>
-			<StickyToolbar />
-			<EditorComponent {...props} ref={ref} />
-		</MilkdownProvider>
 	);
 });
