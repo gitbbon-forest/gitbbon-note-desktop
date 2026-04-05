@@ -132,10 +132,6 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		const fromMap = this.panelByUri.get(uriString);
 		const panel = fromMap ?? this.activeWebviewPanel;
 
-		logService.info(`[gitbbon-editor][applySuggestions] uri=${uriString}`);
-		logService.info(`[gitbbon-editor][applySuggestions] panelByUri=${fromMap ? 'HIT' : 'MISS'}, activeWebviewPanel=${this.activeWebviewPanel ? 'SET' : 'NULL'}, resolved=${panel ? 'OK' : 'NULL'}`);
-		logService.info(`[gitbbon-editor][applySuggestions] panelByUri keys=[${[...this.panelByUri.keys()].join(', ')}]`);
-
 		if (!panel) {
 			throw new Error('No active Gitbbon editor panel. Please open the file in Gitbbon Editor first.');
 		}
@@ -147,16 +143,11 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			retries++;
 		}
 
-		const webviewReady = this.webviewReadyMap.get(panel);
-		logService.info(`[gitbbon-editor][applySuggestions] webviewReady=${webviewReady}, retries=${retries}`);
-
-		if (!webviewReady) {
-			logService.warn('[gitbbon-editor][applySuggestions] Webview not ready — giving up');
+		if (!this.webviewReadyMap.get(panel)) {
 			vscode.window.showWarningMessage('Editor is not fully loaded yet. Please try again.');
 			return;
 		}
 
-		logService.info(`[gitbbon-editor][applySuggestions] postMessage applySuggestions, changes.length=${changes.length}`);
 		panel.webview.postMessage({
 			type: 'applySuggestions',
 			changes
