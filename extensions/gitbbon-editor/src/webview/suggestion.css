@@ -2,11 +2,112 @@
 .suggestion-insert { background-color: rgba(163, 190, 140, 0.3); color: #a3be8c; }
 .suggestion-delete { background-color: rgba(191, 97, 106, 0.3); color: #bf616a; text-decoration: line-through; }
 
-/* 호버 메뉴 (버튼) */
-.suggestion-hover-menu { display: inline-flex; gap: 2px; margin-left: 4px; vertical-align: middle; }
-.suggestion-btn {
-  width: 20px; height: 20px; border-radius: 4px; border: none; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; font-size: 11px;
+/* gitbbon custom: 카드 없을 때 에디터 가운데 정렬 (#109) */
+.editor-centered {
+  width: 100%;
+  display: block;
 }
-.suggestion-btn.accept { background: #a3be8c; color: white; }
-.suggestion-btn.reject { background: #bf616a; color: white; }
+
+/* gitbbon custom: 카드 있을 때 2열 레이아웃 (#109)
+   에디터 콘텐츠 영역(flex:1) + 마진 카드 sticky 컬럼(280px) */
+.editor-with-cards {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+}
+
+/* 에디터 콘텐츠 영역 — 카드 없을 때는 부모가 block이라 전체 너비 사용 */
+.editor-content-area {
+  flex: 1;
+  min-width: 0; /* flex 자식의 overflow 방지 */
+}
+
+/* gitbbon custom: 마진 카드 sticky 컬럼 (#109)
+   스크롤과 함께 움직이지 않도록 sticky, 카드들은 내부에서 absolute 위치 */
+.suggestion-card-column {
+  width: 240px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* 스크롤바 숨기기 (선택) */
+  scrollbar-width: none;
+}
+
+.suggestion-card-column::-webkit-scrollbar {
+  display: none;
+}
+
+/* 개별 마진 카드 — sticky 컬럼 안에서 absolute 위치 */
+.suggestion-card {
+  position: absolute;
+  width: 220px;
+  background: var(--vscode-editor-background, #2e3440);
+  border: 1px solid var(--vscode-panel-border, #4c566a);
+  border-left: 3px solid #a3be8c;
+  border-radius: 4px;
+  padding: 8px 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--vscode-editor-foreground, #d8dee9);
+  left: 8px; /* 컬럼 안 좌측 여백 */
+}
+
+.suggestion-card:hover {
+  border-left-color: #88c0d0;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* 카드 내 텍스트 미리보기 */
+.suggestion-card-delete {
+  color: #bf616a;
+  text-decoration: line-through;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.suggestion-card-insert {
+  color: #a3be8c;
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* 수락/거절 버튼 영역 */
+.suggestion-card-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.suggestion-card-btn {
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+
+.suggestion-card-btn:hover {
+  opacity: 0.85;
+}
+
+.suggestion-card-btn.accept {
+  background: #a3be8c;
+  color: #2e3440;
+}
+
+.suggestion-card-btn.reject {
+  background: #bf616a;
+  color: white;
+}
