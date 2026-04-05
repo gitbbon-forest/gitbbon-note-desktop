@@ -1022,13 +1022,15 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
 		const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
 		templateData.contribs.forEach(c => c.setResource(stat.resource));
+		// gitbbon custom: 파일 탐색기 아이템 아이콘 숨기기 (#115)
 		templateData.label.setResource({ resource: stat.resource, name: label }, {
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
 			fileDecorations: this.config.explorer.decorations,
 			matches: createMatches(filterData),
 			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
-			domId
+			domId,
+			hideIcon: true
 		});
 
 		const highlightResults = stat.isDirectory ? this.highlightTree.get(stat) : 0;
