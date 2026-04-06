@@ -890,7 +890,8 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+	<!-- gitbbon custom: KaTeX 폰트 로드를 위해 font-src 지시어 추가 (이슈 #123) -->
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${webview.cspSource};">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link href="${styleUri}" rel="stylesheet">
 	<link href="${mainStyleUri}" rel="stylesheet">

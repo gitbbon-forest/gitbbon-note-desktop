@@ -46,7 +46,8 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	titleScrollbarSizing: 'default',
 	titleScrollbarVisibility: 'auto',
 	focusRecentEditorAfterClose: true,
-	showIcons: true,
+	// gitbbon custom: 탭 아이콘 제거 (Issue #121)
+	showIcons: false,
 	hasIcons: true, // 'vs-seti' is our default icon theme
 	enablePreview: true,
 	openPositioning: 'right',
