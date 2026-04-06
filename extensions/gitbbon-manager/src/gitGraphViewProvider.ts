@@ -74,9 +74,13 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 					// 커밋 클릭 시 Multi Diff Editor 열기
 					if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
 						const rootUri = vscode.workspace.workspaceFolders[0].uri;
-						vscode.commands.executeCommand('gitbbon.openCommitInMultiDiffEditor', rootUri, message.hash, message.parentHash);
-						// 즉시 하이라이트 적용
-						this.highlightCommits(message.hash, message.parentHash);
+						// gitbbon custom: Issue #140 - 대용량/다수 파일 lazy load (성능 개선)
+						const shouldOpen = await this._checkDiffLazyLoad(rootUri.fsPath, message.hash, message.parentHash);
+						if (shouldOpen) {
+							vscode.commands.executeCommand('gitbbon.openCommitInMultiDiffEditor', rootUri, message.hash, message.parentHash);
+							// 즉시 하이라이트 적용
+							this.highlightCommits(message.hash, message.parentHash);
+						}
 					}
 					break;
 			}
@@ -280,6 +284,105 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 	<script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
+	}
+
+	// gitbbon custom: Issue #140 - 대용량/다수 파일 lazy load 사전 검사
+	// 파일 수 또는 크기가 임계값 초과 시 사용자 확인 후 diff 로드 여부 결정
+	private static readonly MAX_FILES_AUTO_LOAD = 50;        // 자동 로드 허용 최대 파일 수
+	private static readonly MAX_FILE_SIZE_AUTO_LOAD = 51200;  // 자동 로드 허용 최대 단일 파일 크기 (50KB)
+
+	/**
+	 * diff 로드 전 파일 수 / 크기를 검사하여 사용자 확인이 필요한 경우 다이얼로그를 표시합니다.
+	 * @returns diff를 열어야 하면 true, 취소하면 false
+	 */
+	private async _checkDiffLazyLoad(cwd: string, hash: string, parentHash?: string): Promise<boolean> {
+		const cp = await import('child_process');
+
+		// 변경 파일 목록 (파일명 + 크기) 빠르게 조회
+		const diffRange = parentHash ? `${parentHash}..${hash}` : `${hash}^..${hash}`;
+
+		return new Promise((resolve) => {
+			// --diff-filter=ACDMRT: 바이너리 등 제외하고 실제 변경 파일만 조회
+			cp.exec(
+				`git diff --name-only ${diffRange}`,
+				{ cwd, maxBuffer: 1024 * 1024 },
+				async (err, stdout) => {
+					if (err) {
+						// 오류 시 그냥 열기
+						resolve(true);
+						return;
+					}
+
+					const files = stdout.trim().split('\n').filter(f => f);
+					const fileCount = files.length;
+
+					// 파일 수 임계값 초과 시 사용자 확인
+					if (fileCount > GitGraphViewProvider.MAX_FILES_AUTO_LOAD) {
+						const answer = await vscode.window.showWarningMessage(
+							`50+ files changed. Loading all at once may slow things down. Show changes anyway?`,
+							{ modal: false },
+							'Show Changes',
+							'Cancel'
+						);
+						resolve(answer === 'Show Changes');
+						return;
+					}
+
+					// 파일 크기 검사 (대용량 파일 존재 여부)
+					const largeFiles = await this._findLargeFiles(cwd, files, hash, parentHash);
+					if (largeFiles.length > 0) {
+						const count = largeFiles.length;
+						const fileNames = largeFiles.slice(0, 3).join(', ') + (count > 3 ? ' ...' : '');
+						const answer = await vscode.window.showWarningMessage(
+							`${count} file${count > 1 ? 's are' : ' is'} too large to load automatically (${fileNames}). Show changes anyway?`,
+							{ modal: false },
+							'Show Changes',
+							'Cancel'
+						);
+						resolve(answer === 'Show Changes');
+						return;
+					}
+
+					// 임계값 이하 → 바로 열기
+					resolve(true);
+				}
+			);
+		});
+	}
+
+	/**
+	 * 주어진 파일 목록 중 크기 임계값을 초과하는 파일을 찾습니다.
+	 */
+	private async _findLargeFiles(cwd: string, files: string[], hash: string, parentHash?: string): Promise<string[]> {
+		const cp = await import('child_process');
+		const largeFiles: string[] = [];
+
+		// git cat-file -s {hash}:{file} 로 파일 크기 조회
+		const ref = hash;
+		for (const file of files) {
+			try {
+				const size = await new Promise<number>((resolve) => {
+					cp.exec(
+						`git cat-file -s ${ref}:"${file}"`,
+						{ cwd },
+						(err, stdout) => {
+							if (err) {
+								resolve(0);
+							} else {
+								resolve(parseInt(stdout.trim(), 10) || 0);
+							}
+						}
+					);
+				});
+				if (size > GitGraphViewProvider.MAX_FILE_SIZE_AUTO_LOAD) {
+					largeFiles.push(file);
+				}
+			} catch {
+				// 파일 크기 조회 실패 시 무시
+			}
+		}
+
+		return largeFiles;
 	}
 
 	/**
