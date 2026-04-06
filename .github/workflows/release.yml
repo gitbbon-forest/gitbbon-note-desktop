@@ -99,7 +99,7 @@ jobs:
 
           exit $BUILD_EXIT_CODE
         shell: bash
-        timeout-minutes: 150
+        timeout-minutes: 170
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 표준 러너 메모리에 맞춤 (macOS 14GB, Linux/Windows 7GB)
