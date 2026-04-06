@@ -169,6 +169,7 @@ export class AIService {
 	 */
 	private async handleApiKeyFailure(): Promise<boolean> {
 		logService.warn('[gitbbon-chat][aiService] API key invalid or missing, prompting user...');
+
 		this.apiKey = undefined;
 		this.initialized = false;
 		process.env.AI_GATEWAY_API_KEY = '';
@@ -192,8 +193,22 @@ export class AIService {
 
 	public async *streamAgentChat(messages: ModelMessage[], selectedModel?: string, modelCapabilities?: { thinking: boolean; tools: boolean; completion: boolean }): AsyncGenerator<StreamEvent, void, unknown> {
 		const backend = await this.getBackend();
+		// gitbbon custom: GatewayAuthenticationError 진단용 상태 로그 (#127)
+		logService.info('[gitbbon-chat][aiService] streamAgentChat 진입', {
+			backend,
+			initialized: this.initialized,
+			hasApiKey: !!this.apiKey,
+			hasEnvKey: !!process.env.AI_GATEWAY_API_KEY,
+			selectedModel: selectedModel || 'none',
+		});
 		if (backend !== 'ollama') {
 			await this.ensureInitialized();
+			// gitbbon custom: ensureInitialized 완료 후 상태 확인 (#127)
+			logService.info('[gitbbon-chat][aiService] ensureInitialized 완료', {
+				initialized: this.initialized,
+				hasApiKey: !!this.apiKey,
+				hasEnvKey: !!process.env.AI_GATEWAY_API_KEY,
+			});
 			if (!this.apiKey) {
 				const keyProvided = await this.promptForApiKey();
 				if (!keyProvided || !this.apiKey) {
@@ -605,7 +620,18 @@ export class AIService {
 						success: true,
 					});
 				} else if (this.isGatewayAuthError(error)) {
-					logService.warn('[gitbbon-chat][aiService] GatewayAuthenticationError detected:', (error as Error).message);
+					// gitbbon custom: GatewayAuthenticationError 진단 로그 — 실제 원인 파악용 (#127)
+					// 앱 리로드 시 문제 해결 → API 키 자체는 유효, 상태/인스턴스 문제 가능성
+					logService.warn('[gitbbon-chat][aiService] GatewayAuthenticationError 발생 — 진단 정보:', {
+						errorName: (error as Error)?.name,
+						errorMessage: (error as Error)?.message,
+						errorStack: (error as Error)?.stack?.split('\n').slice(0, 5).join(' | '),
+						initialized: this.initialized,
+						hasApiKey: !!this.apiKey,
+						hasEnvKey: !!process.env.AI_GATEWAY_API_KEY,
+						model: typeof model === 'string' ? model : 'ollama-object',
+						backend,
+					});
 					channel.push({
 						type: 'tool-end',
 						id: thinkingId,
