@@ -288,8 +288,8 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
 	// gitbbon custom: Issue #140 - 대용량/다수 파일 lazy load 사전 검사
 	// 파일 수 또는 크기가 임계값 초과 시 사용자 확인 후 diff 로드 여부 결정
-	private static readonly MAX_FILES_AUTO_LOAD = 100;       // 자동 로드 허용 최대 파일 수
-	private static readonly MAX_FILE_SIZE_AUTO_LOAD = 512000; // 자동 로드 허용 최대 단일 파일 크기 (500KB)
+	private static readonly MAX_FILES_AUTO_LOAD = 50;        // 자동 로드 허용 최대 파일 수
+	private static readonly MAX_FILE_SIZE_AUTO_LOAD = 51200;  // 자동 로드 허용 최대 단일 파일 크기 (50KB)
 
 	/**
 	 * diff 로드 전 파일 수 / 크기를 검사하여 사용자 확인이 필요한 경우 다이얼로그를 표시합니다.
