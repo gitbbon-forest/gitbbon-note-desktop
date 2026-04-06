@@ -686,7 +686,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	// gitbbon custom: Issue #129 - gitbbon.generateCommitMessage 커맨드 (gitbbon-manager에서 위임 호출)
 	// gitbbon custom: #138 - totalFiles, totalLines 파라미터 추가하여 전체 규모 정보 수신
 	context.subscriptions.push(
-		vscode.commands.registerCommand('gitbbon.generateCommitMessage', async (diff: string, totalFiles: number, totalLines: number): Promise<string | null> => {
+		vscode.commands.registerCommand('gitbbon.generateCommitMessage', async (diff: string, totalFiles: number, totalLines: number, isTruncated: boolean = false): Promise<string | null> => {
 			const aiService = provider.getAIService();
 			try {
 				await aiService.ensureInitialized();
@@ -701,11 +701,13 @@ export function activate(context: vscode.ExtensionContext): void {
 					apiKey,
 					baseURL: 'https://ai-gateway.vercel.sh/v1',
 				});
-				// gitbbon custom: #138 - 전체 규모(파일 수, 줄 수)를 LLM에 안내하고 일부만 전달됨을 명시
-				const sizeInfo = `전체 변경사항: 총 ${totalFiles}개 파일, 약 ${totalLines}줄 변경 (그 중 최대 ${5}개 파일, 파일당 최대 ${20}줄만 아래에 포함됨)`;
+				// gitbbon custom: #138 - 프롬프트 영문화 및 실제 잘린 경우에만 truncation 안내 포함
+				const truncationNotice = isTruncated
+					? `Note: The diff below is a partial sample. Full changeset: ${totalFiles} file(s), ~${totalLines} lines. Only up to 5 files and 20 lines per file are shown.\n\n`
+					: '';
 				const { text } = await generateText({
 					model: openai('o4-mini'),
-				prompt: `다음 Git diff를 분석하여 간결하고 명확한 한글 커밋 메시지를 작성해주세요.\n\n규칙:\n변경 사항을 충실하게 설명\n커밋 메시지만 출력하고 다른 설명은 하지 마세요\n\n${sizeInfo}\n\nGit diff (일부):\n\`\`\`\n${diff.substring(0, 20000)}\n\`\`\`\n\n커밋 메시지:`,
+				prompt: `Analyze the following Git diff and write a concise commit message in Korean.\n\nRules:\n- Faithfully describe the changes\n- Output only the commit message, no other explanation\n\n${truncationNotice}Git diff:\n\`\`\`\n${diff.substring(0, 20000)}\n\`\`\`\n\nCommit message:`,
 				});
 				const result = text.trim();
 				return result || null;

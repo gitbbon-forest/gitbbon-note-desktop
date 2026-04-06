@@ -17,10 +17,11 @@ export class CommitMessageGenerator {
 	 * @param diff 잘라낸 Git diff 내용
 	 * @param totalFiles 전체 변경 파일 수 (truncation 전)
 	 * @param totalLines 전체 diff 줄 수 (truncation 전)
+	 * @param isTruncated 실제로 diff가 잘렸는지 여부
 	 * @returns 생성된 커밋 메시지 또는 null
 	 */
-	// gitbbon custom: #138 - 전체 규모 정보(totalFiles, totalLines)를 커맨드에 전달
-	public async generateCommitMessage(diff: string, totalFiles: number, totalLines: number): Promise<string | null> {
+	// gitbbon custom: #138 - 전체 규모 정보(totalFiles, totalLines, isTruncated)를 커맨드에 전달
+	public async generateCommitMessage(diff: string, totalFiles: number, totalLines: number, isTruncated: boolean = false): Promise<string | null> {
 		if (!diff || diff.trim().length === 0) {
 			return null;
 		}
@@ -40,7 +41,8 @@ export class CommitMessageGenerator {
 				'gitbbon.generateCommitMessage',
 				diff,
 				totalFiles,
-				totalLines
+				totalLines,
+				isTruncated
 			);
 			return result || null;
 		} catch (error: any) {

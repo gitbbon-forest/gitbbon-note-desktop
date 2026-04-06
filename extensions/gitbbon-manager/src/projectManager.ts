@@ -41,7 +41,7 @@ export class ProjectManager {
 	}
 
 	// gitbbon custom: #138 - staged diff를 파일 수/크기 제한하여 반환하는 헬퍼 (전체 규모 정보 포함)
-	private buildLimitedDiff(rawDiff: string): { truncatedDiff: string; totalFiles: number; totalLines: number } {
+	private buildLimitedDiff(rawDiff: string): { truncatedDiff: string; totalFiles: number; totalLines: number; isTruncated: boolean } {
 		// 각 파일 diff는 "diff --git" 으로 시작
 		const fileDiffs = rawDiff.split(/(?=^diff --git )/m).filter(d => d.trim());
 		const totalFiles = fileDiffs.length;
@@ -49,6 +49,7 @@ export class ProjectManager {
 
 		const includedDiffs: string[] = [];
 		const skippedFiles: string[] = [];
+		let hasLineTruncation = false;
 
 		for (const fileDiff of fileDiffs) {
 			if (includedDiffs.length >= DIFF_MAX_FILES) {
@@ -60,6 +61,7 @@ export class ProjectManager {
 
 			const lines = fileDiff.split('\n');
 			if (lines.length > DIFF_MAX_LINES_PER_FILE) {
+				hasLineTruncation = true;
 				const truncated = lines.slice(0, DIFF_MAX_LINES_PER_FILE).join('\n');
 				includedDiffs.push(truncated + `\n... (truncated: ${lines.length - DIFF_MAX_LINES_PER_FILE} more lines)`);
 			} else {
@@ -72,7 +74,9 @@ export class ProjectManager {
 			truncatedDiff += `\n\n# 파일 수 제한으로 제외된 파일 (${skippedFiles.length}개):\n` +
 				skippedFiles.map(f => `# - ${f}`).join('\n');
 		}
-		return { truncatedDiff, totalFiles, totalLines };
+		// gitbbon custom: #138 - 실제로 잘린 경우에만 isTruncated true 반환
+		const isTruncated = skippedFiles.length > 0 || hasLineTruncation;
+		return { truncatedDiff, totalFiles, totalLines, isTruncated };
 	}
 
 	/**
@@ -997,8 +1001,8 @@ Refer to **AGENTS.md** for the agent instructions for this project.
 				try {
 					// gitbbon custom: #138 - 전체 diff 대신 파일 수/크기 제한 적용, 전체 규모 정보 포함
 					const rawDiff = await this.execGit(['diff', '--cached'], cwd, { silent: true });
-					const { truncatedDiff, totalFiles, totalLines } = this.buildLimitedDiff(rawDiff);
-					const generatedMessage = await this.commitMessageGenerator.generateCommitMessage(truncatedDiff, totalFiles, totalLines);
+					const { truncatedDiff, totalFiles, totalLines, isTruncated } = this.buildLimitedDiff(rawDiff);
+					const generatedMessage = await this.commitMessageGenerator.generateCommitMessage(truncatedDiff, totalFiles, totalLines, isTruncated);
 					if (generatedMessage) {
 						message = generatedMessage;
 						logService.info(`[gitbbon-manager][projectManager] LLM generated message: ${message}`);
