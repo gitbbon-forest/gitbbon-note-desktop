@@ -13,8 +13,8 @@ import { CommitMessageGenerator } from './commitMessageGenerator';
 import { logService } from './services/logService';
 
 // gitbbon custom: #138 - diff 크기 제한 상수 (추후 설정화 가능하도록 상수로 분리)
-const DIFF_MAX_FILES = 20;       // staged 파일 수 최대 허용값
-const DIFF_MAX_LINES_PER_FILE = 200; // 파일당 최대 diff 줄 수
+const DIFF_MAX_FILES = 5;        // staged 파일 수 최대 허용값
+const DIFF_MAX_LINES_PER_FILE = 20; // 파일당 최대 diff 줄 수
 
 
 interface Project {
@@ -40,16 +40,17 @@ export class ProjectManager {
 		this.commitMessageGenerator = new CommitMessageGenerator();
 	}
 
-	// gitbbon custom: #138 - staged diff를 파일 수/크기 제한하여 반환하는 헬퍼
-	private buildLimitedDiff(rawDiff: string): string {
+	// gitbbon custom: #138 - staged diff를 파일 수/크기 제한하여 반환하는 헬퍼 (전체 규모 정보 포함)
+	private buildLimitedDiff(rawDiff: string): { truncatedDiff: string; totalFiles: number; totalLines: number } {
 		// 각 파일 diff는 "diff --git" 으로 시작
-		const fileDiffs = rawDiff.split(/(?=^diff --git )/m);
+		const fileDiffs = rawDiff.split(/(?=^diff --git )/m).filter(d => d.trim());
+		const totalFiles = fileDiffs.length;
+		const totalLines = rawDiff.split('\n').length;
+
 		const includedDiffs: string[] = [];
 		const skippedFiles: string[] = [];
 
 		for (const fileDiff of fileDiffs) {
-			if (!fileDiff.trim()) { continue; }
-
 			if (includedDiffs.length >= DIFF_MAX_FILES) {
 				// 파일명만 추출하여 요약에 추가
 				const match = fileDiff.match(/^diff --git a\/.+ b\/(.+)$/m);
@@ -66,12 +67,12 @@ export class ProjectManager {
 			}
 		}
 
-		let result = includedDiffs.join('\n');
+		let truncatedDiff = includedDiffs.join('\n');
 		if (skippedFiles.length > 0) {
-			result += `\n\n# 파일 수 제한으로 제외된 파일 (${skippedFiles.length}개):\n` +
+			truncatedDiff += `\n\n# 파일 수 제한으로 제외된 파일 (${skippedFiles.length}개):\n` +
 				skippedFiles.map(f => `# - ${f}`).join('\n');
 		}
-		return result;
+		return { truncatedDiff, totalFiles, totalLines };
 	}
 
 	/**
@@ -994,10 +995,10 @@ Refer to **AGENTS.md** for the agent instructions for this project.
 			if (!message && await this.commitMessageGenerator.isConfigured()) {
 				logService.info('[gitbbon-manager][projectManager] Generating commit message using LLM...');
 				try {
-					// gitbbon custom: #138 - 전체 diff 대신 파일 수/크기 제한 적용
+					// gitbbon custom: #138 - 전체 diff 대신 파일 수/크기 제한 적용, 전체 규모 정보 포함
 					const rawDiff = await this.execGit(['diff', '--cached'], cwd, { silent: true });
-					const diff = this.buildLimitedDiff(rawDiff);
-					const generatedMessage = await this.commitMessageGenerator.generateCommitMessage(diff);
+					const { truncatedDiff, totalFiles, totalLines } = this.buildLimitedDiff(rawDiff);
+					const generatedMessage = await this.commitMessageGenerator.generateCommitMessage(truncatedDiff, totalFiles, totalLines);
 					if (generatedMessage) {
 						message = generatedMessage;
 						logService.info(`[gitbbon-manager][projectManager] LLM generated message: ${message}`);
