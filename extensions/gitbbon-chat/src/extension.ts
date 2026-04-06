@@ -550,22 +550,28 @@ export function activate(context: vscode.ExtensionContext): void {
 				logService.warn('[debug:#129] Ollama 모델 목록 조회 실패 (Ollama 미실행)');
 			}
 
+			// gitbbon custom: Issue #131 - 현재 선택된 모델 강조를 위해 picked/activeItems 사용
+			logService.info(`[debug:#131] selectModel: currentBackend=${currentBackend}, currentOllamaModel=${currentOllamaModel}`);
+
+			const isApiCurrent = currentBackend === 'api';
+			const apiItem: vscode.QuickPickItem = {
+				label: isApiCurrent ? '$(check) $(cloud) Gitbbon AI' : '$(cloud) Gitbbon AI',
+				description: 'API 모드',
+				picked: isApiCurrent,
+			};
 			const items: vscode.QuickPickItem[] = [
-				{
-					label: '$(cloud) Gitbbon AI',
-					description: 'API 모드',
-					detail: currentBackend === 'api' ? '✓ 현재 선택됨' : undefined,
-				},
+				apiItem,
 				{ label: '', kind: vscode.QuickPickItemKind.Separator },
 			];
 
 			if (installedModels.length > 0) {
 				items.push({ label: '온디바이스 — 설치됨', kind: vscode.QuickPickItemKind.Separator });
 				for (const m of installedModels) {
+					const isCurrent = currentBackend === 'ollama' && currentOllamaModel === m;
 					items.push({
-						label: `$(vm) ${m}`,
+						label: isCurrent ? `$(check) $(vm) ${m}` : `$(vm) ${m}`,
 						description: '온디바이스',
-						detail: (currentBackend === 'ollama' && currentOllamaModel === m) ? '✓ 현재 선택됨' : undefined,
+						picked: isCurrent,
 					});
 				}
 			}
@@ -582,9 +588,27 @@ export function activate(context: vscode.ExtensionContext): void {
 				}
 			}
 
-			const selected = await vscode.window.showQuickPick(items, {
-				title: 'AI 모델 선택',
-				placeHolder: '사용할 AI 모델을 선택하세요',
+			// gitbbon custom: Issue #131 - createQuickPick으로 activeItems 설정하여 현재 선택 항목 강조
+			const qp = vscode.window.createQuickPick();
+			qp.title = 'AI 모델 선택';
+			qp.placeholder = '사용할 AI 모델을 선택하세요';
+			qp.items = items;
+			const currentItem = items.find(item => item.picked);
+			if (currentItem) {
+				qp.activeItems = [currentItem];
+				logService.info(`[debug:#131] activeItem 설정: label="${currentItem.label}"`);
+			}
+
+			const selected = await new Promise<vscode.QuickPickItem | undefined>(resolve => {
+				qp.onDidAccept(() => {
+					resolve(qp.selectedItems[0]);
+					qp.dispose();
+				});
+				qp.onDidHide(() => {
+					resolve(undefined);
+					qp.dispose();
+				});
+				qp.show();
 			});
 
 			if (!selected || selected.kind === vscode.QuickPickItemKind.Separator) {
@@ -601,9 +625,10 @@ export function activate(context: vscode.ExtensionContext): void {
 					webviewView.webview.postMessage({ type: 'backend-changed', backend: 'api' });
 				}
 				logService.info('[debug:#129] 모델 선택: Gitbbon AI (api)');
-			} else if (selected.label.startsWith('$(vm)')) {
+			} else if (selected.label.includes('$(vm)')) {
 				// 온디바이스 설치된 모델 선택
-				const modelName = selected.label.replace('$(vm) ', '').trim();
+				// gitbbon custom: Issue #131 - $(check) 아이콘 prefix 제거 후 모델명 추출
+				const modelName = selected.label.replace('$(check) ', '').replace('$(vm) ', '').trim();
 				await config.update('ai.backend', 'ollama', vscode.ConfigurationTarget.Global);
 				await config.update('ai.ollamaModel', modelName, vscode.ConfigurationTarget.Global);
 				provider.getAIService().setBackend('ollama');
