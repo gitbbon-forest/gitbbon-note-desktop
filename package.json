@@ -1,6 +1,7 @@
 {
   "name": "gitbbon-dev",
-  "version": "1.108.27",
+
+  "version": "1.108.28",
   "distro": "ac62b183885af851634b215f084a75e84d439948",
   "author": {
     "name": "egoing"
@@ -91,10 +92,8 @@
     "compile-ext-gitbbon": "(npm run compile --prefix extensions/gitbbon-chat) & (npm run compile --prefix extensions/gitbbon-editor) & (npm run compile --prefix extensions/gitbbon-manager) & (npm run compile --prefix extensions/gitbbon-search) & wait"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.8.1",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
-    "@orama/orama": "^3.1.18",
     "@parcel/watcher": "parcel-bundler/watcher#1ca032aa8339260a8a3bcf825c3a1a71e3e43542",
     "@types/semver": "^7.5.8",
     "@vscode/deviceid": "^0.1.1",
