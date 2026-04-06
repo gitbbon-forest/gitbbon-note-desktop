@@ -109,6 +109,22 @@ ${diff.substring(0, 3000)}
 					return generatedMessage;
 				}
 			} catch (error: any) {
+				// gitbbon custom: GatewayAuthenticationError 후 auth 상태 초기화 (#127)
+				// GatewayAuthenticationError는 모든 모델에서 동일하게 실패하므로 즉시 중단하고 인증 상태를 초기화
+				const isAuthError =
+					error?.name === 'GatewayAuthenticationError' ||
+					error?.constructor?.name === 'GatewayAuthenticationError' ||
+					(typeof error?.message === 'string' && error.message.includes('Unauthenticated request to AI Gateway'));
+
+				if (isAuthError) {
+					console.warn(`[CommitMessageGenerator] GatewayAuthenticationError detected — clearing cached auth state`);
+					await this.secrets.delete('AI_GATEWAY_API_KEY');
+					this.apiKey = undefined;
+					this.initialized = false;
+					process.env.AI_GATEWAY_API_KEY = '';
+					return null;
+				}
+
 				console.warn(`[CommitMessageGenerator] Failed with model ${modelName}:`, error.message);
 				// 다음 모델로 계속 시도
 				continue;

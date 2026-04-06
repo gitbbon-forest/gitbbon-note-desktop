@@ -169,6 +169,11 @@ export class AIService {
 	 */
 	private async handleApiKeyFailure(): Promise<boolean> {
 		logService.warn('[gitbbon-chat][aiService] API key invalid or missing, prompting user...');
+
+		// gitbbon custom: GatewayAuthenticationError 후 auth 상태 초기화 (#127)
+		// SecretStorage에서 유효하지 않은 키를 삭제해야 모델 재선택 후에도 오류가 반복되지 않음
+		await this.secrets.delete('AI_GATEWAY_API_KEY');
+
 		this.apiKey = undefined;
 		this.initialized = false;
 		process.env.AI_GATEWAY_API_KEY = '';
