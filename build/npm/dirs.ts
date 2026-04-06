@@ -30,6 +30,7 @@ export const dirs = [
 	'extensions/gitbbon-manager',
 	'extensions/gitbbon-editor',
 	'extensions/gitbbon-chat',
+	'extensions/gitbbon-search',
 	'remote',
 	'remote/web',
 	'test/automation',
@@ -37,8 +38,6 @@ export const dirs = [
 	'test/monaco',
 	'test/smoke',
 	'test/mcp',
-	'.vscode/extensions/vscode-selfhost-import-aid',
-	'.vscode/extensions/vscode-selfhost-test-provider',
 ];
 
 if (existsSync(`${import.meta.dirname}/../../.build/distro/npm`)) {
