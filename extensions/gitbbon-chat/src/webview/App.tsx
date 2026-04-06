@@ -536,15 +536,7 @@ const App: React.FC = () => {
 					)}
 				</div>
 			)}
-			{/* gitbbon custom: Issue #68 - 모델 다운로드 진행률 배너 */}
-			{modelPullStatus && (
-				<div className="ollama-banner ollama-banner--pulling">
-					<span>모델 다운로드 중: {modelPullStatus.model} ({modelPullStatus.progress}%)</span>
-					<div className="model-pull-progress-bar">
-						<div className="model-pull-progress-fill" style={{ width: `${modelPullStatus.progress}%` }} />
-					</div>
-				</div>
-			)}
+			{/* gitbbon custom: Issue #135 - 다운로드 진행 UI를 상태바로 이전하여 채팅창 배너 제거 */}
 			{/* gitbbon custom: Issue #68 - 미설치 모델 다운로드 확인 다이얼로그 */}
 			{downloadConfirm && (
 				<div className="model-download-confirm">

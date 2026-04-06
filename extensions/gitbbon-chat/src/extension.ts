@@ -139,8 +139,9 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 				webviewView.webview.postMessage({ type: 'model-pull-progress', model: modelName, progress: 0, status: 'pulling' });
 
 				// gitbbon custom: Issue #69 - 상태표시줄에 다운로드 진행률 표시
+				// gitbbon custom: Issue #135 - 모델 선택 아이템(Right, 100) 옆에 위치하도록 Right, 99로 변경
 				if (!this._pullStatusBarItem) {
-					this._pullStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+					this._pullStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
 					this._context.subscriptions.push(this._pullStatusBarItem);
 				}
 				this._pullStatusBarItem.text = `$(sync~spin) 모델 다운로드: ${modelName} 0%`;
