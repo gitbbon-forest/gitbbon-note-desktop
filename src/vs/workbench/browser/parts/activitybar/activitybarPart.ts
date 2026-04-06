@@ -874,37 +874,59 @@ class ProjectBar extends DisposableStore {
 		const currentPath = this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
 
 		const theme = this.themeService.getColorTheme();
-		const btnBg = theme.getColor(buttonBackground)?.toString() || '#444444';
-		const btnFg = theme.getColor(buttonForeground)?.toString() || '#ffffff';
-		const activeBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BORDER)?.toString() || '#ffffff';
+		// gitbbon custom: 프로젝트 항목 색상 토큰 (테마 자동 반영)
+		const badgeBg = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND)?.toString() || '#444444';
+		const badgeFg = theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND)?.toString() || '#ffffff';
+		const inactiveFg = theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND)?.toString() || '#888888';
+		const activeBg = theme.getColor(ACTIVITY_BAR_ACTIVE_BACKGROUND)?.toString() || 'rgba(128,128,128,0.15)';
 
 		this.projects.forEach(project => {
 			const container = append(this.element!, $('.project-container'));
 			container.style.display = 'flex';
 			container.style.flexDirection = 'column';
 			container.style.alignItems = 'center';
-			container.style.marginBottom = '16px';
+			container.style.marginBottom = '14px';
 			container.style.cursor = 'pointer';
 			container.title = project.title;
 
 			const item = append(container, $('.project-item'));
+			// gitbbon custom: 정사각형 스타일 — 고정 크기로 상하좌우 동일 여백 유지
 			item.style.width = '36px';
 			item.style.height = '36px';
-			item.style.borderRadius = '50%'; // Circle
+			item.style.borderRadius = '8px';
 			item.style.display = 'flex';
 			item.style.alignItems = 'center';
 			item.style.justifyContent = 'center';
-			item.style.fontSize = '11px'; // Smaller font for 3 chars
-			item.style.fontWeight = 'bold';
-			item.style.color = btnFg;
-			item.style.backgroundColor = btnBg;
-			item.style.flexShrink = '0'; // Prevent circle from shrinking
+			item.style.fontSize = '11px';
+			item.style.fontWeight = '600';
+			item.style.flexShrink = '0';
+			item.style.letterSpacing = '0.2px';
+			item.style.transition = 'background-color 0.15s ease, opacity 0.15s ease';
+			item.style.userSelect = 'none';
 
-			// Highlight current project
-			if (currentPath && (project.path === currentPath)) {
-				item.style.border = `3px solid ${activeBorderColor}`; // Bold border
-				item.style.boxSizing = 'border-box';
+			// gitbbon custom: 현재 프로젝트는 배지 색상(강조), 나머지는 반투명 배경 (테두리 없는 미니멀 스타일)
+			const isActive = currentPath && (project.path === currentPath);
+			if (isActive) {
+				item.style.color = badgeFg;
+				item.style.backgroundColor = badgeBg;
+				item.style.opacity = '1';
+			} else {
+				item.style.color = inactiveFg;
+				item.style.backgroundColor = activeBg;
+				item.style.opacity = '0.65';
 			}
+
+			// gitbbon custom: 호버 시 비활성 항목 강조 효과
+			container.onmouseenter = () => {
+				if (!isActive) {
+					item.style.opacity = '1';
+				}
+			};
+			container.onmouseleave = () => {
+				if (!isActive) {
+					item.style.opacity = '0.65';
+				}
+			};
 
 			item.textContent = project.initials;
 
@@ -1110,9 +1132,10 @@ class ProjectBar extends DisposableStore {
 		addBtn.style.alignItems = 'center';
 		addBtn.style.justifyContent = 'center';
 		addBtn.style.cursor = 'pointer';
-		addBtn.style.color = '#888888';
-		addBtn.style.border = '1px dashed #888888';
-		addBtn.style.borderRadius = '50%';
+		addBtn.style.color = inactiveFg;
+		addBtn.style.border = `1px dashed ${inactiveFg}`;
+		// gitbbon custom: 정사각형에 맞춰 동일한 borderRadius 적용
+		addBtn.style.borderRadius = '8px';
 		addBtn.style.flexShrink = '0'; // Prevent circle from shrinking
 		addBtn.textContent = '+';
 		addBtn.title = 'Add New Project';
