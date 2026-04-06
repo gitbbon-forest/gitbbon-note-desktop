@@ -1,3 +1,4 @@
+// [debug:#136] markdown → HTML 렌더링 구현 (react-markdown + remark-gfm + react-syntax-highlighter)
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -252,6 +253,9 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isReceiv
 							)}
 							<div className="message-content">
 								{m.role === 'assistant' ? (
+									// [debug:#136] assistant 응답을 markdown → HTML로 렌더링
+									// XSS 방지: react-markdown은 기본적으로 allowDangerousHtml=false이므로
+									// 원시 HTML 삽입이 차단됨. 하위 호환성: user 메시지는 plain text 유지.
 									<ReactMarkdown
 										remarkPlugins={[remarkGfm]}
 										components={{
@@ -269,6 +273,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isReceiv
 										{m.content}
 									</ReactMarkdown>
 								) : (
+									// [debug:#136] user 메시지는 plain text로 표시 (하위 호환성 유지)
 									m.content
 								)}
 							</div>
