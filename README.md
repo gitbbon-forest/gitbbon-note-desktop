@@ -285,9 +285,18 @@ nvm use
 # 3. 의존성 설치
 npm install
 
-# 4. Electron 실행 (Dev Mode)
-./scripts/code.sh
+# 4. Watch + 자동 실행 (권장)
+npm run dev
+
+# 또는 별도로 실행
+# 4-1. Watch 시작 (백그라운드 데몬)
+npm run watchd
+
+# 4-2. Electron 실행 (컴파일 완료 후)
+npm run start
 ```
+
+`npm run dev`는 `out/main.js`를 삭제한 뒤 watch 데몬을 시작하고, 컴파일이 완료되면 자동으로 앱을 실행합니다.
 
 ### 디버깅 모드 실행 (Debugging)
 

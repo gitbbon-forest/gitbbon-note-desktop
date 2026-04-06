@@ -26,6 +26,7 @@
     "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "watch": "npm-run-all -lp watch-client watch-extensions watch-gitbbon-chat watch-gitbbon-editor watch-gitbbon-manager watch-gitbbon-search",
     "watchd": "deemon npm run watch",
+    "dev": "trap 'trap - INT TERM EXIT; npm run kill-watchd' INT TERM EXIT && rm -f out/main.js && node_modules/.bin/deemon --detach npm run watch && until [ -f out/main.js ]; do sleep 2; done && npm run start",
     "watch-webd": "deemon npm run watch-web",
     "kill-watchd": "deemon --kill npm run watch",
     "kill-watch-webd": "deemon --kill npm run watch-web",
