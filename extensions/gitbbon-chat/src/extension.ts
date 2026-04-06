@@ -702,7 +702,8 @@ export function activate(context: vscode.ExtensionContext): void {
 				});
 				const { text } = await generateText({
 					model: openai('o4-mini'),
-					prompt: `다음 Git diff를 분석하여 간결하고 명확한 한글 커밋 메시지를 작성해주세요.\n\n규칙:\n변경 사항을 충실하게 설명\n커밋 메시지만 출력하고 다른 설명은 하지 마세요\n\nGit diff:\n\`\`\`\n${diff.substring(0, 3000)}\n\`\`\`\n\n커밋 메시지:`,
+					// gitbbon custom: #138 - projectManager에서 이미 diff 크기 제한됨, substring 상한을 넉넉하게 조정
+				prompt: `다음 Git diff를 분석하여 간결하고 명확한 한글 커밋 메시지를 작성해주세요.\n\n규칙:\n변경 사항을 충실하게 설명\n커밋 메시지만 출력하고 다른 설명은 하지 마세요\n\nGit diff:\n\`\`\`\n${diff.substring(0, 20000)}\n\`\`\`\n\n커밋 메시지:`,
 				});
 				const result = text.trim();
 				return result || null;

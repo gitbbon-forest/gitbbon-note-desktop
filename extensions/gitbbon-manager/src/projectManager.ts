@@ -12,6 +12,10 @@ import { DiffParser } from './diffParser';
 import { CommitMessageGenerator } from './commitMessageGenerator';
 import { logService } from './services/logService';
 
+// gitbbon custom: #138 - diff 크기 제한 상수 (추후 설정화 가능하도록 상수로 분리)
+const DIFF_MAX_FILES = 20;       // staged 파일 수 최대 허용값
+const DIFF_MAX_LINES_PER_FILE = 200; // 파일당 최대 diff 줄 수
+
 
 interface Project {
 	name: string;
@@ -34,6 +38,40 @@ export class ProjectManager {
 		this.rootPath = path.join(os.homedir(), 'Documents', 'Gitbbon_Notes');
 		// gitbbon custom: Issue #129 - AI 기능 gitbbon-chat에 위임, secrets 불필요
 		this.commitMessageGenerator = new CommitMessageGenerator();
+	}
+
+	// gitbbon custom: #138 - staged diff를 파일 수/크기 제한하여 반환하는 헬퍼
+	private buildLimitedDiff(rawDiff: string): string {
+		// 각 파일 diff는 "diff --git" 으로 시작
+		const fileDiffs = rawDiff.split(/(?=^diff --git )/m);
+		const includedDiffs: string[] = [];
+		const skippedFiles: string[] = [];
+
+		for (const fileDiff of fileDiffs) {
+			if (!fileDiff.trim()) { continue; }
+
+			if (includedDiffs.length >= DIFF_MAX_FILES) {
+				// 파일명만 추출하여 요약에 추가
+				const match = fileDiff.match(/^diff --git a\/.+ b\/(.+)$/m);
+				skippedFiles.push(match ? match[1] : '(unknown)');
+				continue;
+			}
+
+			const lines = fileDiff.split('\n');
+			if (lines.length > DIFF_MAX_LINES_PER_FILE) {
+				const truncated = lines.slice(0, DIFF_MAX_LINES_PER_FILE).join('\n');
+				includedDiffs.push(truncated + `\n... (truncated: ${lines.length - DIFF_MAX_LINES_PER_FILE} more lines)`);
+			} else {
+				includedDiffs.push(fileDiff);
+			}
+		}
+
+		let result = includedDiffs.join('\n');
+		if (skippedFiles.length > 0) {
+			result += `\n\n# 파일 수 제한으로 제외된 파일 (${skippedFiles.length}개):\n` +
+				skippedFiles.map(f => `# - ${f}`).join('\n');
+		}
+		return result;
 	}
 
 	/**
@@ -956,8 +994,9 @@ Refer to **AGENTS.md** for the agent instructions for this project.
 			if (!message && await this.commitMessageGenerator.isConfigured()) {
 				logService.info('[gitbbon-manager][projectManager] Generating commit message using LLM...');
 				try {
-					// 현재 staged 상태의 diff 가져오기
-					const diff = await this.execGit(['diff', '--cached'], cwd, { silent: true });
+					// gitbbon custom: #138 - 전체 diff 대신 파일 수/크기 제한 적용
+					const rawDiff = await this.execGit(['diff', '--cached'], cwd, { silent: true });
+					const diff = this.buildLimitedDiff(rawDiff);
 					const generatedMessage = await this.commitMessageGenerator.generateCommitMessage(diff);
 					if (generatedMessage) {
 						message = generatedMessage;
