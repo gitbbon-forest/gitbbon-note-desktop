@@ -126,6 +126,12 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 					logService.error(`[debug:#79] 모델 삭제 실패: ${modelName}`, err);
 					webviewView.webview.postMessage({ type: 'model-delete-progress', model: modelName, status: 'error', message: String(err) });
 				}
+			} else if (message.type === 'pull-model') {
+				// gitbbon custom: Issue #134 - 채팅창 드롭다운에서 미설치 모델 선택 → 공통 확인 다이얼로그 경유
+				const modelName = message.model as string;
+				const sizeGB = message.sizeGB as number | undefined;
+				logService.info(`[debug:#134] pull-model 요청 수신: ${modelName}`);
+				await downloadModelWithConfirm(modelName, sizeGB, this);
 			} else if (message.type === 'pull-ollama-model') {
 				// gitbbon custom: Issue #69 - 미설치 모델 다운로드 요청 (상태표시줄 진행률 표시)
 				const modelName = message.model as string;
@@ -439,6 +445,46 @@ function getNonce() {
 	return text;
 }
 
+// gitbbon custom: Issue #134 - 모델 다운로드 공통 함수 (확인 다이얼로그 포함)
+async function downloadModelWithConfirm(modelName: string, sizeGB: number | undefined, provider: GitbbonChatViewProvider): Promise<void> {
+	logService.info(`[debug:#134] downloadModelWithConfirm: ${modelName}, sizeGB=${sizeGB}`);
+	const sizeText = sizeGB && sizeGB > 0 ? ` (${sizeGB.toFixed(1)}GB)` : '';
+	const answer = await vscode.window.showInformationMessage(
+		`${modelName}${sizeText}을 다운로드하시겠습니까?`,
+		{ modal: true },
+		'다운로드',
+		'취소'
+	);
+	logService.info(`[debug:#134] downloadModelWithConfirm: 사용자 응답=${answer}`);
+	if (answer !== '다운로드') {
+		return;
+	}
+	// WebView를 통해 pull-ollama-model 메시지로 다운로드 시작
+	const webviewView = (provider as any)._webviewView as vscode.WebviewView | undefined;
+	if (webviewView) {
+		logService.info(`[debug:#134] downloadModelWithConfirm: WebView에 pull-ollama-model 전달: ${modelName}`);
+		webviewView.webview.postMessage({ type: 'trigger-pull-model', model: modelName });
+	} else {
+		// WebView가 없으면 직접 pullModel 호출 (상태표시줄로 진행률 표시)
+		logService.info(`[debug:#134] downloadModelWithConfirm: WebView 없음, 직접 pullModel 호출: ${modelName}`);
+		vscode.window.withProgress(
+			{ location: vscode.ProgressLocation.Notification, title: `모델 다운로드: ${modelName}`, cancellable: false },
+			async (progress) => {
+				try {
+					await ollamaService.pullModel(modelName, (pct) => {
+						progress.report({ increment: pct, message: `${pct}%` });
+					});
+					vscode.window.showInformationMessage(`모델 다운로드 완료: ${modelName}`);
+					logService.info(`[debug:#134] downloadModelWithConfirm: pullModel 완료: ${modelName}`);
+				} catch (err) {
+					logService.error(`[debug:#134] downloadModelWithConfirm: pullModel 실패: ${modelName}`, err);
+					vscode.window.showErrorMessage(`모델 다운로드 실패: ${modelName}`);
+				}
+			}
+		);
+	}
+}
+
 export function activate(context: vscode.ExtensionContext): void {
 	logService.init();
 	const provider = new GitbbonChatViewProvider(context);
@@ -642,8 +688,10 @@ export function activate(context: vscode.ExtensionContext): void {
 				}
 				logService.info(`[debug:#129] 모델 선택: 온디바이스 ${modelName}`);
 			} else if (selected.label.startsWith('$(cloud-download)')) {
-				// 미설치 모델 — 채팅 패널 열어 다운로드 안내
-				vscode.window.showInformationMessage(`${selected.label.replace('$(cloud-download) ', '')} 모델을 다운로드하려면 채팅 패널의 온디바이스 모드를 선택하세요.`);
+				// gitbbon custom: Issue #134 - 미설치 모델 선택 시 공통 다운로드 함수 호출
+				const modelName = selected.label.replace('$(cloud-download) ', '').trim();
+				const sizeGB = recommendedModels.find(m => m.name === modelName)?.sizeGB;
+				await downloadModelWithConfirm(modelName, sizeGB, provider);
 			}
 		})
 	);
