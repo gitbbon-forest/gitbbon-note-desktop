@@ -851,10 +851,13 @@ Refer to **AGENTS.md** for the agent instructions for this project.
 			// -U0 옵션으로 컨텍스트 라인을 제거하여 파싱 용이성 확보
 			diffArgs.push('-U0');
 
-			const diff = await this.execGit(diffArgs, cwd, { silent: true, env: options.env });
-			if (!diff) {
+			const rawDiff = await this.execGit(diffArgs, cwd, { silent: true, env: options.env });
+			if (!rawDiff) {
 				return '';
 			}
+
+			// gitbbon custom: #138 - 불필요하게 큰 diff를 메모리에 올리지 않도록 buildLimitedDiff로 용량 제한
+			const { truncatedDiff: diff } = this.buildLimitedDiff(rawDiff);
 
 			const preview = DiffParser.extractChange(diff, maxLength);
 			if (preview) {
