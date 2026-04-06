@@ -304,7 +304,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.showIcons': {
 				'type': 'boolean',
 				'description': localize('showIcons', "Controls whether opened editors should show with an icon or not. This requires a file icon theme to be enabled as well."),
-				'default': true
+				// gitbbon custom: 탭 아이콘 비활성화 기본값 (Issue #121) — DEFAULT_EDITOR_PART_OPTIONS.showIcons:false만으로는 런타임 설정값에 의해 덮어써짐
+				'default': false
 			},
 			'workbench.editor.enablePreview': {
 				'type': 'boolean',
