@@ -73,7 +73,8 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	// Properties that are Objects have to be defined as getters
 	// to ensure no consumer modifies the default values
 	get limit(): IEditorPartLimitOptions { return { enabled: false, value: 10, perEditorGroup: false, excludeDirty: false }; },
-	get decorations(): IEditorPartDecorationOptions { return { badges: true, colors: true }; },
+	// gitbbon custom: 탭 데코레이션 badge 제거 — showIcons:false만으로는 파란 화살표 등 decoration icon이 제거되지 않음 (Issue #121)
+	get decorations(): IEditorPartDecorationOptions { return { badges: false, colors: true }; },
 	get autoLockGroups(): Set<string> { return new Set<string>(); }
 };
 
