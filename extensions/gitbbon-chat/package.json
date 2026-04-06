@@ -64,8 +64,34 @@
         "command": "gitbbon.chat.selectBackend",
         "title": "백엔드 선택 (API / Ollama)",
         "category": "Gitbbon Chat"
+      },
+      {
+        "command": "gitbbon.selectModel",
+        "title": "AI 모델 선택",
+        "category": "Gitbbon"
+      },
+      {
+        "command": "gitbbon.generateCommitMessage",
+        "title": "커밋 메시지 생성",
+        "category": "Gitbbon"
       }
     ],
+    "configuration": {
+      "title": "Gitbbon AI",
+      "properties": {
+        "gitbbon.ai.backend": {
+          "type": "string",
+          "enum": ["api", "ollama"],
+          "default": "api",
+          "description": "AI 백엔드 선택 (api: Gitbbon AI, ollama: 온디바이스)"
+        },
+        "gitbbon.ai.ollamaModel": {
+          "type": "string",
+          "default": "",
+          "description": "온디바이스 모드에서 사용할 Ollama 모델명"
+        }
+      }
+    },
     "keybindings": [
       {
         "command": "gitbbon.chat.sendText",

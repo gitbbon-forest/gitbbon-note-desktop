@@ -32,7 +32,8 @@ export class ProjectManager {
 
 	constructor(private readonly context: vscode.ExtensionContext) {
 		this.rootPath = path.join(os.homedir(), 'Documents', 'Gitbbon_Notes');
-		this.commitMessageGenerator = new CommitMessageGenerator(context.secrets);
+		// gitbbon custom: Issue #129 - AI 기능 gitbbon-chat에 위임, secrets 불필요
+		this.commitMessageGenerator = new CommitMessageGenerator();
 	}
 
 	/**

@@ -126,6 +126,11 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 					logService.error(`[debug:#79] 모델 삭제 실패: ${modelName}`, err);
 					webviewView.webview.postMessage({ type: 'model-delete-progress', model: modelName, status: 'error', message: String(err) });
 				}
+			} else if (message.type === 'pull-model') {
+				// gitbbon custom: Issue #134 - 채팅창 드롭다운에서 미설치 모델 선택 → 공통 확인 다이얼로그 경유
+				const modelName = message.model as string;
+				const sizeGB = message.sizeGB as number | undefined;
+				await downloadModelWithConfirm(modelName, sizeGB, this);
 			} else if (message.type === 'pull-ollama-model') {
 				// gitbbon custom: Issue #69 - 미설치 모델 다운로드 요청 (상태표시줄 진행률 표시)
 				const modelName = message.model as string;
@@ -133,8 +138,9 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 				webviewView.webview.postMessage({ type: 'model-pull-progress', model: modelName, progress: 0, status: 'pulling' });
 
 				// gitbbon custom: Issue #69 - 상태표시줄에 다운로드 진행률 표시
+				// gitbbon custom: Issue #135 - 모델 선택 아이템(Right, 100) 옆에 위치하도록 Right, 99로 변경
 				if (!this._pullStatusBarItem) {
-					this._pullStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+					this._pullStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
 					this._context.subscriptions.push(this._pullStatusBarItem);
 				}
 				this._pullStatusBarItem.text = `$(sync~spin) 모델 다운로드: ${modelName} 0%`;
@@ -439,9 +445,75 @@ function getNonce() {
 	return text;
 }
 
+// gitbbon custom: Issue #134 - 모델 다운로드 공통 함수 (확인 다이얼로그 포함)
+async function downloadModelWithConfirm(modelName: string, sizeGB: number | undefined, provider: GitbbonChatViewProvider): Promise<void> {
+	const sizeText = sizeGB && sizeGB > 0 ? ` (${sizeGB.toFixed(1)}GB)` : '';
+	const answer = await vscode.window.showInformationMessage(
+		`${modelName}${sizeText}을 다운로드하시겠습니까?`,
+		{ modal: true },
+		'다운로드',
+		'취소'
+	);
+	if (answer !== '다운로드') {
+		return;
+	}
+	// WebView를 통해 pull-ollama-model 메시지로 다운로드 시작
+	const webviewView = (provider as any)._webviewView as vscode.WebviewView | undefined;
+	if (webviewView) {
+		webviewView.webview.postMessage({ type: 'trigger-pull-model', model: modelName });
+	} else {
+		// WebView가 없으면 직접 pullModel 호출 (상태표시줄로 진행률 표시)
+		vscode.window.withProgress(
+			{ location: vscode.ProgressLocation.Notification, title: `모델 다운로드: ${modelName}`, cancellable: false },
+			async (progress) => {
+				try {
+					await ollamaService.pullModel(modelName, (pct) => {
+						progress.report({ increment: pct, message: `${pct}%` });
+					});
+					vscode.window.showInformationMessage(`모델 다운로드 완료: ${modelName}`);
+				} catch (err) {
+					vscode.window.showErrorMessage(`모델 다운로드 실패: ${modelName}`);
+				}
+			}
+		);
+	}
+}
+
 export function activate(context: vscode.ExtensionContext): void {
 	logService.init();
 	const provider = new GitbbonChatViewProvider(context);
+
+	// gitbbon custom: Issue #129 - 전역 AI 모델 상태바 아이템
+	const aiStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+	aiStatusBarItem.command = 'gitbbon.selectModel';
+	context.subscriptions.push(aiStatusBarItem);
+
+	// gitbbon custom: Issue #129 - 상태바 텍스트 갱신 함수
+	async function updateAiStatusBar(): Promise<void> {
+		const config = vscode.workspace.getConfiguration('gitbbon');
+		const backend = config.get<string>('ai.backend') || 'api';
+		if (backend === 'ollama') {
+			const model = config.get<string>('ai.ollamaModel') || '';
+			aiStatusBarItem.text = model ? `$(vm) ${model}` : '$(vm) 온디바이스';
+			aiStatusBarItem.tooltip = `온디바이스 AI: ${model || '모델 미선택'} (클릭하여 변경)`;
+		} else {
+			aiStatusBarItem.text = '$(cloud) Gitbbon AI';
+			aiStatusBarItem.tooltip = 'Gitbbon AI (클릭하여 변경)';
+		}
+		aiStatusBarItem.show();
+	}
+
+	// 초기 상태바 설정
+	updateAiStatusBar();
+
+	// gitbbon custom: Issue #129 - Configuration 변경 감지 → 상태바 갱신
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('gitbbon.ai')) {
+				updateAiStatusBar();
+			}
+		})
+	);
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(
@@ -495,6 +567,147 @@ export function activate(context: vscode.ExtensionContext): void {
 				await vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
 				// 포맷된 텍스트 전송
 				provider.sendTextToChat(formattedText);
+			}
+		})
+	);
+
+	// gitbbon custom: Issue #129 - 전역 AI 모델 선택 Quick Pick 커맨드
+	context.subscriptions.push(
+		vscode.commands.registerCommand('gitbbon.selectModel', async () => {
+			const config = vscode.workspace.getConfiguration('gitbbon');
+			const currentBackend = config.get<string>('ai.backend') || 'api';
+			const currentOllamaModel = config.get<string>('ai.ollamaModel') || '';
+
+			// 온디바이스 모델 목록 조회
+			let installedModels: string[] = [];
+			let recommendedModels: import('./services/ollamaService').RecommendedModel[] = [];
+			try {
+				installedModels = await ollamaService.getInstalledModels();
+				recommendedModels = await ollamaService.getRecommendedModels();
+			} catch {
+			}
+
+			// gitbbon custom: Issue #131 - 현재 선택된 모델 강조를 위해 picked/activeItems 사용
+
+			const isApiCurrent = currentBackend === 'api';
+			const apiItem: vscode.QuickPickItem = {
+				label: isApiCurrent ? '$(check) $(cloud) Gitbbon AI' : '$(cloud) Gitbbon AI',
+				description: 'API 모드',
+				picked: isApiCurrent,
+			};
+			const items: vscode.QuickPickItem[] = [
+				apiItem,
+				{ label: '', kind: vscode.QuickPickItemKind.Separator },
+			];
+
+			if (installedModels.length > 0) {
+				items.push({ label: '온디바이스 — 설치됨', kind: vscode.QuickPickItemKind.Separator });
+				for (const m of installedModels) {
+					const isCurrent = currentBackend === 'ollama' && currentOllamaModel === m;
+					items.push({
+						label: isCurrent ? `$(check) $(vm) ${m}` : `$(vm) ${m}`,
+						description: '온디바이스',
+						picked: isCurrent,
+					});
+				}
+			}
+
+			const notInstalled = recommendedModels.filter(m => !m.installed);
+			if (notInstalled.length > 0) {
+				items.push({ label: '온디바이스 — 다운로드 가능', kind: vscode.QuickPickItemKind.Separator });
+				for (const m of notInstalled) {
+					items.push({
+						label: `$(cloud-download) ${m.name}`,
+						description: `${m.sizeGB > 0 ? m.sizeGB.toFixed(1) + 'GB' : '크기 미확인'}`,
+						detail: m.description,
+					});
+				}
+			}
+
+			// gitbbon custom: Issue #131 - createQuickPick으로 activeItems 설정하여 현재 선택 항목 강조
+			const qp = vscode.window.createQuickPick();
+			qp.title = 'AI 모델 선택';
+			qp.placeholder = '사용할 AI 모델을 선택하세요';
+			qp.items = items;
+			const currentItem = items.find(item => item.picked);
+			if (currentItem) {
+				qp.activeItems = [currentItem];
+			}
+
+			const selected = await new Promise<vscode.QuickPickItem | undefined>(resolve => {
+				qp.onDidAccept(() => {
+					resolve(qp.selectedItems[0]);
+					qp.dispose();
+				});
+				qp.onDidHide(() => {
+					resolve(undefined);
+					qp.dispose();
+				});
+				qp.show();
+			});
+
+			if (!selected || selected.kind === vscode.QuickPickItemKind.Separator) {
+				return;
+			}
+
+			if (selected.label.includes('Gitbbon AI')) {
+				await config.update('ai.backend', 'api', vscode.ConfigurationTarget.Global);
+				provider.getAIService().setBackend('api');
+				// WebView에도 동기화
+				const webviewView = (provider as any)._webviewView as vscode.WebviewView | undefined;
+				if (webviewView) {
+					webviewView.webview.postMessage({ type: 'model-changed', backend: 'api', model: '' });
+					webviewView.webview.postMessage({ type: 'backend-changed', backend: 'api' });
+				}
+			} else if (selected.label.includes('$(vm)')) {
+				// 온디바이스 설치된 모델 선택
+				// gitbbon custom: Issue #131 - $(check) 아이콘 prefix 제거 후 모델명 추출
+				const modelName = selected.label.replace('$(check) ', '').replace('$(vm) ', '').trim();
+				await config.update('ai.backend', 'ollama', vscode.ConfigurationTarget.Global);
+				await config.update('ai.ollamaModel', modelName, vscode.ConfigurationTarget.Global);
+				provider.getAIService().setBackend('ollama');
+				await provider.getAIService().setOllamaModel(modelName);
+				// WebView에도 동기화
+				const webviewView = (provider as any)._webviewView as vscode.WebviewView | undefined;
+				if (webviewView) {
+					webviewView.webview.postMessage({ type: 'model-changed', backend: 'ollama', model: modelName });
+					webviewView.webview.postMessage({ type: 'backend-changed', backend: 'ollama' });
+					webviewView.webview.postMessage({ type: 'selected-model', model: modelName });
+				}
+			} else if (selected.label.startsWith('$(cloud-download)')) {
+				// gitbbon custom: Issue #134 - 미설치 모델 선택 시 공통 다운로드 함수 호출
+				const modelName = selected.label.replace('$(cloud-download) ', '').trim();
+				const sizeGB = recommendedModels.find(m => m.name === modelName)?.sizeGB;
+				await downloadModelWithConfirm(modelName, sizeGB, provider);
+			}
+		})
+	);
+
+	// gitbbon custom: Issue #129 - gitbbon.generateCommitMessage 커맨드 (gitbbon-manager에서 위임 호출)
+	context.subscriptions.push(
+		vscode.commands.registerCommand('gitbbon.generateCommitMessage', async (diff: string): Promise<string | null> => {
+			const aiService = provider.getAIService();
+			try {
+				await aiService.ensureInitialized();
+				if (!aiService.hasApiKey()) {
+					return null;
+				}
+				// streamAgentChat 대신 단순 텍스트 생성용 API 직접 호출
+				const { generateText } = await import('ai');
+				const { createOpenAI } = await import('@ai-sdk/openai');
+				const apiKey = process.env.AI_GATEWAY_API_KEY || '';
+				const openai = createOpenAI({
+					apiKey,
+					baseURL: 'https://ai-gateway.vercel.sh/v1',
+				});
+				const { text } = await generateText({
+					model: openai('o4-mini'),
+					prompt: `다음 Git diff를 분석하여 간결하고 명확한 한글 커밋 메시지를 작성해주세요.\n\n규칙:\n변경 사항을 충실하게 설명\n커밋 메시지만 출력하고 다른 설명은 하지 마세요\n\nGit diff:\n\`\`\`\n${diff.substring(0, 3000)}\n\`\`\`\n\n커밋 메시지:`,
+				});
+				const result = text.trim();
+				return result || null;
+			} catch (error) {
+				return null;
 			}
 		})
 	);

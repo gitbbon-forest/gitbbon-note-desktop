@@ -194,11 +194,12 @@ const App: React.FC = () => {
 	}, []);
 
 	// gitbbon custom: Issue #68 - 모델 선택 변경 시, 미설치 모델이면 다운로드 확인
+	// gitbbon custom: Issue #134 - 미설치 모델 선택 시 extension의 공통 확인 다이얼로그 경유
 	const handleModelSelect = useCallback((model: string) => {
 		const recommended = recommendedModels.find(m => m.name === model);
 		if (recommended && !recommended.installed) {
-			// 미설치 모델: 다운로드 확인 다이얼로그 표시
-			setDownloadConfirm(recommended);
+			// 미설치 모델: extension의 showInformationMessage 확인 다이얼로그를 통해 다운로드
+			vscode.postMessage({ type: 'pull-model', model: recommended.name, sizeGB: recommended.sizeGB });
 			return;
 		}
 		setSelectedModel(model);
@@ -269,6 +270,18 @@ const App: React.FC = () => {
 					setModelType(message.backend === 'ollama' ? 'ondevice' : 'gitbbon');
 					if (message.backend !== 'ollama') {
 						setOllamaStatus(null);
+					}
+					break;
+
+				// gitbbon custom: Issue #129 - 상태바 모델 선택 시 WebView 드롭다운 동기화
+				case 'model-changed':
+					if (message.backend === 'ollama' && message.model) {
+						setCurrentBackend('ollama');
+						setModelType('ondevice');
+						setSelectedModel(message.model);
+					} else if (message.backend === 'api') {
+						setCurrentBackend('api');
+						setModelType('gitbbon');
 					}
 					break;
 
@@ -448,6 +461,13 @@ const App: React.FC = () => {
 					break;
 				}
 
+			// gitbbon custom: Issue #134 - extension 공통 다운로드 함수 확인 후 WebView에 pull 트리거
+				case 'trigger-pull-model': {
+					const modelToPull = message.model as string;
+					vscode.postMessage({ type: 'pull-ollama-model', model: modelToPull });
+					break;
+				}
+
 			// gitbbon custom: Issue #68 - 모델 다운로드 진행 상태 수신
 				case 'model-pull-progress': {
 					const pullStatus: ModelPullStatus = {
@@ -516,15 +536,7 @@ const App: React.FC = () => {
 					)}
 				</div>
 			)}
-			{/* gitbbon custom: Issue #68 - 모델 다운로드 진행률 배너 */}
-			{modelPullStatus && (
-				<div className="ollama-banner ollama-banner--pulling">
-					<span>모델 다운로드 중: {modelPullStatus.model} ({modelPullStatus.progress}%)</span>
-					<div className="model-pull-progress-bar">
-						<div className="model-pull-progress-fill" style={{ width: `${modelPullStatus.progress}%` }} />
-					</div>
-				</div>
-			)}
+			{/* gitbbon custom: Issue #135 - 다운로드 진행 UI를 상태바로 이전하여 채팅창 배너 제거 */}
 			{/* gitbbon custom: Issue #68 - 미설치 모델 다운로드 확인 다이얼로그 */}
 			{downloadConfirm && (
 				<div className="model-download-confirm">

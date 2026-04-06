@@ -57,14 +57,29 @@ export class AIService {
 
 	constructor(private readonly secrets: vscode.SecretStorage) { }
 
+	// gitbbon custom: Issue #129 - CHAT_BACKEND SecretStorage → VS Code Configuration 마이그레이션
 	public async getBackend(): Promise<'api' | 'ollama'> {
-		const stored = await this.secrets.get('CHAT_BACKEND');
+		const config = vscode.workspace.getConfiguration('gitbbon');
+		const stored = config.get<string>('ai.backend');
 		return (stored === 'ollama') ? 'ollama' : 'api';
 	}
 
+	// gitbbon custom: Issue #129 - backend를 VS Code Configuration에 저장
 	public async setBackend(backend: 'api' | 'ollama'): Promise<void> {
-		await this.secrets.store('CHAT_BACKEND', backend);
-		logService.info(`[gitbbon-chat][aiService] Backend set to: ${backend}`);
+		const config = vscode.workspace.getConfiguration('gitbbon');
+		await config.update('ai.backend', backend, vscode.ConfigurationTarget.Global);
+	}
+
+	// gitbbon custom: Issue #129 - 선택된 Ollama 모델을 Configuration에서 읽기
+	public getOllamaModelFromConfig(): string {
+		const config = vscode.workspace.getConfiguration('gitbbon');
+		return config.get<string>('ai.ollamaModel') || '';
+	}
+
+	// gitbbon custom: Issue #129 - 선택된 Ollama 모델을 Configuration에 저장
+	public async setOllamaModel(model: string): Promise<void> {
+		const config = vscode.workspace.getConfiguration('gitbbon');
+		await config.update('ai.ollamaModel', model, vscode.ConfigurationTarget.Global);
 	}
 
 	/**
