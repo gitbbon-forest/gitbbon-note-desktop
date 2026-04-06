@@ -443,6 +443,39 @@ export function activate(context: vscode.ExtensionContext): void {
 	logService.init();
 	const provider = new GitbbonChatViewProvider(context);
 
+	// gitbbon custom: Issue #129 - 전역 AI 모델 상태바 아이템
+	const aiStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+	aiStatusBarItem.command = 'gitbbon.selectModel';
+	context.subscriptions.push(aiStatusBarItem);
+
+	// gitbbon custom: Issue #129 - 상태바 텍스트 갱신 함수
+	async function updateAiStatusBar(): Promise<void> {
+		const config = vscode.workspace.getConfiguration('gitbbon');
+		const backend = config.get<string>('ai.backend') || 'api';
+		if (backend === 'ollama') {
+			const model = config.get<string>('ai.ollamaModel') || '';
+			aiStatusBarItem.text = model ? `$(vm) ${model}` : '$(vm) 온디바이스';
+			aiStatusBarItem.tooltip = `온디바이스 AI: ${model || '모델 미선택'} (클릭하여 변경)`;
+		} else {
+			aiStatusBarItem.text = '$(cloud) Gitbbon AI';
+			aiStatusBarItem.tooltip = 'Gitbbon AI (클릭하여 변경)';
+		}
+		aiStatusBarItem.show();
+		logService.info(`[debug:#129] updateAiStatusBar: backend=${backend}`);
+	}
+
+	// 초기 상태바 설정
+	updateAiStatusBar();
+
+	// gitbbon custom: Issue #129 - Configuration 변경 감지 → 상태바 갱신
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('gitbbon.ai')) {
+				updateAiStatusBar();
+			}
+		})
+	);
+
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(
 			GitbbonChatViewProvider.viewType,
@@ -495,6 +528,130 @@ export function activate(context: vscode.ExtensionContext): void {
 				await vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
 				// 포맷된 텍스트 전송
 				provider.sendTextToChat(formattedText);
+			}
+		})
+	);
+
+	// gitbbon custom: Issue #129 - 전역 AI 모델 선택 Quick Pick 커맨드
+	context.subscriptions.push(
+		vscode.commands.registerCommand('gitbbon.selectModel', async () => {
+			logService.info('[debug:#129] gitbbon.selectModel 커맨드 실행');
+			const config = vscode.workspace.getConfiguration('gitbbon');
+			const currentBackend = config.get<string>('ai.backend') || 'api';
+			const currentOllamaModel = config.get<string>('ai.ollamaModel') || '';
+
+			// 온디바이스 모델 목록 조회
+			let installedModels: string[] = [];
+			let recommendedModels: import('./services/ollamaService').RecommendedModel[] = [];
+			try {
+				installedModels = await ollamaService.getInstalledModels();
+				recommendedModels = await ollamaService.getRecommendedModels();
+			} catch {
+				logService.warn('[debug:#129] Ollama 모델 목록 조회 실패 (Ollama 미실행)');
+			}
+
+			const items: vscode.QuickPickItem[] = [
+				{
+					label: '$(cloud) Gitbbon AI',
+					description: 'API 모드',
+					detail: currentBackend === 'api' ? '✓ 현재 선택됨' : undefined,
+				},
+				{ label: '', kind: vscode.QuickPickItemKind.Separator },
+			];
+
+			if (installedModels.length > 0) {
+				items.push({ label: '온디바이스 — 설치됨', kind: vscode.QuickPickItemKind.Separator });
+				for (const m of installedModels) {
+					items.push({
+						label: `$(vm) ${m}`,
+						description: '온디바이스',
+						detail: (currentBackend === 'ollama' && currentOllamaModel === m) ? '✓ 현재 선택됨' : undefined,
+					});
+				}
+			}
+
+			const notInstalled = recommendedModels.filter(m => !m.installed);
+			if (notInstalled.length > 0) {
+				items.push({ label: '온디바이스 — 다운로드 가능', kind: vscode.QuickPickItemKind.Separator });
+				for (const m of notInstalled) {
+					items.push({
+						label: `$(cloud-download) ${m.name}`,
+						description: `${m.sizeGB > 0 ? m.sizeGB.toFixed(1) + 'GB' : '크기 미확인'}`,
+						detail: m.description,
+					});
+				}
+			}
+
+			const selected = await vscode.window.showQuickPick(items, {
+				title: 'AI 모델 선택',
+				placeHolder: '사용할 AI 모델을 선택하세요',
+			});
+
+			if (!selected || selected.kind === vscode.QuickPickItemKind.Separator) {
+				return;
+			}
+
+			if (selected.label.includes('Gitbbon AI')) {
+				await config.update('ai.backend', 'api', vscode.ConfigurationTarget.Global);
+				provider.getAIService().setBackend('api');
+				// WebView에도 동기화
+				const webviewView = (provider as any)._webviewView as vscode.WebviewView | undefined;
+				if (webviewView) {
+					webviewView.webview.postMessage({ type: 'model-changed', backend: 'api', model: '' });
+					webviewView.webview.postMessage({ type: 'backend-changed', backend: 'api' });
+				}
+				logService.info('[debug:#129] 모델 선택: Gitbbon AI (api)');
+			} else if (selected.label.startsWith('$(vm)')) {
+				// 온디바이스 설치된 모델 선택
+				const modelName = selected.label.replace('$(vm) ', '').trim();
+				await config.update('ai.backend', 'ollama', vscode.ConfigurationTarget.Global);
+				await config.update('ai.ollamaModel', modelName, vscode.ConfigurationTarget.Global);
+				provider.getAIService().setBackend('ollama');
+				await provider.getAIService().setOllamaModel(modelName);
+				// WebView에도 동기화
+				const webviewView = (provider as any)._webviewView as vscode.WebviewView | undefined;
+				if (webviewView) {
+					webviewView.webview.postMessage({ type: 'model-changed', backend: 'ollama', model: modelName });
+					webviewView.webview.postMessage({ type: 'backend-changed', backend: 'ollama' });
+					webviewView.webview.postMessage({ type: 'selected-model', model: modelName });
+				}
+				logService.info(`[debug:#129] 모델 선택: 온디바이스 ${modelName}`);
+			} else if (selected.label.startsWith('$(cloud-download)')) {
+				// 미설치 모델 — 채팅 패널 열어 다운로드 안내
+				vscode.window.showInformationMessage(`${selected.label.replace('$(cloud-download) ', '')} 모델을 다운로드하려면 채팅 패널의 온디바이스 모드를 선택하세요.`);
+			}
+		})
+	);
+
+	// gitbbon custom: Issue #129 - gitbbon.generateCommitMessage 커맨드 (gitbbon-manager에서 위임 호출)
+	context.subscriptions.push(
+		vscode.commands.registerCommand('gitbbon.generateCommitMessage', async (diff: string): Promise<string | null> => {
+			logService.info('[debug:#129] gitbbon.generateCommitMessage 커맨드 실행');
+			const aiService = provider.getAIService();
+			try {
+				await aiService.ensureInitialized();
+				if (!aiService.hasApiKey()) {
+					logService.warn('[debug:#129] generateCommitMessage: API 키 없음');
+					return null;
+				}
+				// streamAgentChat 대신 단순 텍스트 생성용 API 직접 호출
+				const { generateText } = await import('ai');
+				const { createOpenAI } = await import('@ai-sdk/openai');
+				const apiKey = process.env.AI_GATEWAY_API_KEY || '';
+				const openai = createOpenAI({
+					apiKey,
+					baseURL: 'https://ai-gateway.vercel.sh/v1',
+				});
+				const { text } = await generateText({
+					model: openai('o4-mini'),
+					prompt: `다음 Git diff를 분석하여 간결하고 명확한 한글 커밋 메시지를 작성해주세요.\n\n규칙:\n변경 사항을 충실하게 설명\n커밋 메시지만 출력하고 다른 설명은 하지 마세요\n\nGit diff:\n\`\`\`\n${diff.substring(0, 3000)}\n\`\`\`\n\n커밋 메시지:`,
+				});
+				const result = text.trim();
+				logService.info(`[debug:#129] generateCommitMessage 완료: ${result.substring(0, 50)}`);
+				return result || null;
+			} catch (error) {
+				logService.error('[debug:#129] generateCommitMessage 실패:', error);
+				return null;
 			}
 		})
 	);

@@ -272,6 +272,18 @@ const App: React.FC = () => {
 					}
 					break;
 
+				// gitbbon custom: Issue #129 - 상태바 모델 선택 시 WebView 드롭다운 동기화
+				case 'model-changed':
+					if (message.backend === 'ollama' && message.model) {
+						setCurrentBackend('ollama');
+						setModelType('ondevice');
+						setSelectedModel(message.model);
+					} else if (message.backend === 'api') {
+						setCurrentBackend('api');
+						setModelType('gitbbon');
+					}
+					break;
+
 				// gitbbon custom: 저장된 선택 모델 복원
 				case 'selected-model':
 					if (message.model) {
