@@ -130,7 +130,6 @@ class GitbbonChatViewProvider implements vscode.WebviewViewProvider {
 				// gitbbon custom: Issue #134 - 채팅창 드롭다운에서 미설치 모델 선택 → 공통 확인 다이얼로그 경유
 				const modelName = message.model as string;
 				const sizeGB = message.sizeGB as number | undefined;
-				logService.info(`[debug:#134] pull-model 요청 수신: ${modelName}`);
 				await downloadModelWithConfirm(modelName, sizeGB, this);
 			} else if (message.type === 'pull-ollama-model') {
 				// gitbbon custom: Issue #69 - 미설치 모델 다운로드 요청 (상태표시줄 진행률 표시)
@@ -448,7 +447,6 @@ function getNonce() {
 
 // gitbbon custom: Issue #134 - 모델 다운로드 공통 함수 (확인 다이얼로그 포함)
 async function downloadModelWithConfirm(modelName: string, sizeGB: number | undefined, provider: GitbbonChatViewProvider): Promise<void> {
-	logService.info(`[debug:#134] downloadModelWithConfirm: ${modelName}, sizeGB=${sizeGB}`);
 	const sizeText = sizeGB && sizeGB > 0 ? ` (${sizeGB.toFixed(1)}GB)` : '';
 	const answer = await vscode.window.showInformationMessage(
 		`${modelName}${sizeText}을 다운로드하시겠습니까?`,
@@ -456,18 +454,15 @@ async function downloadModelWithConfirm(modelName: string, sizeGB: number | unde
 		'다운로드',
 		'취소'
 	);
-	logService.info(`[debug:#134] downloadModelWithConfirm: 사용자 응답=${answer}`);
 	if (answer !== '다운로드') {
 		return;
 	}
 	// WebView를 통해 pull-ollama-model 메시지로 다운로드 시작
 	const webviewView = (provider as any)._webviewView as vscode.WebviewView | undefined;
 	if (webviewView) {
-		logService.info(`[debug:#134] downloadModelWithConfirm: WebView에 pull-ollama-model 전달: ${modelName}`);
 		webviewView.webview.postMessage({ type: 'trigger-pull-model', model: modelName });
 	} else {
 		// WebView가 없으면 직접 pullModel 호출 (상태표시줄로 진행률 표시)
-		logService.info(`[debug:#134] downloadModelWithConfirm: WebView 없음, 직접 pullModel 호출: ${modelName}`);
 		vscode.window.withProgress(
 			{ location: vscode.ProgressLocation.Notification, title: `모델 다운로드: ${modelName}`, cancellable: false },
 			async (progress) => {
@@ -476,9 +471,7 @@ async function downloadModelWithConfirm(modelName: string, sizeGB: number | unde
 						progress.report({ increment: pct, message: `${pct}%` });
 					});
 					vscode.window.showInformationMessage(`모델 다운로드 완료: ${modelName}`);
-					logService.info(`[debug:#134] downloadModelWithConfirm: pullModel 완료: ${modelName}`);
 				} catch (err) {
-					logService.error(`[debug:#134] downloadModelWithConfirm: pullModel 실패: ${modelName}`, err);
 					vscode.window.showErrorMessage(`모델 다운로드 실패: ${modelName}`);
 				}
 			}
@@ -508,7 +501,6 @@ export function activate(context: vscode.ExtensionContext): void {
 			aiStatusBarItem.tooltip = 'Gitbbon AI (클릭하여 변경)';
 		}
 		aiStatusBarItem.show();
-		logService.info(`[debug:#129] updateAiStatusBar: backend=${backend}`);
 	}
 
 	// 초기 상태바 설정
@@ -582,7 +574,6 @@ export function activate(context: vscode.ExtensionContext): void {
 	// gitbbon custom: Issue #129 - 전역 AI 모델 선택 Quick Pick 커맨드
 	context.subscriptions.push(
 		vscode.commands.registerCommand('gitbbon.selectModel', async () => {
-			logService.info('[debug:#129] gitbbon.selectModel 커맨드 실행');
 			const config = vscode.workspace.getConfiguration('gitbbon');
 			const currentBackend = config.get<string>('ai.backend') || 'api';
 			const currentOllamaModel = config.get<string>('ai.ollamaModel') || '';
@@ -594,11 +585,9 @@ export function activate(context: vscode.ExtensionContext): void {
 				installedModels = await ollamaService.getInstalledModels();
 				recommendedModels = await ollamaService.getRecommendedModels();
 			} catch {
-				logService.warn('[debug:#129] Ollama 모델 목록 조회 실패 (Ollama 미실행)');
 			}
 
 			// gitbbon custom: Issue #131 - 현재 선택된 모델 강조를 위해 picked/activeItems 사용
-			logService.info(`[debug:#131] selectModel: currentBackend=${currentBackend}, currentOllamaModel=${currentOllamaModel}`);
 
 			const isApiCurrent = currentBackend === 'api';
 			const apiItem: vscode.QuickPickItem = {
@@ -643,7 +632,6 @@ export function activate(context: vscode.ExtensionContext): void {
 			const currentItem = items.find(item => item.picked);
 			if (currentItem) {
 				qp.activeItems = [currentItem];
-				logService.info(`[debug:#131] activeItem 설정: label="${currentItem.label}"`);
 			}
 
 			const selected = await new Promise<vscode.QuickPickItem | undefined>(resolve => {
@@ -671,7 +659,6 @@ export function activate(context: vscode.ExtensionContext): void {
 					webviewView.webview.postMessage({ type: 'model-changed', backend: 'api', model: '' });
 					webviewView.webview.postMessage({ type: 'backend-changed', backend: 'api' });
 				}
-				logService.info('[debug:#129] 모델 선택: Gitbbon AI (api)');
 			} else if (selected.label.includes('$(vm)')) {
 				// 온디바이스 설치된 모델 선택
 				// gitbbon custom: Issue #131 - $(check) 아이콘 prefix 제거 후 모델명 추출
@@ -687,7 +674,6 @@ export function activate(context: vscode.ExtensionContext): void {
 					webviewView.webview.postMessage({ type: 'backend-changed', backend: 'ollama' });
 					webviewView.webview.postMessage({ type: 'selected-model', model: modelName });
 				}
-				logService.info(`[debug:#129] 모델 선택: 온디바이스 ${modelName}`);
 			} else if (selected.label.startsWith('$(cloud-download)')) {
 				// gitbbon custom: Issue #134 - 미설치 모델 선택 시 공통 다운로드 함수 호출
 				const modelName = selected.label.replace('$(cloud-download) ', '').trim();
@@ -700,12 +686,10 @@ export function activate(context: vscode.ExtensionContext): void {
 	// gitbbon custom: Issue #129 - gitbbon.generateCommitMessage 커맨드 (gitbbon-manager에서 위임 호출)
 	context.subscriptions.push(
 		vscode.commands.registerCommand('gitbbon.generateCommitMessage', async (diff: string): Promise<string | null> => {
-			logService.info('[debug:#129] gitbbon.generateCommitMessage 커맨드 실행');
 			const aiService = provider.getAIService();
 			try {
 				await aiService.ensureInitialized();
 				if (!aiService.hasApiKey()) {
-					logService.warn('[debug:#129] generateCommitMessage: API 키 없음');
 					return null;
 				}
 				// streamAgentChat 대신 단순 텍스트 생성용 API 직접 호출
@@ -721,10 +705,8 @@ export function activate(context: vscode.ExtensionContext): void {
 					prompt: `다음 Git diff를 분석하여 간결하고 명확한 한글 커밋 메시지를 작성해주세요.\n\n규칙:\n변경 사항을 충실하게 설명\n커밋 메시지만 출력하고 다른 설명은 하지 마세요\n\nGit diff:\n\`\`\`\n${diff.substring(0, 3000)}\n\`\`\`\n\n커밋 메시지:`,
 				});
 				const result = text.trim();
-				logService.info(`[debug:#129] generateCommitMessage 완료: ${result.substring(0, 50)}`);
 				return result || null;
 			} catch (error) {
-				logService.error('[debug:#129] generateCommitMessage 실패:', error);
 				return null;
 			}
 		})

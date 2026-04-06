@@ -61,7 +61,6 @@ export class AIService {
 	public async getBackend(): Promise<'api' | 'ollama'> {
 		const config = vscode.workspace.getConfiguration('gitbbon');
 		const stored = config.get<string>('ai.backend');
-		logService.info(`[debug:#129] getBackend: config value=${stored}`);
 		return (stored === 'ollama') ? 'ollama' : 'api';
 	}
 
@@ -69,7 +68,6 @@ export class AIService {
 	public async setBackend(backend: 'api' | 'ollama'): Promise<void> {
 		const config = vscode.workspace.getConfiguration('gitbbon');
 		await config.update('ai.backend', backend, vscode.ConfigurationTarget.Global);
-		logService.info(`[debug:#129] setBackend: ${backend}`);
 	}
 
 	// gitbbon custom: Issue #129 - 선택된 Ollama 모델을 Configuration에서 읽기
@@ -82,7 +80,6 @@ export class AIService {
 	public async setOllamaModel(model: string): Promise<void> {
 		const config = vscode.workspace.getConfiguration('gitbbon');
 		await config.update('ai.ollamaModel', model, vscode.ConfigurationTarget.Global);
-		logService.info(`[debug:#129] setOllamaModel: ${model}`);
 	}
 
 	/**
