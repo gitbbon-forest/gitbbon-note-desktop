@@ -56,6 +56,12 @@ async function main() {
 		platform: 'browser',
 		outfile: 'dist/webview/main.js',
 		logLevel: 'silent',
+		// gitbbon custom: Vue compile-time feature flag 명시 정의 — tree-shaking 최적화 및 경고 제거 (이슈 #124)
+		define: {
+			__VUE_OPTIONS_API__: 'true',
+			__VUE_PROD_DEVTOOLS__: 'false',
+			__VUE_PROD_HYDRATION_MISMATCH_DETAILS__: 'false',
+		},
 		loader: {
 			'.ttf': 'file',
 			'.woff': 'file',
