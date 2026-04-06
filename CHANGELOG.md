@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.108.26](https://github.com/microsoft/vscode/compare/v1.108.25...v1.108.26) (2026-04-06)
+
+
+### Performance Improvements
+
+* Issue [#140](https://github.com/microsoft/vscode/issues/140) - graph diff 대용량/다수 파일 lazy load ([fbbdf9c](https://github.com/microsoft/vscode/commit/fbbdf9cbc079b277157afb6631bc3e522e3bf4ab))
+* Issue [#140](https://github.com/microsoft/vscode/issues/140) - lazy load 임계값 조정 (50KB, 50파일) ([797969f](https://github.com/microsoft/vscode/commit/797969fe530985382e1de66e41e0964d028ea511))
+
+
+### Chores
+
+* Issue [#140](https://github.com/microsoft/vscode/issues/140) - UX 문구 영어로 변경 및 debug 로그 제거 ([dd33820](https://github.com/microsoft/vscode/commit/dd3382030a3c5233db654f2ee2ebb87dde69f3ff))
+* Release v1.108.26 ([1ddffe3](https://github.com/microsoft/vscode/commit/1ddffe3c0caea21e764c423e1b812fb8d6c38744))
+
 ### [1.108.18](https://github.com/microsoft/vscode/compare/v1.108.18-beta.3...v1.108.18) (2026-01-04)
 
 
