@@ -301,8 +301,6 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 		// 변경 파일 목록 (파일명 + 크기) 빠르게 조회
 		const diffRange = parentHash ? `${parentHash}..${hash}` : `${hash}^..${hash}`;
 
-		logService.info(`[debug:#140] Checking diff lazy load for range: ${diffRange}`);
-
 		return new Promise((resolve) => {
 			// --diff-filter=ACDMRT: 바이너리 등 제외하고 실제 변경 파일만 조회
 			cp.exec(
@@ -310,7 +308,6 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 				{ cwd, maxBuffer: 1024 * 1024 },
 				async (err, stdout) => {
 					if (err) {
-						logService.warn(`[debug:#140] Failed to get file list for lazy load check: ${err.message}`);
 						// 오류 시 그냥 열기
 						resolve(true);
 						return;
@@ -318,38 +315,35 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
 					const files = stdout.trim().split('\n').filter(f => f);
 					const fileCount = files.length;
-					logService.info(`[debug:#140] Changed file count: ${fileCount}`);
 
 					// 파일 수 임계값 초과 시 사용자 확인
 					if (fileCount > GitGraphViewProvider.MAX_FILES_AUTO_LOAD) {
-						logService.info(`[debug:#140] File count (${fileCount}) exceeds threshold (${GitGraphViewProvider.MAX_FILES_AUTO_LOAD}), showing confirmation`);
 						const answer = await vscode.window.showWarningMessage(
-							`이 커밋에는 변경된 파일이 ${fileCount}개 있습니다. 한번에 로드하면 성능이 저하될 수 있습니다. diff를 열겠습니까?`,
+							`50+ files changed. Loading all at once may slow things down. Show changes anyway?`,
 							{ modal: false },
-							'diff 보기',
-							'취소'
+							'Show Changes',
+							'Cancel'
 						);
-						resolve(answer === 'diff 보기');
+						resolve(answer === 'Show Changes');
 						return;
 					}
 
 					// 파일 크기 검사 (대용량 파일 존재 여부)
 					const largeFiles = await this._findLargeFiles(cwd, files, hash, parentHash);
 					if (largeFiles.length > 0) {
-						const sizeKB = Math.round(GitGraphViewProvider.MAX_FILE_SIZE_AUTO_LOAD / 1024);
-						logService.info(`[debug:#140] Large files detected: ${largeFiles.join(', ')}`);
+						const count = largeFiles.length;
+						const fileNames = largeFiles.slice(0, 3).join(', ') + (count > 3 ? ' ...' : '');
 						const answer = await vscode.window.showWarningMessage(
-							`크기가 ${sizeKB}KB를 초과하는 파일이 ${largeFiles.length}개 있습니다 (${largeFiles.slice(0, 3).join(', ')}${largeFiles.length > 3 ? ' 외 ...' : ''}). diff를 열겠습니까?`,
+							`${count} file${count > 1 ? 's are' : ' is'} too large to load automatically (${fileNames}). Show changes anyway?`,
 							{ modal: false },
-							'diff 보기',
-							'취소'
+							'Show Changes',
+							'Cancel'
 						);
-						resolve(answer === 'diff 보기');
+						resolve(answer === 'Show Changes');
 						return;
 					}
 
 					// 임계값 이하 → 바로 열기
-					logService.info(`[debug:#140] File count and sizes within threshold, opening diff`);
 					resolve(true);
 				}
 			);
@@ -380,7 +374,6 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 						}
 					);
 				});
-				logService.info(`[debug:#140] File size check: ${file} = ${size} bytes`);
 				if (size > GitGraphViewProvider.MAX_FILE_SIZE_AUTO_LOAD) {
 					largeFiles.push(file);
 				}
