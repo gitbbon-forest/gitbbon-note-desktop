@@ -41,7 +41,7 @@ jobs:
           #   artifact_name: gitbbon-linux-x64
 
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 180  # 3시간 (macOS Rosetta 빌드 여유)
+    timeout-minutes: 300  # 5시간 (대규모 VS Code 포크 빌드 여유)
 
     steps:
       - name: Checkout
@@ -52,6 +52,19 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
+
+      - name: Cache build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            out
+            out-build
+            out-vscode
+            out-vscode-min
+          key: ${{ runner.os }}-${{ matrix.platform }}-build-${{ hashFiles('src/**/*.ts', 'extensions/**/*.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.platform }}-build-
 
       # 비활성 플랫폼용 단계 (활성화 시 주석 해제)
       # - name: Setup Python (macOS x64)
@@ -99,7 +112,7 @@ jobs:
 
           exit $BUILD_EXIT_CODE
         shell: bash
-        timeout-minutes: 170
+        timeout-minutes: 280
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 표준 러너 메모리에 맞춤 (macOS 14GB, Linux/Windows 7GB)
