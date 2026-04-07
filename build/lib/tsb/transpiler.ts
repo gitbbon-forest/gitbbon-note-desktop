@@ -374,11 +374,25 @@ export class ESBuildTranspiler implements ITranspiler {
 			const outBase = this._cmdLine.options.outDir ?? file.base;
 			const outPath = this._outputFileNames.getOutputFileName(file.path);
 
-			this.onOutfile!(new Vinyl({
+			// gitbbon custom: NLS 파이프라인이 f.sourceMap 속성을 필요로 하므로 inline 소스맵을 분리
+			const mapMatch = result.code.match(/\/\/# sourceMappingURL=data:application\/json;base64,(.+)$/m);
+			const codeWithoutMap = result.code.replace(/\n?\/\/# sourceMappingURL=.*$/m, '');
+			const outFile = new Vinyl({
 				path: outPath,
 				base: outBase,
-				contents: Buffer.from(result.code),
-			}));
+				contents: Buffer.from(codeWithoutMap),
+			});
+			if (mapMatch) {
+				try {
+					(outFile as any).sourceMap = JSON.parse(Buffer.from(mapMatch[1], 'base64').toString());
+					console.log(`[debug:#144] sourceMap 분리 성공: ${file.path}`);
+				} catch (e) {
+					console.error(`[debug:#144] sourceMap 파싱 실패: ${file.path}`, e);
+				}
+			} else {
+				console.warn(`[debug:#144] sourceMap 미발견: ${file.path}`);
+			}
+			this.onOutfile!(outFile);
 
 			this._logFn('Transpile', `esbuild took ${Date.now() - t1}ms for ${file.path}`);
 

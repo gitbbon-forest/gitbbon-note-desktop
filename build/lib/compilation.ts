@@ -114,7 +114,7 @@ export function transpileTask(src: string, out: string, esbuild?: boolean): task
 	return task;
 }
 
-export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean; preserveEnglish?: boolean } = {}): task.StreamTask {
+export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean; preserveEnglish?: boolean; esbuild?: boolean } = {}): task.StreamTask {
 
 	const task = () => {
 
@@ -122,7 +122,12 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 			throw new Error('compilation requires 4GB of RAM');
 		}
 
-		const compile = createCompile(src, { build, emitError: true, transpileOnly: false, preserveEnglish: !!options.preserveEnglish });
+		// gitbbon custom: esbuild 옵션으로 트랜스파일러 선택 분기 (빌드 속도 최적화)
+		const transpileOnly: boolean | { esbuild: boolean } = options.esbuild ? { esbuild: true } : false;
+		if (options.esbuild) {
+			console.log('[debug:#144] esbuild 트랜스파일 모드로 compile 실행');
+		}
+		const compile = createCompile(src, { build, emitError: true, transpileOnly, preserveEnglish: !!options.preserveEnglish });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 		const generator = new MonacoGenerator(false);
 		if (src === 'src') {
