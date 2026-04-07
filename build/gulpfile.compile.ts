@@ -14,7 +14,8 @@ function makeCompileBuildTask(disableMangle: boolean) {
 		util.rimraf('out-build'),
 		date.writeISODate('out-build'),
 		compilation.compileApiProposalNamesTask,
-		compilation.compileTask('src', 'out-build', true, { disableMangle })
+		// gitbbon custom: esbuild 트랜스파일 활성화로 릴리즈 빌드 속도 단축 (Issue #144)
+		compilation.compileTask('src', 'out-build', true, { disableMangle, esbuild: true })
 	);
 }
 
