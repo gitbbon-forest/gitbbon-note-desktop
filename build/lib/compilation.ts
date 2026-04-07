@@ -130,8 +130,13 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 		}
 
 		// mangle: TypeScript to TypeScript
+		// gitbbon custom: VSCODE_SKIP_MANGLE 환경변수로 Mangling 비활성화 옵션 추가 (빌드 시간 단축용)
+		const skipMangle = Boolean(process.env['VSCODE_SKIP_MANGLE']);
+		if (skipMangle) {
+			console.log('[debug:#143] VSCODE_SKIP_MANGLE=1 감지: Mangling 단계를 건너뜁니다.');
+		}
 		let mangleStream = es.through();
-		if (build && !options.disableMangle) {
+		if (build && !options.disableMangle && !skipMangle) {
 			let ts2tsMangler: Mangler | undefined = new Mangler(compile.projectPath, (...data) => fancyLog(ansiColors.blue('[mangler]'), ...data), { mangleExports: true, manglePrivateFields: true });
 			const newContentsByFileName = ts2tsMangler.computeNewFileContents(new Set(['saveState']));
 			mangleStream = es.through(async function write(data: File & { sourceMap?: RawSourceMap }) {

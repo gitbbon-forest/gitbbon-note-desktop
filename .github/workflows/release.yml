@@ -104,6 +104,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 표준 러너 메모리에 맞춤 (macOS 14GB, Linux/Windows 7GB)
           NODE_OPTIONS: ${{ runner.os == 'macOS' && '--max-old-space-size=12288' || '--max-old-space-size=6144' }}
+          # gitbbon custom: CI 빌드에서 TypeScript Mangling 비활성화하여 빌드 시간 단축 (#143)
+          VSCODE_SKIP_MANGLE: 1
 
       # gitbbon custom: macOS 코드 서명 및 공증 (Developer ID Application 인증서 사용)
       - name: Code sign and notarize (macOS)
