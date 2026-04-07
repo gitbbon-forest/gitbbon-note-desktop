@@ -735,10 +735,12 @@ Refer to **AGENTS.md** for the agent instructions for this project.
 	 */
 	private async hasChanges(cwd: string): Promise<boolean> {
 		try {
+			// [debug:#148] 이 비교는 디스크 파일 vs HEAD (git status --porcelain)
 			const status = await this.execGit(['status', '--porcelain'], cwd);
 			const hasChanges = status.length > 0;
+			const lines = status.split('\n').filter(line => line.trim());
+			logService.info(`[debug:#148] hasChanges result: ${hasChanges} | disk status lines (first 3): ${JSON.stringify(lines.slice(0, 3))}`);
 			if (hasChanges) {
-				const lines = status.split('\n').filter(line => line.trim());
 				logService.info(`[gitbbon-manager][projectManager] Found ${lines.length} changed files`);
 			} else {
 				logService.info(`[gitbbon-manager][projectManager] No changes found`);
@@ -840,6 +842,7 @@ Refer to **AGENTS.md** for the agent instructions for this project.
 
 		// 임시 인덱스 파일 경로 생성 (사용자 인덱스 보호)
 		const tempIndexFile = path.join(cwd, '.git', `index-autosave-${Date.now()}`);
+		logService.info(`[debug:#148] tempIndexFile path: ${tempIndexFile}`);
 		const env = { 'GIT_INDEX_FILE': tempIndexFile };
 
 		try {
@@ -855,7 +858,9 @@ Refer to **AGENTS.md** for the agent instructions for this project.
 
 			// 1. Stage all changes (into TEMP index)
 			logService.info('[gitbbon-manager][projectManager] Staging all changes to temp index...');
+			logService.info(`[debug:#148] git add . at: ${Date.now()}`);
 			await this.execGit(['add', '.'], cwd, { env });
+			logService.info(`[debug:#148] git add . done at: ${Date.now()}`);
 
 			// 2. auto-save 브랜치 없으면 생성
 			if (!(await this.branchExists(autoSaveBranch, cwd))) {
@@ -879,7 +884,9 @@ Refer to **AGENTS.md** for the agent instructions for this project.
 
 			// 3. Tree 생성 (from TEMP index)
 			logService.info('[gitbbon-manager][projectManager] Creating git tree...');
+			logService.info(`[debug:#148] git write-tree at: ${Date.now()}`);
 			const treeId = await this.execGit(['write-tree'], cwd, { env });
+			logService.info(`[debug:#148] git write-tree done: treeId=${treeId.trim()} at: ${Date.now()}`);
 
 			// 4. auto-save 브랜치의 부모 커밋 가져오기 (이미 존재함이 확인됨)
 			let parentCommit: string | null = null;
@@ -894,6 +901,7 @@ Refer to **AGENTS.md** for the agent instructions for this project.
 			const changePreview = await this.getChangePreview(cwd, compareRef, 20, { env });
 			const commitMessage = changePreview || '변경사항 저장';
 			logService.info(`[gitbbon-manager][projectManager] Creating commit with message: ${commitMessage}`);
+			logService.info(`[debug:#148] git commit-tree at: ${Date.now()}, parentCommit: ${parentCommit?.trim()}`);
 			let newCommitId: string;
 			if (parentCommit) {
 				newCommitId = await this.execGit(['commit-tree', treeId, '-p', parentCommit, '-m', commitMessage], cwd);
@@ -901,10 +909,13 @@ Refer to **AGENTS.md** for the agent instructions for this project.
 				// 이론상 여기에 도달하면 안 됨 (위에서 생성했으므로)
 				newCommitId = await this.execGit(['commit-tree', treeId, '-m', commitMessage], cwd);
 			}
+			logService.info(`[debug:#148] git commit-tree done: newCommitId=${newCommitId.trim()} at: ${Date.now()}`);
 
 			// 6. auto-save 브랜치 ref 업데이트
 			logService.info(`[gitbbon-manager][projectManager] Updating ${autoSaveBranch} ref to ${newCommitId}`);
+			logService.info(`[debug:#148] git update-ref ${autoSaveBranch} at: ${Date.now()}`);
 			await this.execGit(['update-ref', `refs/heads/${autoSaveBranch}`, newCommitId], cwd);
+			logService.info(`[debug:#148] git update-ref done at: ${Date.now()}`);
 
 			// 7. Index 초기화 불필요 (Temp Index 사용으로 인해 메인 인덱스 오염 없음)
 			// logService.info('[gitbbon-manager][projectManager] Resetting index after auto commit...');

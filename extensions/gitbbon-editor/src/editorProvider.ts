@@ -534,9 +534,11 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 		const resetTimers = () => {
 			// 1. Auto Save Timer Reset
 			if (autoSaveTimer) {
+				logService.info(`[debug:#148] autoSaveTimer cancelled at: ${Date.now()}`);
 				clearTimeout(autoSaveTimer);
 			}
 			autoSaveTimer = setTimeout(async () => {
+				logService.info(`[debug:#148] autoSaveTimer fired at: ${Date.now()}, isDirty: ${document.isDirty}, isUntitled: ${document.isUntitled}`);
 				// Untitled 문서는 자동 저장하지 않음 (저장 대화상자 방지)
 				if (document.isUntitled) {
 					return;
@@ -548,9 +550,11 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 					logService.error('Auto save failed:', error);
 				}
 			}, AUTO_SAVE_DELAY_MS);
+			logService.info(`[debug:#148] autoSaveTimer started at: ${Date.now()}, delay: ${AUTO_SAVE_DELAY_MS}ms`);
 
 			// 2. Auto Commit Timer Reset (MVP: 3s fixed)
 			if (autoCommitTimer) {
+				logService.info(`[debug:#148] autoCommitTimer cancelled at: ${Date.now()}`);
 				clearTimeout(autoCommitTimer);
 			}
 
@@ -558,6 +562,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			const delay = 500;
 
 			autoCommitTimer = setTimeout(async () => {
+				logService.info(`[debug:#148] autoCommitTimer fired at: ${Date.now()}, isDirty: ${document.isDirty}, isUntitled: ${document.isUntitled}`);
 				// Untitled 문서는 자동 커밋하지 않음
 				if (document.isUntitled) {
 					return;
@@ -567,7 +572,9 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 					await document.save();
 
 					// 자동 커밋 실행
+					logService.info(`[debug:#148] Executing autoCommit command at: ${Date.now()}, isDirty: ${document.isDirty}`);
 					const result = await vscode.commands.executeCommand('gitbbon.manager.autoCommit') as { success: boolean; message: string } | undefined;
+					logService.info(`[debug:#148] autoCommit result: success=${result?.success}, message=${result?.message}`);
 					if (result?.success) {
 						// 커밋 성공 시 기준 텍스트 갱신
 						lastCommittedText = document.getText();
@@ -585,6 +592,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 					logService.error('Auto commit failed:', error);
 				}
 			}, delay);
+			logService.info(`[debug:#148] autoCommitTimer started at: ${Date.now()}, delay: ${delay}ms`);
 		};
 
 		let isWebviewUpdating = false;
@@ -599,11 +607,13 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 					case 'update':
 						const fullText = FrontmatterParser.stringify(message.frontmatter, message.content);
 						if (fullText === lastWebviewText) {
+							logService.info(`[debug:#148] update early-return: lastWebviewText === fullText at ${Date.now()}, length: ${fullText.length}`);
 							return; // 내용이 같으면 무시
 						}
 						// gitbbon custom: 저장 후 실제 문서 내용으로 업데이트 (메타데이터 포함)
 						// 아직 저장 전이므로 임시로 fullText 저장
 
+						logService.info(`[debug:#148] isWebviewUpdating entering at: ${Date.now()}`);
 						isWebviewUpdating = true;
 						try {
 							await this.updateDocument(document, message.frontmatter, message.content);
@@ -611,6 +621,7 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 							lastWebviewText = document.getText();
 						} finally {
 							isWebviewUpdating = false;
+							logService.info(`[debug:#148] isWebviewUpdating exiting at: ${Date.now()}`);
 						}
 						// 문서 업데이트 후 타이머 리셋 (Auto Save & Auto Commit)
 						resetTimers();
