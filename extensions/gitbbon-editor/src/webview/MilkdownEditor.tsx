@@ -417,7 +417,10 @@ const EditorComponent = forwardRef<MilkdownEditorRef, EditorComponentInternalPro
 					const doc = parser(markdown);
 					if (!doc) return;
 					const { state } = view;
-					view.dispatch(state.tr.replaceWith(0, state.doc.content.size, doc).setSelection(Selection.atStart(doc)));
+					// gitbbon custom: tr.doc을 사용해야 replaceWith 후의 실제 문서를 참조함
+					// Selection.atStart(doc)은 파서가 만든 원본 doc 객체를 참조하여 RangeError 발생
+					const tr = state.tr.replaceWith(0, state.doc.content.size, doc);
+					view.dispatch(tr.setSelection(Selection.atStart(tr.doc)));
 				});
 				// 플래그 해제 (동기적으로 즉시 해제)
 				setTimeout(() => {

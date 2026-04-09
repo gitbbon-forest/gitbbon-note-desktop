@@ -801,6 +801,8 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 				}
 				lastWebviewText = currentText;
 
+				logService.info(`[debug:#84] onDidChangeTextDocument 감지: ${document.uri.fsPath}`);
+
 				const { frontmatter, content } = FrontmatterParser.parse(currentText);
 				webviewPanel.webview.postMessage({
 					type: 'update',
@@ -810,9 +812,108 @@ export class GitbbonEditorProvider implements vscode.CustomTextEditorProvider {
 			}
 		});
 
+		// gitbbon custom: 외부 파일 변경 감지 - FileSystemWatcher로 디스크 레벨 변경 감지
+		// onDidChangeTextDocument는 VS Code가 이미 열어둔 문서의 메모리 내 변경만 감지하므로,
+		// claude code 등 외부 도구가 파일을 직접 수정하면 감지 못하는 경우가 있음.
+		// FileSystemWatcher를 추가하여 디스크 레벨의 파일 변경을 직접 감지함.
+		let fileWatcher: vscode.FileSystemWatcher | undefined;
+		if (document.uri.scheme === 'file') {
+			// gitbbon custom: 파일 자체의 절대 경로로 watcher 생성
+			const dirUri = vscode.Uri.file(path.dirname(document.uri.fsPath));
+			const fileName = path.basename(document.uri.fsPath);
+			fileWatcher = vscode.workspace.createFileSystemWatcher(
+				new vscode.RelativePattern(dirUri, fileName)
+			);
+
+			fileWatcher.onDidChange(async (uri) => {
+				if (uri.toString() !== document.uri.toString()) {
+					return;
+				}
+				if (isWebviewUpdating) {
+					logService.info(`[debug:#84] FileSystemWatcher: webview 업데이트 중이므로 무시`);
+					return;
+				}
+
+				logService.info(`[debug:#84] FileSystemWatcher 파일 변경 감지: ${uri.fsPath}`);
+
+				try {
+					// 파일을 다시 읽어서 최신 내용 가져오기
+					const contentUint8 = await vscode.workspace.fs.readFile(uri);
+					const diskText = new TextDecoder().decode(contentUint8);
+
+					// 현재 document 내용과 비교 (document가 이미 업데이트되었을 수 있음)
+					const docText = document.getText();
+
+					// 디스크 내용과 lastWebviewText가 다를 때만 업데이트 전송
+					if (diskText === lastWebviewText) {
+						logService.info(`[debug:#84] FileSystemWatcher: 내용 동일 - 업데이트 불필요`);
+						return;
+					}
+
+					// document 내용도 이미 최신이면 lastWebviewText만 업데이트
+					if (docText === diskText) {
+						// onDidChangeTextDocument가 이미 처리했을 수 있으니 lastWebviewText 확인
+						if (lastWebviewText === diskText) {
+							return;
+						}
+					}
+
+					logService.info(`[debug:#84] FileSystemWatcher: 외부 변경 감지 - webview 업데이트 전송`);
+					lastWebviewText = diskText;
+
+					const { frontmatter, content } = FrontmatterParser.parse(diskText);
+					webviewPanel.webview.postMessage({
+						type: 'update',
+						frontmatter,
+						content
+					});
+				} catch (error) {
+					logService.error('[debug:#84] FileSystemWatcher 파일 읽기 실패:', error);
+				}
+			});
+		}
+
+		// gitbbon custom: VS Code 창 포커스 복귀 시 디스크에서 직접 읽어 외부 변경 감지
+		// onDidChangeTextDocument와 FileSystemWatcher는 CustomTextEditor에서
+		// 외부 도구(claude code 등)의 변경을 자동으로 감지하지 못함.
+		// onDidChangeWindowState는 OS 창 전환 시에도 발생하여 이 문제를 해결함.
+		const windowFocusSubscription = vscode.window.onDidChangeWindowState(async (e) => {
+			if (!e.focused) {
+				return;
+			}
+			// gitbbon custom: active 대신 visible 사용 - 창 전환 시 webview가 visible이지만 active가 아닐 수 있음
+			if (!webviewPanel.visible) {
+				return;
+			}
+			if (document.uri.scheme !== 'file') {
+				return;
+			}
+			logService.info(`[debug:#84] onDidChangeWindowState focused=true active=${webviewPanel.active} visible=${webviewPanel.visible}`);
+			try {
+				const contentUint8 = await vscode.workspace.fs.readFile(document.uri);
+				const diskText = new TextDecoder().decode(contentUint8);
+				logService.info(`[debug:#84] diskText.length=${diskText.length} lastWebviewText.length=${lastWebviewText.length} same=${diskText === lastWebviewText}`);
+				if (diskText !== lastWebviewText) {
+					logService.info(`[debug:#84] 외부 변경 감지 - revertFile로 TextDocument 동기화`);
+					// gitbbon custom: postMessage만으로는 VS Code TextDocument(메모리)가 구버전으로 남아
+					// auto-save 시 "file is newer" 충돌이 발생함.
+					// revertFile로 TextDocument를 디스크와 동기화하면 onDidChangeTextDocument가 발생하고,
+					// 해당 핸들러에서 webview를 업데이트함.
+					await vscode.commands.executeCommand('workbench.action.revertFile');
+					logService.info(`[debug:#84] revertFile 완료`);
+				}
+			} catch (error) {
+				logService.error('[debug:#84] onDidChangeWindowState 파일 읽기 실패:', error);
+			}
+		});
+
 		// Cleanup
 		webviewPanel.onDidDispose(() => {
 			changeDocumentSubscription.dispose();
+			// gitbbon custom: FileSystemWatcher 정리 (외부 파일 변경 감지용)
+			fileWatcher?.dispose();
+			// gitbbon custom: 창 포커스 구독 정리 (외부 파일 변경 감지용)
+			windowFocusSubscription.dispose();
 			if (autoSaveTimer) {
 				clearTimeout(autoSaveTimer);
 			}
