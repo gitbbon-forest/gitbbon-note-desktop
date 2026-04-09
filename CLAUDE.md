@@ -60,6 +60,12 @@ const keybinding = overrideKeybinding; // gitbbon custom: gitbbon 커스텀 단�
 
 ---
 
+## Extension 테스트 스킬
+
+새 Extension 테스트 스킬을 만들 때는 `.claude/skills/test-electron-gitbbon-chat/SKILL.md`를 마더 스킬로 참조한다.
+
+---
+
 ## 참고 문서
 
 - [README.md](./README.md) - 프로젝트 전체 구조 및 아키텍처
