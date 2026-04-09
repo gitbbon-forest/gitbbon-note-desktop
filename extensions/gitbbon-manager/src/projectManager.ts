@@ -12,6 +12,10 @@ import { DiffParser } from './diffParser';
 import { CommitMessageGenerator } from './commitMessageGenerator';
 import { logService } from './services/logService';
 
+// gitbbon custom: #138 - diff 크기 제한 상수 (추후 설정화 가능하도록 상수로 분리)
+const DIFF_MAX_FILES = 5;        // staged 파일 수 최대 허용값
+const DIFF_MAX_LINES_PER_FILE = 20; // 파일당 최대 diff 줄 수
+
 
 interface Project {
 	name: string;
@@ -34,6 +38,45 @@ export class ProjectManager {
 		this.rootPath = path.join(os.homedir(), 'Documents', 'Gitbbon_Notes');
 		// gitbbon custom: Issue #129 - AI 기능 gitbbon-chat에 위임, secrets 불필요
 		this.commitMessageGenerator = new CommitMessageGenerator();
+	}
+
+	// gitbbon custom: #138 - staged diff를 파일 수/크기 제한하여 반환하는 헬퍼 (전체 규모 정보 포함)
+	private buildLimitedDiff(rawDiff: string): { truncatedDiff: string; totalFiles: number; totalLines: number; isTruncated: boolean } {
+		// 각 파일 diff는 "diff --git" 으로 시작
+		const fileDiffs = rawDiff.split(/(?=^diff --git )/m).filter(d => d.trim());
+		const totalFiles = fileDiffs.length;
+		const totalLines = rawDiff.split('\n').length;
+
+		const includedDiffs: string[] = [];
+		const skippedFiles: string[] = [];
+		let hasLineTruncation = false;
+
+		for (const fileDiff of fileDiffs) {
+			if (includedDiffs.length >= DIFF_MAX_FILES) {
+				// 파일명만 추출하여 요약에 추가
+				const match = fileDiff.match(/^diff --git a\/.+ b\/(.+)$/m);
+				skippedFiles.push(match ? match[1] : '(unknown)');
+				continue;
+			}
+
+			const lines = fileDiff.split('\n');
+			if (lines.length > DIFF_MAX_LINES_PER_FILE) {
+				hasLineTruncation = true;
+				const truncated = lines.slice(0, DIFF_MAX_LINES_PER_FILE).join('\n');
+				includedDiffs.push(truncated + `\n... (truncated: ${lines.length - DIFF_MAX_LINES_PER_FILE} more lines)`);
+			} else {
+				includedDiffs.push(fileDiff);
+			}
+		}
+
+		let truncatedDiff = includedDiffs.join('\n');
+		if (skippedFiles.length > 0) {
+			truncatedDiff += `\n\n# 파일 수 제한으로 제외된 파일 (${skippedFiles.length}개):\n` +
+				skippedFiles.map(f => `# - ${f}`).join('\n');
+		}
+		// gitbbon custom: #138 - 실제로 잘린 경우에만 isTruncated true 반환
+		const isTruncated = skippedFiles.length > 0 || hasLineTruncation;
+		return { truncatedDiff, totalFiles, totalLines, isTruncated };
 	}
 
 	/**
@@ -808,10 +851,13 @@ Refer to **AGENTS.md** for the agent instructions for this project.
 			// -U0 옵션으로 컨텍스트 라인을 제거하여 파싱 용이성 확보
 			diffArgs.push('-U0');
 
-			const diff = await this.execGit(diffArgs, cwd, { silent: true, env: options.env });
-			if (!diff) {
+			const rawDiff = await this.execGit(diffArgs, cwd, { silent: true, env: options.env });
+			if (!rawDiff) {
 				return '';
 			}
+
+			// gitbbon custom: #138 - 불필요하게 큰 diff를 메모리에 올리지 않도록 buildLimitedDiff로 용량 제한
+			const { truncatedDiff: diff } = this.buildLimitedDiff(rawDiff);
 
 			const preview = DiffParser.extractChange(diff, maxLength);
 			if (preview) {
@@ -956,9 +1002,10 @@ Refer to **AGENTS.md** for the agent instructions for this project.
 			if (!message && await this.commitMessageGenerator.isConfigured()) {
 				logService.info('[gitbbon-manager][projectManager] Generating commit message using LLM...');
 				try {
-					// 현재 staged 상태의 diff 가져오기
-					const diff = await this.execGit(['diff', '--cached'], cwd, { silent: true });
-					const generatedMessage = await this.commitMessageGenerator.generateCommitMessage(diff);
+					// gitbbon custom: #138 - 전체 diff 대신 파일 수/크기 제한 적용, 전체 규모 정보 포함
+					const rawDiff = await this.execGit(['diff', '--cached'], cwd, { silent: true });
+					const { truncatedDiff, totalFiles, totalLines, isTruncated } = this.buildLimitedDiff(rawDiff);
+					const generatedMessage = await this.commitMessageGenerator.generateCommitMessage(truncatedDiff, totalFiles, totalLines, isTruncated);
 					if (generatedMessage) {
 						message = generatedMessage;
 						logService.info(`[gitbbon-manager][projectManager] LLM generated message: ${message}`);

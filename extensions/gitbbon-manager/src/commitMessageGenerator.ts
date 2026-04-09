@@ -14,10 +14,14 @@ export class CommitMessageGenerator {
 	/**
 	 * Git diff를 분석하여 커밋 메시지를 생성합니다.
 	 * gitbbon-chat Extension의 gitbbon.generateCommitMessage 커맨드에 위임합니다.
-	 * @param diff Git diff 내용
+	 * @param diff 잘라낸 Git diff 내용
+	 * @param totalFiles 전체 변경 파일 수 (truncation 전)
+	 * @param totalLines 전체 diff 줄 수 (truncation 전)
+	 * @param isTruncated 실제로 diff가 잘렸는지 여부
 	 * @returns 생성된 커밋 메시지 또는 null
 	 */
-	public async generateCommitMessage(diff: string): Promise<string | null> {
+	// gitbbon custom: #138 - 전체 규모 정보(totalFiles, totalLines, isTruncated)를 커맨드에 전달
+	public async generateCommitMessage(diff: string, totalFiles: number, totalLines: number, isTruncated: boolean = false): Promise<string | null> {
 		if (!diff || diff.trim().length === 0) {
 			return null;
 		}
@@ -35,7 +39,10 @@ export class CommitMessageGenerator {
 		try {
 			const result = await vscode.commands.executeCommand<string | null>(
 				'gitbbon.generateCommitMessage',
-				diff
+				diff,
+				totalFiles,
+				totalLines,
+				isTruncated
 			);
 			return result || null;
 		} catch (error: any) {
