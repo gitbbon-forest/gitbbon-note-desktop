@@ -263,27 +263,53 @@ export class AIService {
 			model = 'openai/o4-mini';
 		}
 
+		// Issue #90: gitbbon-manager ExtensionAPI로 컨텍스트 조회, 없으면 기존 VS Code API fallback
+		const managerExt = vscode.extensions.getExtension('gitbbon.gitbbon-manager');
+		const managerContext = managerExt?.exports?.getContext?.() ?? null;
+		const contextFileData = managerContext;
+		logService.info('[debug:#90] managerExt 활성화 여부:', managerExt ? 'active' : 'not found');
+		logService.info('[debug:#90] contextFileData 로드 결과:', contextFileData ? 'found' : 'fallback 사용');
+
 		// Context collection
-		const activeFile = ContextService.getActiveFileName();
+		let activeFile: string;
 		let selectionPreview = 'None';
-		const selectionDetail = await ContextService.getSelection();
+		let selectionDetail: { text: string; before: string; after: string } | null = null;
 		const SELECTION_LIMIT = 1000;
 
-		if (selectionDetail) {
-			const { text, before, after } = selectionDetail;
-			const isTruncated = text.length > SELECTION_LIMIT;
-			const truncatedText = text.slice(0, SELECTION_LIMIT) + (isTruncated ? '...' : '');
-			selectionPreview = `[Context Before]\n${before}\n\n[Selected Text]\n${truncatedText}\n\n[Context After]\n${after}`;
+		if (contextFileData) {
+			// Issue #90: 컨텍스트 파일 우선 사용
+			activeFile = contextFileData.activeFile || 'None';
+			if (contextFileData.selection?.text) {
+				const { text } = contextFileData.selection;
+				const isTruncated = text.length > SELECTION_LIMIT;
+				const truncatedText = text.slice(0, SELECTION_LIMIT) + (isTruncated ? '...' : '');
+				selectionPreview = `[Selected Text]\n${truncatedText}`;
+				selectionDetail = { text, before: '', after: '' };
+			}
+		} else {
+			// Fallback: 기존 에디터 API 직접 호출
+			activeFile = ContextService.getActiveFileName();
+			selectionDetail = await ContextService.getSelection();
+			if (selectionDetail) {
+				const { text, before, after } = selectionDetail;
+				const isTruncated = text.length > SELECTION_LIMIT;
+				const truncatedText = text.slice(0, SELECTION_LIMIT) + (isTruncated ? '...' : '');
+				selectionPreview = `[Context Before]\n${before}\n\n[Selected Text]\n${truncatedText}\n\n[Context After]\n${after}`;
+			}
 		}
 
 		let cursorContext = 'None';
 		if (!selectionDetail) {
-			const context = await ContextService.getCursorContext();
-			if (context) cursorContext = context;
+			if (contextFileData?.cursorContext) {
+				cursorContext = contextFileData.cursorContext;
+			} else {
+				const context = await ContextService.getCursorContext();
+				if (context) cursorContext = context;
+			}
 		}
 
 		const olderMessageCount = Math.max(0, messages.length - 5);
-		const openTabs = ContextService.getOpenTabs();
+		const openTabs = contextFileData?.openFiles ?? ContextService.getOpenTabs();
 		const contextParts: string[] = ['[Current Environment Context]'];
 
 		const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -300,7 +326,7 @@ export class AIService {
 		if (selectionPreview !== 'None') contextParts.push(`\n- Selection Preview:\n"""\n${selectionPreview}\n"""`);
 		if (cursorContext !== 'None' && selectionPreview === 'None') contextParts.push(`\n- Cursor Context:\n"""\n${cursorContext}\n"""`);
 		if (olderMessageCount > 0) contextParts.push(`\n- Older Chat History: ${olderMessageCount} messages`);
-		if (openTabs.length > 0) contextParts.push(`\n- Open Files:\n${openTabs.map(l => `  - ${l}`).join('\n')}`);
+		if (openTabs.length > 0) contextParts.push(`\n- Open Files:\n${openTabs.map((l: string) => `  - ${l}`).join('\n')}`);
 
 		const previousMessages = messages.slice(0, -1).slice(-4);
 		if (previousMessages.length > 0) {

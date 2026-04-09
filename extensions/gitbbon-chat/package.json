@@ -17,6 +17,9 @@
   "activationEvents": [
     "*"
   ],
+  "extensionDependencies": [
+    "gitbbon.gitbbon-manager"
+  ],
   "main": "./out/extension.js",
   "capabilities": {
     "virtualWorkspaces": false,
