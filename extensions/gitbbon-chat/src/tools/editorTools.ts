@@ -2,6 +2,9 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import type { ModelMessage } from 'ai';
 import { ContextService } from '../services/ContextService';
+// gitbbon custom: Issue #111 - IContextService 주입 지원 (TDE mock 주입 가능)
+import type { IContextService } from '../interfaces/IContextService';
+import { ContextServiceAdapter } from '../services/ContextService';
 import { executeSearch } from './implementations/searchTool';
 import { createHistoryTool } from './implementations/historyTool';
 import { type ToolEventEmitter, generateToolId } from '../types';
@@ -24,9 +27,11 @@ function getToolLabel(toolName: string): string {
 }
 
 // gitbbon custom: Issue #99 - experimental_context 타입 정의
+// gitbbon custom: Issue #111 - contextService 필드 추가 (mock 주입 지원)
 export interface EditorToolContext {
 	messages: ModelMessage[];
 	emitter?: ToolEventEmitter;
+	contextService?: IContextService;
 }
 
 /**
@@ -82,17 +87,22 @@ function withProgress<T>(
 /**
  * EditorTools Factory
  * gitbbon custom: Issue #99 - closure 의존성 제거, experimental_context로 messages/emitter 수신
+ * gitbbon custom: Issue #111 - contextService 주입 지원 (기본값: ContextServiceAdapter)
  */
-export function createEditorTools() {
+export function createEditorTools(defaultContextService?: IContextService) {
+	// 기본 contextService (주입 없으면 ContextServiceAdapter 사용)
+	const defaultCtxSvc: IContextService = defaultContextService ?? new ContextServiceAdapter();
 	return {
 		get_selection: tool({
 			description: 'Get selected text from the active editor. Use for "this code", "selected part", etc.',
 			inputSchema: z.object({}),
 			execute: async (_input, { experimental_context: ctx }) => {
 				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
-				const { emitter } = (ctx ?? {}) as EditorToolContext;
+				// gitbbon custom: Issue #111 - contextService 주입 지원
+				const { emitter, contextService } = (ctx ?? {}) as EditorToolContext;
+				const ctxSvc = contextService ?? defaultCtxSvc;
 				return withProgress('get_selection', {}, emitter, async () => {
-					const detail = await ContextService.getSelection();
+					const detail = await ctxSvc.getSelection();
 					if (detail) {
 						return `
 [Context Before]
@@ -115,9 +125,11 @@ ${detail.after}
 			inputSchema: z.object({}),
 			execute: async (_input, { experimental_context: ctx }) => {
 				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
-				const { emitter } = (ctx ?? {}) as EditorToolContext;
+				// gitbbon custom: Issue #111 - contextService 주입 지원
+				const { emitter, contextService } = (ctx ?? {}) as EditorToolContext;
+				const ctxSvc = contextService ?? defaultCtxSvc;
 				return withProgress('get_current_file', {}, emitter, async () => {
-					const content = await ContextService.getActiveFileContent();
+					const content = await ctxSvc.getActiveFileContent();
 					if (content) return content;
 					return "No active editor found. Do NOT retry — use read_file with a specific file path instead.";
 				});
@@ -149,6 +161,7 @@ ${detail.after}
 			}),
 			execute: async (args, { experimental_context: ctx }) => {
 				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
+				// gitbbon custom: Issue #111 - contextService 주입 지원 (search는 vscode 의존이므로 emitter만 사용)
 				const { emitter } = (ctx ?? {}) as EditorToolContext;
 				return withProgress('search_in_workspace', { query: args.query }, emitter, () => executeSearch(args));
 			},
@@ -161,10 +174,12 @@ ${detail.after}
 			}),
 			execute: async ({ filePath }, { experimental_context: ctx }) => {
 				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
-				const { emitter } = (ctx ?? {}) as EditorToolContext;
+				// gitbbon custom: Issue #111 - contextService 주입 지원
+				const { emitter, contextService } = (ctx ?? {}) as EditorToolContext;
+				const ctxSvc = contextService ?? defaultCtxSvc;
 				return withProgress('read_file', { filePath }, emitter, async () => {
 					try {
-						return await ContextService.readFile(filePath);
+						return await ctxSvc.readFile(filePath);
 					} catch (e) {
 						return `Error: Failed to read file (${filePath}). ${e}`;
 					}
@@ -192,22 +207,24 @@ ${detail.after}
 			}),
 			execute: async ({ action, filePath, title, content, changes, mode }, { experimental_context: ctx }) => {
 				// gitbbon custom: Issue #99 - experimental_context에서 emitter 수신
-				const { emitter } = (ctx ?? {}) as EditorToolContext;
+				// gitbbon custom: Issue #111 - contextService 주입 지원
+				const { emitter, contextService } = (ctx ?? {}) as EditorToolContext;
+				const ctxSvc = contextService ?? defaultCtxSvc;
 				return withProgress('edit_note', { action, filePath }, emitter, async () => {
 					try {
 						switch (action) {
 							case 'create':
 								if (!content) return 'Error: content required.';
-								return await ContextService.createNote(filePath, content, title);
+								return await ctxSvc.createNote(filePath, content, title);
 							case 'update':
 								if (!changes?.length) return 'Error: changes required.';
-								await ContextService.applySuggestions(filePath, changes, mode || 'direct');
+								await ctxSvc.applySuggestions(filePath, changes, mode || 'direct');
 								if ((mode || 'direct') === 'suggestion') {
 									return `Suggestion applied to ${filePath}. Changes are shown in the UI pending user approval — do NOT read or re-edit this file.`;
 								}
 								return `Updated: ${filePath}`;
 							case 'delete':
-								return await ContextService.deleteNote(filePath);
+								return await ctxSvc.deleteNote(filePath);
 							default:
 								return `Error: Unknown action ${action}`;
 						}
@@ -215,7 +232,8 @@ ${detail.after}
 						const msg = e instanceof Error ? e.message : String(e);
 						if (action === 'update') {
 							try {
-								const fileContent = await ContextService.readFile(filePath);
+								// gitbbon custom: Issue #111 - contextService 주입 지원
+								const fileContent = await ctxSvc.readFile(filePath);
 								return `Error: ${msg}\n\n[Current Content]\n${fileContent}`;
 							} catch { /* ignore */ }
 						}
